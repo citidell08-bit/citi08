@@ -319,36 +319,25 @@
           <p id="dungeon-portal-name" class="book-tag"></p>
           <fieldset class="difficulty-field portal-diff">
             <legend>Dungeon difficulty</legend>
-            <div class="diff-grid" role="radiogroup" aria-label="Dungeon difficulty">
-              <label class="diff-option">
-                <input type="radio" name="dungeon-difficulty" value="easy" checked />
-                <span class="diff-card">
-                  <strong>Easy</strong>
-                  <small>Weaker foes · basic chest loot</small>
-                </span>
-              </label>
-              <label class="diff-option">
-                <input type="radio" name="dungeon-difficulty" value="medium" />
-                <span class="diff-card">
-                  <strong>Medium</strong>
-                  <small>Fair monsters · solid loot</small>
-                </span>
-              </label>
-              <label class="diff-option">
-                <input type="radio" name="dungeon-difficulty" value="hard" />
-                <span class="diff-card">
-                  <strong>Hard</strong>
-                  <small>Tough packs · rare gear</small>
-                </span>
-              </label>
-              <label class="diff-option raid">
-                <input type="radio" name="dungeon-difficulty" value="raid" />
-                <span class="diff-card">
-                  <strong>Raid</strong>
-                  <small>Brutal · legendary chests</small>
-                </span>
-              </label>
+            <div id="portal-diff-grid" class="diff-grid" role="radiogroup" aria-label="Dungeon difficulty">
+              <button type="button" class="diff-pick selected" data-diff="easy">
+                <strong>Easy</strong>
+                <small>Weaker foes · basic chest loot</small>
+              </button>
+              <button type="button" class="diff-pick" data-diff="medium">
+                <strong>Medium</strong>
+                <small>Fair monsters · solid loot</small>
+              </button>
+              <button type="button" class="diff-pick" data-diff="hard">
+                <strong>Hard</strong>
+                <small>Tough packs · rare gear</small>
+              </button>
+              <button type="button" class="diff-pick raid" data-diff="raid">
+                <strong>Raid</strong>
+                <small>Brutal · legendary chests</small>
+              </button>
             </div>
+            <input type="hidden" id="portal-diff-value" value="easy" />
           </fieldset>
           <p class="portal-note">10 floors await. Clear rooms, open chests, climb deeper — Floor 10 holds the Guardian.</p>
           <div class="settings-actions">
