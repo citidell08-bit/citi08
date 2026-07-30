@@ -256,6 +256,7 @@ const QUESTIONS = {
     drownCd: 0,
     inventory: [],
     equipped: { weapon: null, armor: null, tool: null, book: null },
+    selectedItem: null,
     spawn: { x: 8.5, y: 8.5 },
     checkpoint: { x: 8.5, y: 8.5 },
     overworldReturn: { x: 8.5, y: 8.5 },
@@ -378,12 +379,55 @@ const QUESTIONS = {
     return "plains";
   }
 
+  /** Distance to winding river centerline (smaller = wetter). */
+  function riverDist(wx, wy) {
+    const bend = Math.sin(wx * 0.045) * 10 + Math.sin(wx * 0.012 + 1.7) * 22;
+    const branch = Math.sin(wy * 0.04) * 8 + Math.cos(wy * 0.018) * 14;
+    const d1 = Math.abs(wy - (bend + 40));
+    const d2 = Math.abs(wx - (branch - 25));
+    return Math.min(d1, d2);
+  }
+
+  /** Soft lake field — blobs of open water. */
+  function lakeField(wx, wy) {
+    return fbm(wx * 0.55 + 900, wy * 0.55 - 400);
+  }
+
+  function waterKindAt(wx, wy) {
+    const biome = biomeAt(wx, wy);
+    const lake = lakeField(wx, wy);
+    const rd = riverDist(wx, wy);
+    // Mountain cascades / highland streams
+    if (biome === "mountain" && rd < 1.6 && lake > 0.42) return "waterfall";
+    if (biome === "mountain" && rd < 1.15) return "stream";
+    // Lakes
+    if (lake > 0.78) return "deep";
+    if (lake > 0.72) return "lake";
+    // Rivers through plains / forest / swamp
+    if (biome !== "desert" && rd < 1.35) return "river";
+    if (biome !== "desert" && rd < 2.35) return "shore";
+    // Swamp pools
+    if (biome === "swamp" && fbm(wx, wy) < 0.38) return "marsh";
+    if (lake > 0.68 && biome !== "desert") return "shore";
+    return null;
+  }
+
   function baseTile(wx, wy) {
     const biome = biomeAt(wx, wy);
     const n = fbm(wx, wy);
     const detail = hash2(wx, wy);
+    const water = waterKindAt(wx, wy);
+
+    if (water === "deep" || water === "lake" || water === "river" || water === "marsh" || water === "waterfall" || water === "stream") {
+      return TILES.WATER;
+    }
+    if (water === "shore") {
+      if (biome === "desert") return TILES.SAND;
+      if (biome === "mountain") return TILES.COBBLE;
+      return detail < 0.45 ? TILES.SAND : TILES.DIRT;
+    }
+
     if (biome === "swamp") {
-      if (n < 0.38) return TILES.WATER;
       if (detail < 0.08) return TILES.TREE;
       return detail < 0.2 ? TILES.MOSS : TILES.DIRT;
     }
@@ -514,10 +558,20 @@ const QUESTIONS = {
     placeCottage(tiles, cx, cy, ox, oy, 2, 2, 4, 4);
     placeCottage(tiles, cx, cy, ox, oy, 7, 2, 4, 4);
     placeCottage(tiles, cx, cy, ox, oy, 4, 7, 5, 4);
+    // Village well / fountain pool (swimable water feature)
+    const wellX = ox + 5, wellY = oy + 5;
+    tiles[wellY * CHUNK + wellX] = TILES.WATER;
+    tiles[wellY * CHUNK + (wellX + 1)] = TILES.WATER;
+    tiles[(wellY + 1) * CHUNK + wellX] = TILES.WATER;
+    tiles[(wellY + 1) * CHUNK + (wellX + 1)] = TILES.WATER;
+    tiles[(wellY - 1) * CHUNK + wellX] = TILES.COBBLE;
+    tiles[(wellY - 1) * CHUNK + (wellX + 1)] = TILES.COBBLE;
+    tiles[(wellY + 2) * CHUNK + wellX] = TILES.COBBLE;
+    tiles[(wellY + 2) * CHUNK + (wellX + 1)] = TILES.COBBLE;
     // Outdoor village chests so loot is easy to find
     registerChest(cx * CHUNK + ox + 3, cy * CHUNK + oy + 5, questRank(Math.abs(cx) + Math.abs(cy)), false, tiles, cx, cy);
     registerChest(cx * CHUNK + ox + 8, cy * CHUNK + oy + 6, questRank(Math.abs(cx) + Math.abs(cy)), false, tiles, cx, cy);
-    const qx = ox + 5, qy = oy + 5;
+    const qx = ox + 9, qy = oy + 5;
     tiles[qy * CHUNK + qx] = TILES.QUEST;
     const dist = Math.abs(cx) + Math.abs(cy);
     registerStructure(cx * CHUNK + qx, cy * CHUNK + qy, "quest", "Village Trial", questRank(dist), { village: true });
@@ -981,6 +1035,7 @@ const QUESTIONS = {
   function clearInventoryAndGear() {
     state.inventory = [];
     state.equipped = { weapon: null, armor: null, tool: null, book: null };
+    state.selectedItem = null;
     updateInventoryUI();
     updateEquipUI();
     recalcHp();
@@ -992,6 +1047,8 @@ const QUESTIONS = {
     const item = state.inventory[idx];
     if (item.type === "consumable" || !item.slot) {
       showToast("Potions are used, not equipped. Press Use or H.");
+      state.selectedItem = null;
+      updateInventoryUI();
       return;
     }
     const slot = item.slot;
@@ -999,10 +1056,51 @@ const QUESTIONS = {
     state.inventory.splice(idx, 1);
     if (prev) state.inventory.push(prev);
     state.equipped[slot] = item;
+    state.selectedItem = null;
     updateInventoryUI();
     updateEquipUI();
     recalcHp();
-    showToast(`Equipped ${item.name}`);
+    showToast(`Equipped ${item.name} → ${slot}`);
+  }
+
+  function tryPlaceInSlot(slot) {
+    const selected = state.selectedItem
+      ? state.inventory.find((i) => i.uid === state.selectedItem)
+      : null;
+    if (selected) {
+      if (selected.type === "consumable" || !selected.slot) {
+        showToast("That item can't go in a gear slot.");
+        return;
+      }
+      if (selected.slot !== slot) {
+        showToast(`That goes in the ${selected.slot} slot.`);
+        return;
+      }
+      equipItem(selected.uid);
+      return;
+    }
+    // No selection — unequip if slot filled
+    if (state.equipped[slot]) unequipSlot(slot);
+  }
+
+  function selectBagItem(itemUid) {
+    const item = state.inventory.find((i) => i.uid === itemUid);
+    if (!item) return;
+    if (item.type === "consumable") {
+      state.selectedItem = itemUid;
+      updateInventoryUI();
+      showToast("Potion selected — press Use, or H to heal.");
+      return;
+    }
+    if (state.selectedItem === itemUid) {
+      state.selectedItem = null;
+      updateInventoryUI();
+      return;
+    }
+    state.selectedItem = itemUid;
+    updateInventoryUI();
+    const hint = $("inv-select-hint");
+    if (hint) hint.textContent = `Selected ${item.name} — click the ${item.slot} slot to equip.`;
   }
 
   function unequipSlot(slot) {
@@ -1010,6 +1108,7 @@ const QUESTIONS = {
     if (!item) return;
     state.equipped[slot] = null;
     state.inventory.push(item);
+    state.selectedItem = null;
     updateInventoryUI();
     updateEquipUI();
     recalcHp();
@@ -1021,18 +1120,39 @@ const QUESTIONS = {
     return name.length > 16 ? name.slice(0, 14) + "…" : name;
   }
 
+  function itemIcon(item) {
+    if (!item) return "·";
+    if (item.type === "consumable") {
+      if (item.effect === "breath") return "🫧";
+      if (item.effect === "might") return "💪";
+      return "⚗";
+    }
+    return { weapon: "⚔", armor: "🛡", tool: "⛏", book: "📖" }[item.slot] || "•";
+  }
+
   function updateEquipUI() {
     const e = state.equipped;
     const set = (chipId, slotId, item) => {
       $(chipId).textContent = shortName(item && item.name);
       $(slotId).textContent = item ? item.name : "Empty";
       const btn = $(slotId.replace("-name", ""));
-      if (btn) btn.classList.toggle("filled", !!item);
+      if (btn) {
+        btn.classList.toggle("filled", !!item);
+        btn.classList.toggle("slot-target", !!(state.selectedItem && !item));
+      }
     };
     set("eq-weapon", "slot-weapon-name", e.weapon);
     set("eq-armor", "slot-armor-name", e.armor);
     set("eq-tool", "slot-tool-name", e.tool);
     set("eq-book", "slot-book-name", e.book);
+    // Highlight matching empty slot when an item is selected
+    const sel = state.selectedItem && state.inventory.find((i) => i.uid === state.selectedItem);
+    ["weapon", "armor", "tool", "book"].forEach((slot) => {
+      const el = $(`slot-${slot}`);
+      if (!el) return;
+      const match = !!(sel && sel.slot === slot && !e[slot]);
+      el.classList.toggle("slot-pulse", match);
+    });
     const s = gearStats();
     $("hud-def").textContent = String(s.def);
     $("hud-pwr").textContent = String(s.pwr);
@@ -1045,9 +1165,10 @@ const QUESTIONS = {
   }
 
   function updateInventoryUI() {
-    const list = $("inventory-list");
+    const grid = $("inventory-grid");
     const empty = $("inventory-empty");
-    list.innerHTML = "";
+    if (!grid) return;
+    grid.innerHTML = "";
     if (!state.inventory.length) {
       empty.classList.remove("hidden");
       updateEquipUI();
@@ -1055,31 +1176,36 @@ const QUESTIONS = {
     }
     empty.classList.add("hidden");
     state.inventory.forEach((item) => {
-      const li = document.createElement("li");
+      const cell = document.createElement("button");
+      cell.type = "button";
+      cell.className = `bag-cell rarity-${item.rarity}` + (state.selectedItem === item.uid ? " selected" : "");
+      cell.setAttribute("data-uid", item.uid);
       const isPotion = item.type === "consumable";
       const meta = isPotion
-        ? `potion · ${item.rarity} · ${
-            item.effect === "heal" ? `+${item.amount} HP`
-            : item.effect === "breath" ? "+breath"
-            : item.effect === "might" ? `+${item.amount} ATK`
-            : "use"
-          }`
-        : `${item.slot} · ${item.rarity} · DEF ${item.def || 0} PWR ${item.pwr || 0} KNOW ${item.know || 0}`;
-      const action = isPotion
-        ? `<button type="button" class="btn-equip btn-use" data-use="${item.uid}">Use</button>`
-        : `<button type="button" class="btn-equip" data-uid="${item.uid}">Equip</button>`;
-      li.innerHTML = `
-        <span class="item-name rarity-${item.rarity}">${isPotion ? "⚗ " : ""}${item.name}</span>
-        <span class="item-meta">${meta}</span>
-        <span class="item-actions">${action}</span>`;
-      list.appendChild(li);
+        ? (item.effect === "heal" ? `+${item.amount} HP` : item.effect === "breath" ? "+breath" : item.effect === "might" ? `+${item.amount} ATK` : "use")
+        : `${item.slot} · PWR ${item.pwr || 0}`;
+      cell.innerHTML = `
+        <span class="bag-ico">${itemIcon(item)}</span>
+        <span class="bag-name">${item.name}</span>
+        <span class="bag-meta">${meta}</span>
+        ${isPotion ? `<span class="bag-use" data-use="${item.uid}">Use</span>` : `<span class="bag-tip">→ ${item.slot}</span>`}`;
+      cell.addEventListener("click", (ev) => {
+        if (ev.target.closest("[data-use]")) {
+          useItem(item.uid);
+          return;
+        }
+        if (isPotion) {
+          useItem(item.uid);
+          return;
+        }
+        selectBagItem(item.uid);
+      });
+      grid.appendChild(cell);
     });
-    list.querySelectorAll(".btn-equip[data-uid]").forEach((btn) => {
-      btn.addEventListener("click", () => equipItem(btn.getAttribute("data-uid")));
-    });
-    list.querySelectorAll(".btn-use").forEach((btn) => {
-      btn.addEventListener("click", () => useItem(btn.getAttribute("data-use")));
-    });
+    const hint = $("inv-select-hint");
+    if (hint && !state.selectedItem) {
+      hint.textContent = "Click a bag item, then click an empty slot to equip it. Click a filled slot to unequip.";
+    }
     updateEquipUI();
   }
 
@@ -1641,6 +1767,19 @@ const QUESTIONS = {
     }
     updateBreathUI();
 
+    // Ambient shore mist / river spray near water
+    if (!state.dungeon?.active && state.settings.particles && Math.random() < 0.08) {
+      const px = Math.floor(state.player.x), py = Math.floor(state.player.y);
+      for (let dy = -2; dy <= 2; dy++) {
+        for (let dx = -2; dx <= 2; dx++) {
+          if (getTile(px + dx, py + dy) === TILES.WATER && Math.random() < 0.2) {
+            const kind = waterKindAt(px + dx, py + dy);
+            spawnParticles(px + dx + 0.5, py + dy + 0.5, kind === "waterfall" ? 3 : 1, kind === "waterfall" ? "splash" : "bubble");
+          }
+        }
+      }
+    }
+
     if (!state.dungeon?.active) {
       const { cx, cy } = worldToChunk(Math.floor(state.player.x), Math.floor(state.player.y));
       const rd = state.settings.renderDist;
@@ -1778,28 +1917,53 @@ const QUESTIONS = {
         break;
       }
       case TILES.WATER: {
-        // Deep cool lake water — blues/teals only, never warm/orange
+        const kind = waterKindAt(wx, wy) || "lake";
         const t = state.animT * 2.2 + wx * 0.55 + wy * 0.4;
         const wave = Math.sin(t);
         const wave2 = Math.sin(t * 1.6 + 2.1);
+        const deep = kind === "deep" || kind === "waterfall";
         // depth base
-        pxRect(px, py, ts, ts, "#0a3048");
+        pxRect(px, py, ts, ts, deep ? "#062030" : "#0a3048");
         pxRect(px, py, ts, ts, c ? "#0e3a58" : "#0c3450");
-        // mid water sheet
-        pxRect(px + 1, py + 1, ts - 2, ts - 2, "#145070");
-        // darker depths toward bottom of tile
-        pxRect(px + 1, py + ts * 0.55, ts - 2, ts * 0.45 - 1, "#0a2840");
-        // animated ripples (cool cyan/white only)
+        pxRect(px + 1, py + 1, ts - 2, ts - 2, kind === "marsh" ? "#145060" : "#145070");
+        pxRect(px + 1, py + ts * 0.55, ts - 2, ts * 0.45 - 1, deep ? "#041828" : "#0a2840");
         const ry1 = ts * (0.22 + wave * 0.06);
         const ry2 = ts * (0.48 + wave2 * 0.05);
         pxRect(px + 2, py + ry1, ts - 4, 2, "#4a98b8");
         pxRect(px + 3, py + ry1 - 1, ts - 6, 1, "#a8e4f8");
         pxRect(px + 2, py + ry2, ts - 4, 1, "#2a7088");
-        // soft specular glints
         pxRect(px + ts * 0.55, py + ts * 0.12, 3, 2, "rgba(210,245,255,0.55)");
         if (wave > 0.55) pxDot(px + ts * 0.28, py + ts * 0.35, "#e8f8ff");
         if (wave2 < -0.4) pxDot(px + ts * 0.7, py + ts * 0.5, "#c0e8f8");
-        // shore darkening
+        // Shore foam when next to land
+        const neighbors = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+        for (const [dx, dy] of neighbors) {
+          const nt = getTile(wx + dx, wy + dy);
+          if (nt !== TILES.WATER && nt !== TILES.LAVA) {
+            if (dy === -1) pxRect(px + 1, py, ts - 2, 2, "rgba(220,240,255,0.45)");
+            if (dy === 1) pxRect(px + 1, py + ts - 2, ts - 2, 2, "rgba(180,210,230,0.35)");
+            if (dx === -1) pxRect(px, py + 1, 2, ts - 2, "rgba(200,230,245,0.3)");
+            if (dx === 1) pxRect(px + ts - 2, py + 1, 2, ts - 2, "rgba(200,230,245,0.3)");
+          }
+        }
+        // Marsh lily pads
+        if (kind === "marsh" && n01(wx, wy, 8) > 0.55) {
+          pxRect(px + ts * 0.25, py + ts * 0.35, 5, 3, "#2a6830");
+          pxRect(px + ts * 0.28, py + ts * 0.36, 3, 2, "#4a9048");
+          pxDot(px + ts * 0.45, py + ts * 0.3, "#e07090");
+        }
+        // Waterfall streaks
+        if (kind === "waterfall" || kind === "stream") {
+          const fall = (state.animT * 10 + wx + wy * 3) % ts;
+          pxRect(px + ts * 0.3, py + fall, 2, 6, "rgba(220,245,255,0.7)");
+          pxRect(px + ts * 0.55, py + (fall + ts * 0.4) % ts, 2, 5, "rgba(180,230,255,0.55)");
+          pxRect(px + 2, py + ts - 3, ts - 4, 2, "rgba(255,255,255,0.35)");
+        }
+        // River current lines
+        if (kind === "river") {
+          const flow = (state.animT * 8 + wy) % (ts - 4);
+          pxRect(px + flow, py + ts * 0.4, 4, 1, "rgba(200,235,255,0.4)");
+        }
         pxRect(px, py + ts - 2, ts, 2, "#061820");
         pxRect(px, py, 1, ts, "rgba(0,20,40,0.25)");
         break;
@@ -1904,15 +2068,21 @@ const QUESTIONS = {
         break;
       }
       case TILES.VILLAGE: {
-        fillNoise(px, py, ts, wx, wy, "#8a6848", "#6a5038", 0.25);
-        // plaster wall
-        pxRect(px + 2, py + 2, ts - 4, ts - 4, "#d2b48c");
-        pxRect(px + 3, py + 3, ts - 6, 1, "#f0d8b0");
+        // Timber-frame cottage wall
+        fillNoise(px, py, ts, wx, wy, "#6a5038", "#4a3828", 0.2);
+        pxRect(px + 1, py + 1, ts - 2, ts - 2, "#d8c09a");
+        pxRect(px + 2, py + 2, ts - 4, 2, "#f0e0c0");
+        // dark timber beams
+        pxRect(px + 1, py + 1, 2, ts - 2, "#4a3020");
+        pxRect(px + ts - 3, py + 1, 2, ts - 2, "#4a3020");
+        pxRect(px + 1, py + 1, ts - 2, 2, "#4a3020");
+        pxRect(px + 1, py + ts - 3, ts - 2, 2, "#4a3020");
+        pxRect(px + ts * 0.45, py + 1, 2, ts - 2, "#3a2418");
         // window glass with reflection
-        pxRect(px + ts * 0.28, py + ts * 0.32, ts * 0.44, ts * 0.38, "#3a6a90");
-        pxRect(px + ts * 0.3, py + ts * 0.34, ts * 0.18, ts * 0.15, "#7ab0d8");
-        pxRect(px + ts * 0.48, py + ts * 0.32, 2, ts * 0.38, "#2a4058");
-        pxRect(px + ts * 0.28, py + ts * 0.48, ts * 0.44, 2, "#2a4058");
+        pxRect(px + ts * 0.22, py + ts * 0.28, ts * 0.28, ts * 0.32, "#2a5070");
+        pxRect(px + ts * 0.24, py + ts * 0.3, ts * 0.1, ts * 0.12, "#7ab0d8");
+        pxRect(px + ts * 0.55, py + ts * 0.28, ts * 0.28, ts * 0.32, "#2a5070");
+        pxRect(px + ts * 0.57, py + ts * 0.3, ts * 0.1, ts * 0.12, "#8ac0e0");
         pxRect(px + 2, py + ts - 3, ts - 4, 2, "#5a4030");
         break;
       }
@@ -2012,56 +2182,63 @@ const QUESTIONS = {
     }
   }
 
-  function drawRoof(px, py, ts, wx, wy) {
-    // Layered clay-tile roof: eaves, staggered shingles, ridge, chimney, moss
-    const seed = n01(wx, wy, 2);
-    const shade = n01(wx + 3, wy + 1, 5);
-    pxRect(px, py, ts, ts, "rgba(12,6,2,0.32)");
-    // deep eave / underside
-    pxRect(px + 1, py + ts * 0.58, ts - 2, ts * 0.32, "#3a2014");
-    pxRect(px + 2, py + ts * 0.72, ts - 4, 2, "#2a140c");
-    // staggered shingle rows (triangle silhouette)
-    const rows = Math.max(5, Math.ceil(ts / 2.2));
+  function drawBuildingRoof(b, camX, camY, tileSize, sw, sh) {
+    // One continuous pitched clay roof for the whole cottage
+    const ox = Math.floor((b.x - camX) * tileSize + sw / 2);
+    const oy = Math.floor((b.y - camY) * tileSize + sh / 2);
+    const rw = b.w * tileSize;
+    const rh = b.h * tileSize;
+    if (ox + rw < -4 || oy + rh < -4 || ox > sw + 4 || oy > sh + 4) return;
+
+    const seed = n01(b.x, b.y, 7);
+    pxRect(ox - 2, oy + rh - 2, rw + 4, 5, "rgba(0,0,0,0.28)");
+
+    const rows = Math.max(6, Math.floor(rh / 2));
     for (let row = 0; row < rows; row++) {
-      const t = row / rows;
-      const y = py + ts * 0.08 + row * 2.1;
-      const inset = Math.floor(t * t * (ts * 0.42));
-      const x = px + inset;
-      const w = ts - inset * 2;
-      if (w < 4) continue;
-      const dark = shade > 0.5 ? "#6a3018" : "#7a3820";
-      const mid = shade > 0.5 ? "#8a4428" : "#9a4a2a";
-      const lit = shade > 0.5 ? "#b06038" : "#c06840";
-      pxRect(x, y, w, 3, row % 2 ? mid : dark);
-      // overlapping scalloped tiles
-      const offset = (row % 2) * 1.5;
-      for (let tix = -1; tix < w + 2; tix += 3) {
-        const sx = x + offset + tix;
-        if (sx < x || sx + 3 > x + w) continue;
-        pxRect(sx, y, 3, 2, lit);
-        pxDot(sx + 1, y, "#e09060");
-        pxRect(sx + 1, y + 1, 1, 1, "#5a2810");
+      const t = row / (rows - 1 || 1);
+      const y = oy + Math.floor(t * (rh - 3));
+      const over = Math.floor(2 + t * 3);
+      const x = ox - over;
+      const w = rw + over * 2;
+      const mid = Math.floor(w / 2);
+      const leftCol = t < 0.15 ? "#6a3820" : (row % 2 ? "#8a4a2c" : "#7a4024");
+      const rightCol = t < 0.15 ? "#9a5840" : (row % 2 ? "#c07048" : "#b06038");
+      pxRect(x, y, mid, 3, leftCol);
+      pxRect(x + mid, y, w - mid, 3, rightCol);
+      for (let sx = 0; sx < w; sx += 4) {
+        const seamX = x + sx + ((row % 2) * 2);
+        if (seamX < x || seamX > x + w - 2) continue;
+        pxRect(seamX, y, 2, 2, sx < mid ? "#a05830" : "#d88858");
+        pxRect(seamX + 1, y + 1, 1, 1, "#4a2410");
       }
-      if (seed > 0.6 && row % 5 === 2) pxRect(x + w * 0.35, y, 3, 2, "#4a7840");
-      if (seed > 0.8 && row % 6 === 1) pxRect(x + w * 0.7, y, 2, 2, "#3a6838");
+      if (seed > 0.55 && row % 5 === 3) pxRect(x + w * 0.2, y, 4, 2, "#3a6838");
+      if (seed > 0.7 && row % 7 === 2) pxRect(x + w * 0.72, y, 3, 2, "#4a7848");
     }
-    // ridge cap
-    pxRect(px + ts * 0.32, py + 1, ts * 0.36, 4, "#4a2818");
-    pxRect(px + ts * 0.35, py, ts * 0.3, 2, "#d09868");
-    pxRect(px + ts * 0.42, py + 2, 2, ts * 0.2, "rgba(0,0,0,0.25)");
-    // chimney with mortar lines
-    if (seed > 0.48) {
-      const cx = px + ts * 0.6;
-      const cy = py + ts * 0.06;
-      pxRect(cx, cy, 5, ts * 0.3, "#6a5040");
-      pxRect(cx + 1, cy + 2, 3, 1, "#4a3830");
-      pxRect(cx + 1, cy + 5, 3, 1, "#4a3830");
-      pxRect(cx - 1, cy - 1, 7, 2, "#8a6848");
-      if (seed > 0.7) pxRect(cx + 1, cy - 3, 2, 3, "rgba(180,180,180,0.35)");
+
+    pxRect(ox + rw * 0.15, oy - 1, rw * 0.7, 3, "#4a2818");
+    pxRect(ox + rw * 0.2, oy - 2, rw * 0.6, 2, "#d0a070");
+    pxRect(ox + rw * 0.48, oy, 2, Math.max(4, rh * 0.2), "rgba(0,0,0,0.22)");
+
+    for (let i = 0; i < Math.floor(rh * 0.45); i++) {
+      const inset = Math.floor(i * 0.9);
+      pxRect(ox - 1 + inset, oy + 2 + i, 2, 2, "#5a3020");
+      pxRect(ox + rw - 1 - inset, oy + 2 + i, 2, 2, "#5a3020");
     }
-    // sun wash + eave drip
-    pxRect(px + ts * 0.12, py + ts * 0.18, 2, ts * 0.3, "rgba(255,210,150,0.22)");
-    pxRect(px + 2, py + ts - 2, ts - 4, 2, "rgba(0,0,0,0.4)");
+
+    const chx = ox + Math.floor(rw * (0.55 + seed * 0.2));
+    const chy = oy + Math.floor(rh * 0.08);
+    pxRect(chx, chy, Math.max(4, tileSize * 0.28), Math.max(8, rh * 0.35), "#6a5444");
+    pxRect(chx + 1, chy + 3, Math.max(2, tileSize * 0.18), 1, "#4a3830");
+    pxRect(chx + 1, chy + 6, Math.max(2, tileSize * 0.18), 1, "#4a3830");
+    pxRect(chx - 1, chy - 2, Math.max(6, tileSize * 0.38), 3, "#8a6a50");
+    if (seed > 0.4) {
+      const smokeY = chy - 4 - Math.floor((state.animT * 6 + b.x) % 5);
+      pxRect(chx + 1, smokeY, 2, 3, "rgba(190,190,190,0.35)");
+      pxRect(chx + 2, smokeY - 3, 2, 2, "rgba(210,210,210,0.22)");
+    }
+
+    pxRect(ox + rw * 0.55, oy + rh * 0.15, 2, rh * 0.45, "rgba(255,210,150,0.18)");
+    pxRect(ox - 2, oy + rh - 1, rw + 4, 2, "rgba(0,0,0,0.4)");
   }
 
   function drawPlayer(ppx, ppy, ps) {
@@ -2215,13 +2392,7 @@ const QUESTIONS = {
     if (!state.dungeon?.active) {
       for (const b of state.buildings.values()) {
         if (playerInsideBuilding(b)) continue;
-        for (const r of b.roof) {
-          const px = Math.floor((r.wx - camX) * tileSize + w / 2);
-          const py = Math.floor((r.wy - camY) * tileSize + h / 2);
-          if (px > -tileSize && py > -tileSize && px < w + tileSize && py < h + tileSize) {
-            drawRoof(px, py, tileSize, r.wx, r.wy);
-          }
-        }
+        drawBuildingRoof(b, camX, camY, tileSize, w, h);
       }
     }
 
@@ -2280,6 +2451,17 @@ const QUESTIONS = {
     grd.addColorStop(1, state.dungeon?.active ? "rgba(4,0,8,0.65)" : "rgba(8,6,4,0.55)");
     ctx.fillStyle = grd;
     ctx.fillRect(0, 0, w, h);
+
+    // Soft daylight wash outdoors (more realistic atmosphere)
+    if (!state.dungeon?.active) {
+      ctx.fillStyle = "rgba(255, 220, 160, 0.04)";
+      ctx.fillRect(0, 0, w, h);
+      // cool water reflection tint when swimming
+      if (state.swimming) {
+        ctx.fillStyle = "rgba(40, 120, 160, 0.12)";
+        ctx.fillRect(0, 0, w, h);
+      }
+    }
     drawMinimap();
   }
 
@@ -2497,8 +2679,8 @@ const QUESTIONS = {
     });
   });
 
-  document.querySelectorAll("[data-unequip]").forEach((btn) => {
-    btn.addEventListener("click", () => unequipSlot(btn.getAttribute("data-unequip")));
+  document.querySelectorAll(".item-slot[data-slot]").forEach((btn) => {
+    btn.addEventListener("click", () => tryPlaceInSlot(btn.getAttribute("data-slot")));
   });
 
   const bindRange = (id, key, labelId, fmt) => {

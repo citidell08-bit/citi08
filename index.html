@@ -242,32 +242,47 @@
           <button type="button" class="modal-close" data-close="inventory-modal" aria-label="Close">×</button>
         </header>
         <div class="modal-body inv-body">
+          <p id="inv-select-hint" class="inv-select-hint muted">Click a bag item, then click an empty slot to equip it. Click a filled slot to unequip.</p>
           <div class="equip-board">
-            <h3>Equipped</h3>
-            <div class="equip-slots">
-              <button type="button" class="equip-slot" data-unequip="weapon" id="slot-weapon" title="Unequip weapon">
-                <span class="slot-label">Weapon</span>
-                <span class="slot-value" id="slot-weapon-name">Empty</span>
-              </button>
-              <button type="button" class="equip-slot" data-unequip="armor" id="slot-armor" title="Unequip armor">
-                <span class="slot-label">Armor</span>
-                <span class="slot-value" id="slot-armor-name">Empty</span>
-              </button>
-              <button type="button" class="equip-slot" data-unequip="tool" id="slot-tool" title="Unequip tool">
-                <span class="slot-label">Tool</span>
-                <span class="slot-value" id="slot-tool-name">Empty</span>
-              </button>
-              <button type="button" class="equip-slot" data-unequip="book" id="slot-book" title="Unequip study book">
-                <span class="slot-label">Study Book</span>
-                <span class="slot-value" id="slot-book-name">Empty</span>
-              </button>
+            <h3>Item Slots</h3>
+            <div class="equip-doll" aria-label="Equipment slots">
+              <div class="doll-col">
+                <button type="button" class="item-slot" data-slot="weapon" id="slot-weapon" title="Weapon slot">
+                  <span class="slot-ico-lg">⚔</span>
+                  <span class="slot-label">Weapon</span>
+                  <span class="slot-value" id="slot-weapon-name">Empty</span>
+                </button>
+                <button type="button" class="item-slot" data-slot="book" id="slot-book" title="Study book slot">
+                  <span class="slot-ico-lg">📖</span>
+                  <span class="slot-label">Book</span>
+                  <span class="slot-value" id="slot-book-name">Empty</span>
+                </button>
+              </div>
+              <div class="doll-figure" aria-hidden="true">
+                <div class="doll-head"></div>
+                <div class="doll-body"></div>
+                <div class="doll-legs"></div>
+              </div>
+              <div class="doll-col">
+                <button type="button" class="item-slot" data-slot="armor" id="slot-armor" title="Armor slot">
+                  <span class="slot-ico-lg">🛡</span>
+                  <span class="slot-label">Armor</span>
+                  <span class="slot-value" id="slot-armor-name">Empty</span>
+                </button>
+                <button type="button" class="item-slot" data-slot="tool" id="slot-tool" title="Tool slot">
+                  <span class="slot-ico-lg">⛏</span>
+                  <span class="slot-label">Tool</span>
+                  <span class="slot-value" id="slot-tool-name">Empty</span>
+                </button>
+              </div>
             </div>
             <p class="equip-stats">DEF <strong id="inv-def">0</strong> · PWR <strong id="inv-pwr">0</strong> · KNOW <strong id="inv-know">0</strong></p>
           </div>
           <div class="bag-board">
             <h3>Satchel</h3>
-            <p class="muted inv-help">Equip weapons/armor/tools/books · Use potions · Hotkey <kbd>H</kbd> quick-heal</p>
-            <ul id="inventory-list" class="inventory-list"></ul>
+            <p class="muted inv-help">Select gear → put in matching slot · Potions: Use · Hotkey <kbd>H</kbd> heal</p>
+            <div id="inventory-grid" class="inventory-grid"></div>
+            <ul id="inventory-list" class="inventory-list hidden" aria-hidden="true"></ul>
             <p id="inventory-empty" class="muted">Your satchel is empty. Complete quests &amp; dungeons for gear.</p>
           </div>
         </div>
