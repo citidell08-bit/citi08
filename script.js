@@ -1891,29 +1891,45 @@ const QUESTIONS = {
     const body = armor
       ? (armor.rarity === "legendary" ? "#d4a84b" : armor.rarity === "epic" ? "#a060c0" : armor.rarity === "rare" ? "#6a90c0" : "#6b8f5a")
       : "#5a8a48";
-    // ground contact shadow
-    pxRect(ppx - ps * 0.35, ppy + ps * 0.4, ps * 0.7, 3, "rgba(0,0,0,0.35)");
-    // legs
-    pxRect(ppx - ps * 0.28, ppy + ps * 0.15, ps * 0.22, ps * 0.35, "#3a2a1c");
-    pxRect(ppx + ps * 0.06, ppy + ps * 0.15, ps * 0.22, ps * 0.35, "#3a2a1c");
+    const swim = state.swimming;
+    const bob = swim ? Math.sin(state.animT * 6) * 1.5 : 0;
+    const sub = swim ? ps * 0.28 : 0;
+
+    // ground / water contact shadow
+    if (swim) {
+      pxRect(ppx - ps * 0.4, ppy + ps * 0.25 + bob, ps * 0.8, 4, "rgba(20,60,90,0.45)");
+    } else {
+      pxRect(ppx - ps * 0.35, ppy + ps * 0.4, ps * 0.7, 3, "rgba(0,0,0,0.35)");
+    }
+
+    if (!swim) {
+      pxRect(ppx - ps * 0.28, ppy + ps * 0.15, ps * 0.22, ps * 0.35, "#3a2a1c");
+      pxRect(ppx + ps * 0.06, ppy + ps * 0.15, ps * 0.22, ps * 0.35, "#3a2a1c");
+    }
+
     // torso
-    pxRect(ppx - ps / 2 + 1, ppy - ps * 0.1 + 2, ps, ps * 0.45, "#0a0808");
-    pxRect(ppx - ps / 2, ppy - ps * 0.12, ps, ps * 0.48, body);
-    pxRect(ppx - ps * 0.35, ppy - ps * 0.05, ps * 0.7, 2, "rgba(255,255,255,0.15)");
+    pxRect(ppx - ps / 2 + 1, ppy - ps * 0.1 + 2 + bob - sub, ps, ps * 0.45, "#0a0808");
+    pxRect(ppx - ps / 2, ppy - ps * 0.12 + bob - sub, ps, ps * 0.48, body);
+    pxRect(ppx - ps * 0.35, ppy - ps * 0.05 + bob - sub, ps * 0.7, 2, "rgba(255,255,255,0.15)");
     // head
-    pxRect(ppx - ps * 0.28, ppy - ps * 0.48, ps * 0.56, ps * 0.4, "#c4a574");
-    pxRect(ppx - ps * 0.2, ppy - ps * 0.52, ps * 0.4, ps * 0.18, "#6a4a30");
+    pxRect(ppx - ps * 0.28, ppy - ps * 0.48 + bob - sub, ps * 0.56, ps * 0.4, "#c4a574");
+    pxRect(ppx - ps * 0.2, ppy - ps * 0.52 + bob - sub, ps * 0.4, ps * 0.18, "#6a4a30");
     const lookX = Math.cos(state.player.facing) * 2;
     const lookY = Math.sin(state.player.facing) * 1;
-    pxRect(ppx - 3 + lookX, ppy - ps * 0.28 + lookY, 2, 2, "#1a1210");
-    pxRect(ppx + 1 + lookX, ppy - ps * 0.28 + lookY, 2, 2, "#1a1210");
-    if (weapon) {
+    pxRect(ppx - 3 + lookX, ppy - ps * 0.28 + lookY + bob - sub, 2, 2, "#1a1210");
+    pxRect(ppx + 1 + lookX, ppy - ps * 0.28 + lookY + bob - sub, 2, 2, "#1a1210");
+    if (weapon && !swim) {
       pxRect(ppx + ps / 2 - 1 + lookX, ppy - 4 + lookY, 3, ps * 0.7, "#d0d0d8");
       pxRect(ppx + ps / 2 - 2 + lookX, ppy - 6 + lookY, 5, 3, "#f0c96a");
     }
+    // water overlay when swimming
+    if (swim) {
+      pxRect(ppx - ps * 0.55, ppy + ps * 0.05 + bob, ps * 1.1, ps * 0.55, "rgba(30,100,140,0.45)");
+      pxRect(ppx - ps * 0.45, ppy + ps * 0.08 + bob, ps * 0.9, 2, "rgba(180,230,255,0.35)");
+    }
     if (state.hurtCd > 0) {
       ctx.globalAlpha = 0.35;
-      pxRect(ppx - ps / 2, ppy - ps / 2, ps, ps, "#ff2020");
+      pxRect(ppx - ps / 2, ppy - ps / 2 + bob - sub, ps, ps, "#ff2020");
       ctx.globalAlpha = 1;
     }
   }
@@ -1999,12 +2015,39 @@ const QUESTIONS = {
     drawPlayer(ppx, ppy, ps);
 
     state.particles = state.particles.filter((p) => {
-      p.x += p.vx * 0.016; p.y += p.vy * 0.016; p.vy += 0.04; p.life -= 0.016;
+      const kind = p.kind || "spark";
+      if (kind === "bubble") {
+        p.x += p.vx * 0.016;
+        p.y += p.vy * 0.016;
+        p.vy -= 0.015; // rise
+        p.vx += Math.sin(state.animT * 8 + p.x * 10) * 0.01;
+      } else if (kind === "dust") {
+        p.x += p.vx * 0.016;
+        p.y += p.vy * 0.016;
+        p.vy += 0.02;
+      } else if (kind === "splash" || kind === "drown") {
+        p.x += p.vx * 0.016;
+        p.y += p.vy * 0.016;
+        p.vy += 0.06;
+      } else {
+        p.x += p.vx * 0.016;
+        p.y += p.vy * 0.016;
+        p.vy += 0.04;
+      }
+      p.life -= 0.016;
       if (p.life <= 0) return false;
       const x = Math.floor((p.x - camX) * tileSize + w / 2);
       const y = Math.floor((p.y - camY) * tileSize + h / 2);
-      ctx.globalAlpha = Math.max(0, p.life);
-      pxRect(x, y, 3, 3, p.color);
+      const sz = p.size || 3;
+      ctx.globalAlpha = Math.max(0, Math.min(1, p.life * 1.4));
+      if (kind === "bubble") {
+        // hollow bubble look
+        pxRect(x, y, sz, sz, p.color);
+        pxRect(x + 1, y + 1, Math.max(1, sz - 2), Math.max(1, sz - 2), "rgba(20,60,90,0.35)");
+        pxDot(x, y, "#ffffff");
+      } else {
+        pxRect(x, y, sz, sz, p.color);
+      }
       ctx.globalAlpha = 1;
       return true;
     });
@@ -2036,10 +2079,10 @@ const QUESTIONS = {
           : py + Math.floor((y / s) * range * 2) - range;
         const tile = getTile(wx, wy);
         let c = "#3d5c32";
-        if (tile === TILES.WATER) c = "#2a4a5c";
+        if (tile === TILES.WATER) c = "#145878";
         else if (tile === TILES.LAVA) c = "#e06030";
         else if (tile === TILES.STONE || tile === TILES.WALL) c = "#5a5650";
-        else if (tile === TILES.SAND) c = "#c4a86a";
+        else if (tile === TILES.SAND) c = "#b8a880";
         else if (tile === TILES.PATH || tile === TILES.FLOOR || tile === TILES.COBBLE) c = "#8a7458";
         else if (tile === TILES.QUEST) c = "#f0c96a";
         else if (tile === TILES.BOSS) c = "#e06a55";
@@ -2090,6 +2133,13 @@ const QUESTIONS = {
     state.questsDone = 0;
     state.bossesDefeated = 0;
     state.hp = 100;
+    state.maxHp = 100;
+    state.breath = 100;
+    state.maxBreath = 100;
+    state.swimming = false;
+    state.footstepCd = 0;
+    state.bubbleCd = 0;
+    state.drownCd = 0;
     state.maxHp = 100;
     state.inventory = [];
     state.equipped = { weapon: null, armor: null, tool: null, book: null };
