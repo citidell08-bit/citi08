@@ -144,6 +144,7 @@
             <span id="hud-study" class="hud-study"></span>
           </div>
           <div class="hud-right">
+            <button type="button" class="hud-btn" id="btn-map" title="Full map (M)">Map</button>
             <button type="button" class="hud-btn" id="btn-inventory" title="Inventory (I)">Bag</button>
             <button type="button" class="hud-btn" id="btn-settings" title="Settings (Esc)">⚙</button>
           </div>
@@ -157,12 +158,13 @@
 
         <div id="held-cursor" class="mc-held hidden" aria-hidden="true"></div>
 
-        <div id="minimap" class="minimap" aria-hidden="true">
+        <div id="minimap" class="minimap" aria-hidden="true" title="Press M for full map" role="button" tabindex="0">
           <canvas id="minimap-canvas" width="120" height="120"></canvas>
           <div class="minimap-legend">
             <span class="lg-village">Village</span>
             <span class="lg-dungeon">Dungeon</span>
           </div>
+          <div class="minimap-expand">Press M</div>
         </div>
 
         <div id="interact-prompt" class="interact-prompt hidden">
@@ -231,6 +233,36 @@
             <button type="button" class="btn ghost" id="btn-resume">Resume</button>
             <button type="button" class="btn danger" id="btn-quit">Quit to Menu</button>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FULL MAP MODAL -->
+    <div id="map-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="map-title">
+      <div class="modal-panel map-panel">
+        <header class="modal-header">
+          <h2 id="map-title">World Map</h2>
+          <button type="button" class="modal-close" data-close="map-modal" aria-label="Close">×</button>
+        </header>
+        <div class="modal-body map-body">
+          <div class="map-toolbar">
+            <button type="button" class="btn ghost map-zoom-btn" data-map-zoom="near" id="map-zoom-near">Near</button>
+            <button type="button" class="btn ghost map-zoom-btn active" data-map-zoom="mid" id="map-zoom-mid">Area</button>
+            <button type="button" class="btn ghost map-zoom-btn" data-map-zoom="far" id="map-zoom-far">Far</button>
+            <span id="map-coords" class="muted map-coords">0, 0</span>
+          </div>
+          <div class="map-canvas-wrap">
+            <canvas id="fullmap-canvas" width="480" height="480" aria-label="Full world map"></canvas>
+          </div>
+          <div class="map-legend">
+            <span class="ml-you">You</span>
+            <span class="ml-village">Village</span>
+            <span class="ml-dungeon">Dungeon</span>
+            <span class="ml-quest">Quest</span>
+            <span class="ml-water">Water</span>
+            <span class="ml-chest">Chest</span>
+          </div>
+          <p class="muted map-hint">Press <kbd>M</kbd> to open / close · drag to pan · scroll to zoom</p>
         </div>
       </div>
     </div>

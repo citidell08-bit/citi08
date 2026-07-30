@@ -301,8 +301,21 @@ const QUESTIONS = {
   const ctx = canvas.getContext("2d", { alpha: false });
   const miniCanvas = $("minimap-canvas");
   const miniCtx = miniCanvas.getContext("2d", { alpha: false });
+  const fullMapCanvas = $("fullmap-canvas");
+  const fullMapCtx = fullMapCanvas.getContext("2d", { alpha: false });
   ctx.imageSmoothingEnabled = false;
   miniCtx.imageSmoothingEnabled = false;
+  if (fullMapCtx) fullMapCtx.imageSmoothingEnabled = false;
+
+  const mapView = {
+    zoom: "mid",
+    ranges: { near: 48, mid: 96, far: 160 },
+    panX: 0,
+    panY: 0,
+    dragging: false,
+    lastX: 0,
+    lastY: 0,
+  };
 
   function uid() { return `id-${state.nextId++}`; }
 
@@ -3017,6 +3030,202 @@ const QUESTIONS = {
     miniCtx.fillRect(s / 2 - 2, s / 2 - 2, 4, 4);
   }
 
+  function mapTileColor(tile) {
+    if (tile === TILES.WATER) return [20, 88, 120];
+    if (tile === TILES.LAVA) return [224, 96, 48];
+    if (tile === TILES.STONE || tile === TILES.WALL) return [90, 86, 80];
+    if (tile === TILES.SAND) return [184, 168, 128];
+    if (tile === TILES.PATH || tile === TILES.FLOOR || tile === TILES.COBBLE) return [138, 116, 88];
+    if (tile === TILES.QUEST) return [240, 201, 106];
+    if (tile === TILES.BOSS) return [224, 106, 85];
+    if (tile === TILES.VILLAGE || tile === TILES.DOOR || tile === TILES.BANNER || tile === TILES.FENCE) return [212, 160, 96];
+    if (tile === TILES.DUNGEON || tile === TILES.TORCH) return [138, 32, 48];
+    if (tile === TILES.CHEST) return [192, 144, 48];
+    if (tile === TILES.STAIRS || tile === TILES.EXIT) return [64, 160, 255];
+    if (tile === TILES.TREE) return [42, 64, 40];
+    if (tile === TILES.DIRT || tile === TILES.RUIN) return [90, 70, 48];
+    if (tile === TILES.MOSS) return [48, 90, 52];
+    if (tile === TILES.ROOF) return [120, 48, 36];
+    return [61, 92, 50];
+  }
+
+  function isMapOpen() {
+    return !$("map-modal").classList.contains("hidden");
+  }
+
+  function openFullMap() {
+    if (!state.running) return;
+    // Close inventory if open (don't leave held item floating)
+    if (!$("inventory-modal").classList.contains("hidden")) {
+      if (state.heldItem) { addItem(state.heldItem); state.heldItem = null; updateHotbarUI(); }
+      closeModal("inventory-modal");
+    }
+    if (!$("settings-modal").classList.contains("hidden")) {
+      closeModal("settings-modal");
+    }
+    mapView.panX = 0;
+    mapView.panY = 0;
+    openModal("map-modal");
+    state.paused = true;
+    $("map-title").textContent = state.dungeon?.active ? `${state.dungeon.name} Map` : "World Map";
+    drawFullMap();
+  }
+
+  function closeFullMap() {
+    if (!isMapOpen()) return;
+    closeModal("map-modal");
+    if ($("settings-modal").classList.contains("hidden")
+      && $("inventory-modal").classList.contains("hidden")
+      && $("quest-modal").classList.contains("hidden")
+      && $("boss-modal").classList.contains("hidden")
+      && $("result-modal").classList.contains("hidden")
+      && $("dungeon-modal").classList.contains("hidden")) {
+      state.paused = false;
+    }
+  }
+
+  function toggleFullMap() {
+    if (!state.running) return;
+    if (isMapOpen()) closeFullMap();
+    else openFullMap();
+  }
+
+  function setMapZoom(level) {
+    if (!mapView.ranges[level]) return;
+    mapView.zoom = level;
+    document.querySelectorAll(".map-zoom-btn").forEach((b) => {
+      b.classList.toggle("active", b.getAttribute("data-map-zoom") === level);
+    });
+    drawFullMap();
+  }
+
+  function drawFullMap() {
+    if (!fullMapCanvas || !fullMapCtx || !isMapOpen()) return;
+    const s = fullMapCanvas.width;
+    const img = fullMapCtx.createImageData(s, s);
+    const data = img.data;
+    const inDungeon = !!(state.dungeon && state.dungeon.active);
+    const px = state.player.x;
+    const py = state.player.y;
+    let range, originX, originY, worldW, worldH;
+
+    if (inDungeon) {
+      worldW = state.dungeon.w;
+      worldH = state.dungeon.h;
+      // Fit whole dungeon floor
+      range = Math.max(worldW, worldH) / 2;
+      originX = worldW / 2 + mapView.panX;
+      originY = worldH / 2 + mapView.panY;
+    } else {
+      range = mapView.ranges[mapView.zoom] || 96;
+      originX = px + mapView.panX;
+      originY = py + mapView.panY;
+      worldW = range * 2;
+      worldH = range * 2;
+    }
+
+    for (let y = 0; y < s; y++) {
+      for (let x = 0; x < s; x++) {
+        const wx = Math.floor(originX + ((x / s) * range * 2) - range);
+        const wy = Math.floor(originY + ((y / s) * range * 2) - range);
+        let tile;
+        if (inDungeon) {
+          if (wx < 0 || wy < 0 || wx >= worldW || wy >= worldH) {
+            data[(y * s + x) * 4] = 12;
+            data[(y * s + x) * 4 + 1] = 10;
+            data[(y * s + x) * 4 + 2] = 8;
+            data[(y * s + x) * 4 + 3] = 255;
+            continue;
+          }
+          tile = getTile(wx, wy);
+        } else {
+          // Fog for never-loaded chunks so opening the map doesn't generate the whole world
+          const { cx, cy } = worldToChunk(wx, wy);
+          if (!state.chunks.has(chunkKey(cx, cy))) {
+            // Soft fog — sample base biome tone without placing structures
+            const biome = biomeAt(wx, wy);
+            let c = [28, 36, 24];
+            if (biome === "desert") c = [50, 44, 30];
+            else if (biome === "swamp") c = [22, 32, 28];
+            else if (biome === "mountain") c = [40, 40, 42];
+            else if (biome === "forest") c = [20, 34, 22];
+            // water-ish from baseTile without ensureChunk
+            const bt = baseTile(wx, wy);
+            if (bt === TILES.WATER) c = [14, 40, 58];
+            data[(y * s + x) * 4] = c[0];
+            data[(y * s + x) * 4 + 1] = c[1];
+            data[(y * s + x) * 4 + 2] = c[2];
+            data[(y * s + x) * 4 + 3] = 255;
+            continue;
+          }
+          tile = getOverworldTile(wx, wy);
+        }
+        const c = mapTileColor(tile);
+        const i = (y * s + x) * 4;
+        data[i] = c[0];
+        data[i + 1] = c[1];
+        data[i + 2] = c[2];
+        data[i + 3] = 255;
+      }
+    }
+    fullMapCtx.putImageData(img, 0, 0);
+
+    function worldToMap(wx, wy) {
+      const mx = ((wx - (originX - range)) / (range * 2)) * s;
+      const my = ((wy - (originY - range)) / (range * 2)) * s;
+      return [mx, my];
+    }
+
+    // Structure markers (villages / dungeons / quests)
+    if (!inDungeon) {
+      for (const sObj of state.structures.values()) {
+        const [mx, my] = worldToMap(sObj.wx + 0.5, sObj.wy + 0.5);
+        if (mx < -4 || my < -4 || mx > s + 4 || my > s + 4) continue;
+        let col = "#f0c96a";
+        let size = 4;
+        if (sObj.village || sObj.type === "village") {
+          col = "#d4a060";
+          size = 6;
+        } else if (sObj.type === "quest") {
+          col = "#f0c96a";
+          size = 4;
+        } else if (sObj.type === "dungeon" || sObj.type === "dungeon_entrance" || sObj.type === "boss") {
+          col = "#e04050";
+          size = 6;
+        }
+        fullMapCtx.fillStyle = "#000";
+        fullMapCtx.fillRect(mx - size / 2 - 1, my - size / 2 - 1, size + 2, size + 2);
+        fullMapCtx.fillStyle = col;
+        fullMapCtx.fillRect(mx - size / 2, my - size / 2, size, size);
+      }
+    } else {
+      for (const m of state.dungeon.monsters) {
+        const [mx, my] = worldToMap(m.x, m.y);
+        fullMapCtx.fillStyle = "#ff4040";
+        fullMapCtx.fillRect(mx - 2, my - 2, 4, 4);
+      }
+    }
+
+    // Player
+    const [plx, ply] = worldToMap(px, py);
+    fullMapCtx.fillStyle = "#000";
+    fullMapCtx.fillRect(plx - 4, ply - 4, 8, 8);
+    fullMapCtx.fillStyle = "#ffffff";
+    fullMapCtx.fillRect(plx - 3, ply - 3, 6, 6);
+    fullMapCtx.fillStyle = "#40c050";
+    fullMapCtx.fillRect(plx - 2, ply - 2, 4, 4);
+    // Facing notch
+    const ang = state.player.facing || 0;
+    fullMapCtx.fillStyle = "#ffe060";
+    fullMapCtx.fillRect(plx + Math.cos(ang) * 5 - 1, ply + Math.sin(ang) * 5 - 1, 3, 3);
+
+    if ($("map-coords")) {
+      $("map-coords").textContent = inDungeon
+        ? `Floor ${state.dungeon.floor}/10 · ${Math.floor(px)}, ${Math.floor(py)}`
+        : `${Math.floor(px)}, ${Math.floor(py)} · ${BIOME_NAMES[biomeAt(Math.floor(px), Math.floor(py))] || ""}`;
+    }
+  }
+
   let last = 0;
   function frame(t) {
     const dt = Math.min(0.05, (t - last) / 1000 || 0.016);
@@ -3027,6 +3236,9 @@ const QUESTIONS = {
       updateHUD();
     }
     if (state.running) draw();
+    if (state.running && isMapOpen() && (Math.floor(state.animT * 4) !== Math.floor((state.animT - dt) * 4))) {
+      drawFullMap();
+    }
     requestAnimationFrame(frame);
   }
 
@@ -3103,7 +3315,7 @@ const QUESTIONS = {
     requestAnimationFrame(() => {
       resizeCanvas();
       draw();
-      showToast(`Grade ${state.grade} · ${state.bookTitle}. Minecraft slots · 1-9 hotbar · I inventory · grind gear!`);
+      showToast(`Grade ${state.grade} · ${state.bookTitle}. Hotbar 1-9 · I bag · M map · grind gear!`);
     });
   }
 
@@ -3111,7 +3323,7 @@ const QUESTIONS = {
     state.running = false;
     state.paused = false;
     state.dungeon = null;
-    ["settings-modal", "inventory-modal", "quest-modal", "boss-modal", "result-modal", "dungeon-modal"].forEach(closeModal);
+    ["settings-modal", "inventory-modal", "map-modal", "quest-modal", "boss-modal", "result-modal", "dungeon-modal"].forEach(closeModal);
     $("game-screen").classList.remove("active");
     $("start-screen").classList.add("active");
     $("combat-hint").classList.add("hidden");
@@ -3158,6 +3370,12 @@ const QUESTIONS = {
       const it = state.slots[state.hotbarSel];
       if (it) showToast(`Hand: ${it.name}`);
     }
+    if (e.key === "m" || e.key === "M") {
+      if (!state.running) return;
+      if (!$("quest-modal").classList.contains("hidden") || !$("boss-modal").classList.contains("hidden") || !$("result-modal").classList.contains("hidden")) return;
+      e.preventDefault();
+      toggleFullMap();
+    }
     if (e.key === "i" || e.key === "I") {
       if (!state.running) return;
       if (!$("inventory-modal").classList.contains("hidden")) {
@@ -3171,6 +3389,12 @@ const QUESTIONS = {
       if (!$("dungeon-modal").classList.contains("hidden")) { cancelPortal(); return; }
       if (!$("quest-modal").classList.contains("hidden") || !$("boss-modal").classList.contains("hidden") || !$("result-modal").classList.contains("hidden")) return;
       if (!state.running) return;
+      if (isMapOpen()) { closeFullMap(); return; }
+      if (!$("inventory-modal").classList.contains("hidden")) {
+        if (state.heldItem) { addItem(state.heldItem); state.heldItem = null; updateHotbarUI(); }
+        closeModal("inventory-modal");
+        return;
+      }
       if (!$("settings-modal").classList.contains("hidden")) {
         closeModal("settings-modal");
         state.paused = false;
@@ -3183,7 +3407,8 @@ const QUESTIONS = {
   window.addEventListener("keyup", (e) => { state.keys[e.key] = false; });
 
   $("btn-settings").addEventListener("click", () => { openModal("settings-modal"); state.paused = true; });
-  $("btn-inventory").addEventListener("click", () => { updateInventoryUI(); openModal("inventory-modal"); });
+  $("btn-inventory").addEventListener("click", () => { updateInventoryUI(); openModal("inventory-modal"); state.paused = true; });
+  if ($("btn-map")) $("btn-map").addEventListener("click", () => toggleFullMap());
   $("btn-resume").addEventListener("click", () => { closeModal("settings-modal"); state.paused = false; });
   $("btn-quit").addEventListener("click", quitToMenu);
 
@@ -3195,10 +3420,68 @@ const QUESTIONS = {
         state.heldItem = null;
         updateHotbarUI();
       }
+      if (id === "map-modal") { closeFullMap(); return; }
       closeModal(id);
-      if (id === "settings-modal") state.paused = false;
+      if (id === "settings-modal" || id === "inventory-modal") state.paused = false;
     });
   });
+
+  document.querySelectorAll(".map-zoom-btn").forEach((btn) => {
+    btn.addEventListener("click", () => setMapZoom(btn.getAttribute("data-map-zoom")));
+  });
+
+  // Minimap click / keyboard → full map (M also works)
+  const mini = $("minimap");
+  if (mini) {
+    mini.addEventListener("click", () => { if (state.running) openFullMap(); });
+    mini.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); if (state.running) openFullMap(); }
+    });
+  }
+
+  // Pan / zoom on full map canvas
+  if (fullMapCanvas) {
+    const wrap = fullMapCanvas.parentElement;
+    fullMapCanvas.addEventListener("pointerdown", (e) => {
+      mapView.dragging = true;
+      mapView.lastX = e.clientX;
+      mapView.lastY = e.clientY;
+      if (wrap) wrap.classList.add("dragging");
+      fullMapCanvas.setPointerCapture?.(e.pointerId);
+    });
+    fullMapCanvas.addEventListener("pointermove", (e) => {
+      if (!mapView.dragging || !isMapOpen()) return;
+      const range = state.dungeon?.active
+        ? Math.max(state.dungeon.w, state.dungeon.h) / 2
+        : (mapView.ranges[mapView.zoom] || 96);
+      const scale = (range * 2) / fullMapCanvas.width;
+      const dx = (e.clientX - mapView.lastX);
+      const dy = (e.clientY - mapView.lastY);
+      mapView.lastX = e.clientX;
+      mapView.lastY = e.clientY;
+      // Drag map under cursor (natural: drag right → look left)
+      const rect = fullMapCanvas.getBoundingClientRect();
+      const pxScale = (range * 2) / rect.width;
+      mapView.panX -= dx * pxScale;
+      mapView.panY -= dy * pxScale;
+      drawFullMap();
+    });
+    const endDrag = () => {
+      mapView.dragging = false;
+      if (wrap) wrap.classList.remove("dragging");
+    };
+    fullMapCanvas.addEventListener("pointerup", endDrag);
+    fullMapCanvas.addEventListener("pointercancel", endDrag);
+    fullMapCanvas.addEventListener("wheel", (e) => {
+      if (!isMapOpen()) return;
+      e.preventDefault();
+      const order = ["near", "mid", "far"];
+      let i = order.indexOf(mapView.zoom);
+      if (e.deltaY > 0) i = Math.min(order.length - 1, i + 1);
+      else i = Math.max(0, i - 1);
+      setMapZoom(order[i]);
+    }, { passive: false });
+  }
 
   document.querySelectorAll(".mc-equip[data-equip]").forEach((btn) => {
     btn.addEventListener("click", (ev) => {
