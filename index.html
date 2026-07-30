@@ -133,6 +133,10 @@
               <span class="hud-label">HP</span>
               <span id="hud-hp">100</span>
             </div>
+            <div class="hud-stat hidden" id="hud-breath-wrap" title="Breath">
+              <span class="hud-label">AIR</span>
+              <span id="hud-breath">100</span>
+            </div>
           </div>
           <div class="hud-center">
             <span id="hud-coords">0, 0</span>
@@ -164,6 +168,13 @@
           Press <kbd>E</kbd> / Tap to interact
         </div>
 
+        <div id="breath-bar-wrap" class="breath-bar-wrap hidden" aria-hidden="true">
+          <div class="breath-bar-label">BREATH</div>
+          <div class="breath-bar-track">
+            <div id="breath-bar-fill" class="breath-bar-fill"></div>
+          </div>
+        </div>
+
         <div id="combat-hint" class="combat-hint hidden">LMB / Tap monsters to attack · Find chests &amp; stairs</div>
 
         <div id="toast" class="toast hidden" role="status"></div>
@@ -191,8 +202,8 @@
         </header>
         <div class="modal-body settings-body">
           <label class="slider-field">
-            <span>Field of view <em id="fov-value">11</em></span>
-            <input type="range" id="setting-fov" min="7" max="17" step="2" value="11" />
+            <span>Field of view <em id="fov-value">9</em></span>
+            <input type="range" id="setting-fov" min="7" max="17" step="2" value="9" />
           </label>
           <label class="slider-field">
             <span>Render distance <em id="render-value">6</em> chunks</span>

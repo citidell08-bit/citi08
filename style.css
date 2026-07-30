@@ -449,18 +449,51 @@ select {
   image-rendering: pixelated;
 }
 
-.combat-hint {
+.breath-bar-wrap {
   position: absolute;
-  bottom: 88px;
+  bottom: 72px;
   left: 50%;
   transform: translateX(-50%);
-  background: rgba(48, 18, 18, 0.92);
-  border: 2px solid var(--danger-glow);
-  padding: 0.4rem 0.85rem;
-  font-size: 1.05rem;
+  width: min(220px, 55vw);
   z-index: 6;
-  white-space: nowrap;
-  color: var(--danger-glow);
+  pointer-events: none;
+}
+
+.breath-bar-wrap.hidden {
+  display: none;
+}
+
+.breath-bar-label {
+  font-family: var(--font-display);
+  font-size: 0.4rem;
+  color: #7ec8e8;
+  text-align: center;
+  margin-bottom: 4px;
+}
+
+.breath-bar-track {
+  height: 10px;
+  background: rgba(10, 20, 30, 0.85);
+  border: 2px solid #3a7088;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.breath-bar-fill {
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(90deg, #1a6080, #60c8f0);
+  transition: width 0.15s linear, background 0.2s;
+}
+
+.breath-bar-fill.low {
+  background: linear-gradient(90deg, #803018, #e06040);
+}
+
+@media (max-width: 640px) {
+  .breath-bar-wrap {
+    bottom: 120px;
+  }
 }
 
 .combat-hint.hidden,

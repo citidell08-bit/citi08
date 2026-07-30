@@ -237,6 +237,12 @@ const QUESTIONS = {
     bossesDefeated: 0,
     hp: 100,
     maxHp: 100,
+    breath: 100,
+    maxBreath: 100,
+    swimming: false,
+    footstepCd: 0,
+    bubbleCd: 0,
+    drownCd: 0,
     inventory: [],
     equipped: { weapon: null, armor: null, tool: null, book: null },
     spawn: { x: 8.5, y: 8.5 },
@@ -388,7 +394,11 @@ const QUESTIONS = {
   }
 
   function isSolidTile(tile) {
-    return [TILES.WATER, TILES.WALL, TILES.TREE, TILES.LAVA, TILES.FENCE, TILES.VILLAGE].includes(tile);
+    return [TILES.WALL, TILES.TREE, TILES.LAVA, TILES.FENCE, TILES.VILLAGE].includes(tile);
+  }
+
+  function isWaterAt(x, y) {
+    return getTile(Math.floor(x), Math.floor(y)) === TILES.WATER;
   }
 
   function registerBuilding(building) {
@@ -1367,16 +1377,59 @@ const QUESTIONS = {
     }
   }
 
-  function spawnParticles(x, y, n) {
+  function spawnParticles(x, y, n, kind = "spark") {
     if (!state.settings.particles) return;
     for (let i = 0; i < n; i++) {
-      state.particles.push({
-        x, y,
-        vx: (Math.random() - 0.5) * 2,
-        vy: (Math.random() - 0.5) * 2 - 0.5,
-        life: 0.6 + Math.random() * 0.5,
-        color: Math.random() > 0.5 ? "#f0c96a" : "#e06a55",
-      });
+      let color, vx, vy, life, size;
+      if (kind === "bubble") {
+        color = Math.random() > 0.5 ? "#c8f0ff" : "#8ad0f0";
+        vx = (Math.random() - 0.5) * 0.6;
+        vy = -0.4 - Math.random() * 0.9;
+        life = 0.5 + Math.random() * 0.7;
+        size = 2 + Math.floor(Math.random() * 3);
+      } else if (kind === "splash") {
+        color = Math.random() > 0.4 ? "#a8e0f8" : "#ffffff";
+        vx = (Math.random() - 0.5) * 2.2;
+        vy = -1.2 - Math.random() * 1.5;
+        life = 0.35 + Math.random() * 0.35;
+        size = 2;
+      } else if (kind === "dust") {
+        color = Math.random() > 0.5 ? "#8a7458" : "#6a5840";
+        vx = (Math.random() - 0.5) * 1.2;
+        vy = -0.15 - Math.random() * 0.4;
+        life = 0.25 + Math.random() * 0.35;
+        size = 2;
+      } else if (kind === "drown") {
+        color = "#4080a0";
+        vx = (Math.random() - 0.5) * 1.5;
+        vy = -0.2 - Math.random() * 0.8;
+        life = 0.6 + Math.random() * 0.5;
+        size = 3;
+      } else {
+        color = Math.random() > 0.5 ? "#f0c96a" : "#e06a55";
+        vx = (Math.random() - 0.5) * 2;
+        vy = (Math.random() - 0.5) * 2 - 0.5;
+        life = 0.6 + Math.random() * 0.5;
+        size = 3;
+      }
+      state.particles.push({ x, y, vx, vy, life, color, kind, size });
+    }
+  }
+
+  function updateBreathUI() {
+    const wrap = $("hud-breath-wrap");
+    const barWrap = $("breath-bar-wrap");
+    const fill = $("breath-bar-fill");
+    if (state.swimming) {
+      wrap.classList.remove("hidden");
+      barWrap.classList.remove("hidden");
+      $("hud-breath").textContent = String(Math.ceil(state.breath));
+      const pct = Math.max(0, Math.min(100, (state.breath / state.maxBreath) * 100));
+      fill.style.width = `${pct}%`;
+      fill.classList.toggle("low", state.breath < 30);
+    } else {
+      wrap.classList.add("hidden");
+      barWrap.classList.add("hidden");
     }
   }
 
@@ -1386,16 +1439,73 @@ const QUESTIONS = {
     if (state.keys.ArrowDown || state.keys.s || state.keys.S) my += 1;
     if (state.keys.ArrowLeft || state.keys.a || state.keys.A) mx -= 1;
     if (state.keys.ArrowRight || state.keys.d || state.keys.D) mx += 1;
-    if (mx || my) {
+    const moving = !!(mx || my);
+    if (moving) {
       const len = Math.hypot(mx, my) || 1;
       mx /= len; my /= len;
       state.player.facing = Math.atan2(my, mx);
     }
-    const speed = (3.2 + gearStats().pwr * 0.04) * state.settings.speed;
+
+    const wasSwimming = state.swimming;
+    state.swimming = isWaterAt(state.player.x, state.player.y);
+
+    // Enter/exit splash
+    if (state.swimming && !wasSwimming) {
+      spawnParticles(state.player.x, state.player.y, 14, "splash");
+      showToast("You wade into the water… hold your breath!");
+    } else if (!state.swimming && wasSwimming) {
+      spawnParticles(state.player.x, state.player.y, 10, "splash");
+      state.breath = state.maxBreath;
+    }
+
+    const baseSpeed = state.swimming ? 2.1 : 3.2;
+    const speed = (baseSpeed + gearStats().pwr * 0.04) * state.settings.speed;
     const nx = state.player.x + mx * speed * dt;
     const ny = state.player.y + my * speed * dt;
     if (!collides(nx, state.player.y)) state.player.x = nx;
     if (!collides(state.player.x, ny)) state.player.y = ny;
+
+    // Footsteps / swim particles
+    if (state.footstepCd > 0) state.footstepCd -= dt;
+    if (state.bubbleCd > 0) state.bubbleCd -= dt;
+    if (state.drownCd > 0) state.drownCd -= dt;
+
+    if (moving && state.footstepCd <= 0) {
+      if (state.swimming) {
+        spawnParticles(state.player.x, state.player.y + 0.15, 3, "splash");
+        state.footstepCd = 0.22;
+      } else {
+        const ground = getTile(Math.floor(state.player.x), Math.floor(state.player.y));
+        if (ground === TILES.SAND || ground === TILES.DIRT || ground === TILES.PATH || ground === TILES.GRASS) {
+          spawnParticles(state.player.x, state.player.y + 0.35, 2, "dust");
+        }
+        state.footstepCd = 0.18;
+      }
+    }
+
+    // Breath + bubbles while swimming
+    if (state.swimming) {
+      state.breath = Math.max(0, state.breath - 12 * dt); // ~8s of air
+      if (state.bubbleCd <= 0) {
+        spawnParticles(state.player.x + (Math.random() - 0.5) * 0.3, state.player.y - 0.2, 2, "bubble");
+        state.bubbleCd = 0.2 + Math.random() * 0.15;
+      }
+      if (state.breath <= 0 && state.drownCd <= 0) {
+        spawnParticles(state.player.x, state.player.y, 10, "drown");
+        playerHurt(12);
+        state.drownCd = 0.7;
+        showToast("Drowning! Get to shore!", true);
+        if (state.hp <= 0) {
+          // playerHurt already handles death respawn; reset breath after
+          state.breath = state.maxBreath;
+          state.swimming = false;
+        }
+      }
+    } else {
+      state.breath = Math.min(state.maxBreath, state.breath + 35 * dt);
+    }
+    updateBreathUI();
+
     if (!state.dungeon?.active) {
       const { cx, cy } = worldToChunk(Math.floor(state.player.x), Math.floor(state.player.y));
       const rd = state.settings.renderDist;
@@ -1525,24 +1635,38 @@ const QUESTIONS = {
         break;
       }
       case TILES.WATER: {
-        pxRect(px, py, ts, ts, "#0e2a3c");
-        const t = state.animT * 2.8 + wx * 0.7 + wy * 0.4;
+        // Deep cool lake water — blues/teals only, never warm/orange
+        const t = state.animT * 2.2 + wx * 0.55 + wy * 0.4;
         const wave = Math.sin(t);
-        const wave2 = Math.sin(t * 1.7 + 1.2);
-        pxRect(px, py, ts, ts, mixHex("#16384c", "#1e5570", 0.35 + wave * 0.15));
-        pxRect(px + 1, py + ts * (0.25 + wave * 0.05), ts - 2, 2, mixHex("#3a7088", "#8ec8e0", 0.5 + wave * 0.3));
-        pxRect(px + 2, py + ts * (0.5 + wave2 * 0.04), ts - 4, 1, "#b8e8f8");
-        pxRect(px + ts * 0.55, py + ts * 0.12, 3, 2, "rgba(220,250,255,0.45)");
-        pxRect(px + 1, py + ts - 3, ts - 2, 2, "#081820");
-        // caustic dots
-        if (wave > 0.3) pxDot(px + ts * 0.3, py + ts * 0.4, "#e0f8ff");
+        const wave2 = Math.sin(t * 1.6 + 2.1);
+        // depth base
+        pxRect(px, py, ts, ts, "#0a3048");
+        pxRect(px, py, ts, ts, c ? "#0e3a58" : "#0c3450");
+        // mid water sheet
+        pxRect(px + 1, py + 1, ts - 2, ts - 2, "#145070");
+        // darker depths toward bottom of tile
+        pxRect(px + 1, py + ts * 0.55, ts - 2, ts * 0.45 - 1, "#0a2840");
+        // animated ripples (cool cyan/white only)
+        const ry1 = ts * (0.22 + wave * 0.06);
+        const ry2 = ts * (0.48 + wave2 * 0.05);
+        pxRect(px + 2, py + ry1, ts - 4, 2, "#4a98b8");
+        pxRect(px + 3, py + ry1 - 1, ts - 6, 1, "#a8e4f8");
+        pxRect(px + 2, py + ry2, ts - 4, 1, "#2a7088");
+        // soft specular glints
+        pxRect(px + ts * 0.55, py + ts * 0.12, 3, 2, "rgba(210,245,255,0.55)");
+        if (wave > 0.55) pxDot(px + ts * 0.28, py + ts * 0.35, "#e8f8ff");
+        if (wave2 < -0.4) pxDot(px + ts * 0.7, py + ts * 0.5, "#c0e8f8");
+        // shore darkening
+        pxRect(px, py + ts - 2, ts, 2, "#061820");
+        pxRect(px, py, 1, ts, "rgba(0,20,40,0.25)");
         break;
       }
       case TILES.SAND: {
-        fillNoise(px, py, ts, wx, wy, c ? "#d8bc7e" : "#c8ac6e", "#b89858", 0.28);
-        pxRect(px + 3, py + 5, 4, 1, "#ecd898");
-        pxRect(px + ts * 0.6, py + ts * 0.4, 2, 2, "#a88850");
-        pxDot(px + ts * 0.25, py + ts * 0.6, "#fff0c0");
+        // Cool beach sand (beige, not Cheeto orange)
+        fillNoise(px, py, ts, wx, wy, c ? "#c8b890" : "#b8a880", "#a09070", 0.28);
+        pxRect(px + 3, py + 5, 4, 1, "#d8d0b0");
+        pxRect(px + ts * 0.6, py + ts * 0.4, 2, 2, "#908060");
+        pxDot(px + ts * 0.25, py + ts * 0.6, "#e8e0c8");
         break;
       }
       case TILES.PATH: {
