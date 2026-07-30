@@ -262,7 +262,7 @@ const QUESTIONS = {
     overworldReturn: { x: 8.5, y: 8.5 },
     player: { x: 8.5, y: 8.5, facing: 0 },
     keys: Object.create(null),
-    settings: { fov: 9, renderDist: 6, speed: 1, minimap: true, particles: true, forceMobile: false },
+    settings: { fov: 11, renderDist: 6, speed: 1, minimap: true, particles: true, forceMobile: false },
     chunks: new Map(),
     structures: new Map(),
     buildings: new Map(),
@@ -1841,340 +1841,266 @@ const QUESTIONS = {
   }
 
   function fillNoise(px, py, ts, wx, wy, c1, c2, dens = 0.45) {
+    // Pixel-Dungeons / Pixel-Quest style: flat blocks + sparse speckles (not noisy dither)
     pxRect(px, py, ts, ts, c1);
-    const step = Math.max(1, Math.floor(ts / 12));
+    const step = Math.max(2, Math.floor(ts / 8));
     for (let y = 0; y < ts; y += step) {
       for (let x = 0; x < ts; x += step) {
-        if (n01(wx * 16 + x, wy * 16 + y) < dens) {
-          pxRect(px + x, py + y, step, step, c2);
-        }
+        if (n01(wx * 8 + x, wy * 8 + y) < dens * 0.55) pxRect(px + x, py + y, step, step, c2);
       }
     }
-    // top-left light, bottom-right AO
-    pxRect(px, py, ts, 1, "rgba(255,255,255,0.08)");
-    pxRect(px, py, 1, ts, "rgba(255,255,255,0.06)");
-    pxRect(px, py + ts - 1, ts, 1, "rgba(0,0,0,0.22)");
-    pxRect(px + ts - 1, py, 1, ts, "rgba(0,0,0,0.18)");
+  }
+
+  function outlineRect(x, y, w, h, fill, line = "#0a0a0a") {
+    pxRect(x, y, w, h, line);
+    pxRect(x + 1, y + 1, Math.max(1, w - 2), Math.max(1, h - 2), fill);
   }
 
   function drawTileArt(tile, px, py, ts, wx, wy) {
     const c = (wx + wy) & 1;
+    const inD = !!(state.dungeon && state.dungeon.active);
     switch (tile) {
       case TILES.GRASS: {
-        fillNoise(px, py, ts, wx, wy, c ? "#3a6a32" : "#32602c", c ? "#2e5428" : "#284c22", 0.35);
-        // soil patches
-        if (n01(wx, wy, 3) > 0.7) pxRect(px + ts * 0.55, py + ts * 0.7, 3, 2, "#5a4030");
-        // many grass blades with lit tips
-        for (let i = 0; i < 7; i++) {
-          const gx = 1 + Math.floor(n01(wx + i, wy + 9) * (ts - 4));
-          const gh = 3 + Math.floor(n01(wx + i, wy + 2) * (ts * 0.45));
-          const gy = ts - gh - 1;
-          pxRect(px + gx, py + gy, 1, gh, mixHex("#2a5020", "#5a9040", n01(wx, i)));
-          pxDot(px + gx, py + gy, "#9ad868");
-        }
-        // dew sparkle
-        if (n01(wx * 3, wy * 5) > 0.82) pxDot(px + ts * 0.4, py + ts * 0.35, "#d0ffc0");
+        // Bright RotMG / Pixel Quest grass checkers
+        pxRect(px, py, ts, ts, c ? "#3cb84a" : "#34a842");
+        pxRect(px + 1, py + 1, ts - 2, ts - 2, c ? "#48d058" : "#3cbc48");
+        if (n01(wx, wy, 4) > 0.72) pxRect(px + ts * 0.35, py + ts * 0.4, 2, 2, "#2a9038");
+        if (n01(wx, wy, 9) > 0.85) pxDot(px + ts * 0.6, py + ts * 0.25, "#b8ff90");
         break;
       }
       case TILES.DIRT: {
-        fillNoise(px, py, ts, wx, wy, "#6a523c", "#524028", 0.4);
-        pxRect(px + 2, py + 3, 3, 2, "#3a2818");
-        pxRect(px + ts * 0.55, py + ts * 0.55, 4, 2, "#8a6a48");
-        pxDot(px + ts * 0.3, py + ts * 0.4, "#2a1c10");
-        pxDot(px + ts * 0.7, py + ts * 0.25, "#a08060");
+        pxRect(px, py, ts, ts, c ? "#a87848" : "#986840");
+        pxRect(px + 1, py + 1, ts - 2, ts - 2, c ? "#b88858" : "#a87848");
+        pxRect(px + ts * 0.3, py + ts * 0.45, 3, 2, "#785030");
         break;
       }
       case TILES.MOSS: {
-        fillNoise(px, py, ts, wx, wy, "#3a5834", "#2a4028", 0.5);
-        pxRect(px + 2, py + 2, ts - 4, ts - 4, "#4a7040");
-        for (let i = 0; i < 5; i++) pxDot(px + 2 + i * 2, py + 4 + (i % 3), "#6a9850");
+        pxRect(px, py, ts, ts, "#2e6a38");
+        pxRect(px + 1, py + 1, ts - 2, ts - 2, "#3a8844");
+        pxRect(px + 3, py + 3, 3, 2, "#58b060");
         break;
       }
       case TILES.STONE: {
-        fillNoise(px, py, ts, wx, wy, "#6a6660", "#4a4640", 0.3);
-        pxRect(px, py, ts, 2, "#8a8680");
-        pxRect(px + ts * 0.2, py + ts * 0.4, ts * 0.55, 1, "#3a3630");
-        pxRect(px + 2, py + 2, 3, 2, "#9a9690");
-        pxRect(px + ts * 0.55, py + ts * 0.2, 2, 4, "#2a2620");
-        // crack
-        pxRect(px + ts * 0.4, py + ts * 0.25, 1, ts * 0.4, "#2a2824");
+        pxRect(px, py, ts, ts, inD ? "#3a3648" : "#7a7a82");
+        pxRect(px + 1, py + 1, ts - 2, ts - 2, inD ? "#4a4660" : "#8e8e96");
+        pxRect(px + 2, py + 2, ts * 0.35, 2, inD ? "#6a6680" : "#b0b0b8");
+        pxRect(px + ts * 0.5, py + ts * 0.55, ts * 0.35, 2, inD ? "#2a2838" : "#5a5a62");
         break;
       }
       case TILES.COBBLE: {
-        fillNoise(px, py, ts, wx, wy, "#52483e", "#3a342c", 0.25);
-        pxRect(px + 1, py + 1, ts * 0.42, ts * 0.38, "#6a6258");
-        pxRect(px + ts * 0.5, py + ts * 0.45, ts * 0.42, ts * 0.42, "#4a443c");
-        pxRect(px + 2, py + 2, ts * 0.3, 1, "#8a8278");
-        pxRect(px + ts * 0.55, py + ts * 0.5, ts * 0.3, 1, "#2a241c");
+        pxRect(px, py, ts, ts, "#5a5460");
+        pxRect(px + 1, py + 1, ts * 0.42, ts * 0.42, "#7a7480");
+        pxRect(px + ts * 0.5, py + ts * 0.5, ts * 0.42, ts * 0.42, "#6a6470");
+        pxRect(px + 2, py + 2, ts * 0.3, 1, "#9a94a0");
         break;
       }
       case TILES.RUIN: {
-        fillNoise(px, py, ts, wx, wy, "#7a6a58", "#5a4a3a", 0.35);
-        pxRect(px + 2, py + 2, ts - 4, ts - 4, "#4a3a2c");
-        pxRect(px + 3, py + 3, 2, ts - 6, "#2a2018");
-        pxRect(px + ts * 0.55, py + 4, 2, ts - 8, "#6a5848");
-        pxRect(px + 4, py + ts * 0.35, ts - 8, 1, "#1a1410");
+        pxRect(px, py, ts, ts, "#6a5a4a");
+        outlineRect(px + 2, py + 2, ts - 4, ts - 4, "#4a3a2c");
+        pxRect(px + 4, py + 4, 2, ts - 8, "#2a2018");
         break;
       }
       case TILES.WATER: {
         const kind = waterKindAt(wx, wy) || "lake";
-        const t = state.animT * 2.2 + wx * 0.55 + wy * 0.4;
+        const t = state.animT * 2.4 + wx * 0.5 + wy * 0.4;
         const wave = Math.sin(t);
-        const wave2 = Math.sin(t * 1.6 + 2.1);
+        // Bright cyan Pixel-Quest water
         const deep = kind === "deep" || kind === "waterfall";
-        // depth base
-        pxRect(px, py, ts, ts, deep ? "#062030" : "#0a3048");
-        pxRect(px, py, ts, ts, c ? "#0e3a58" : "#0c3450");
-        pxRect(px + 1, py + 1, ts - 2, ts - 2, kind === "marsh" ? "#145060" : "#145070");
-        pxRect(px + 1, py + ts * 0.55, ts - 2, ts * 0.45 - 1, deep ? "#041828" : "#0a2840");
-        const ry1 = ts * (0.22 + wave * 0.06);
-        const ry2 = ts * (0.48 + wave2 * 0.05);
-        pxRect(px + 2, py + ry1, ts - 4, 2, "#4a98b8");
-        pxRect(px + 3, py + ry1 - 1, ts - 6, 1, "#a8e4f8");
-        pxRect(px + 2, py + ry2, ts - 4, 1, "#2a7088");
-        pxRect(px + ts * 0.55, py + ts * 0.12, 3, 2, "rgba(210,245,255,0.55)");
-        if (wave > 0.55) pxDot(px + ts * 0.28, py + ts * 0.35, "#e8f8ff");
-        if (wave2 < -0.4) pxDot(px + ts * 0.7, py + ts * 0.5, "#c0e8f8");
-        // Shore foam when next to land
-        const neighbors = [[0, -1], [1, 0], [0, 1], [-1, 0]];
-        for (const [dx, dy] of neighbors) {
+        pxRect(px, py, ts, ts, deep ? "#1860c0" : "#2080e0");
+        pxRect(px + 1, py + 1, ts - 2, ts - 2, kind === "marsh" ? "#2090b0" : "#38a0f0");
+        pxRect(px + 2, py + ts * (0.35 + wave * 0.05), ts - 4, 2, "#80d0ff");
+        pxRect(px + 3, py + ts * (0.55 + Math.sin(t * 1.4) * 0.04), ts - 6, 1, "#c0ecff");
+        if (wave > 0.5) pxDot(px + ts * 0.3, py + ts * 0.25, "#ffffff");
+        // Shore foam
+        [[0, -1], [1, 0], [0, 1], [-1, 0]].forEach(([dx, dy]) => {
           const nt = getTile(wx + dx, wy + dy);
           if (nt !== TILES.WATER && nt !== TILES.LAVA) {
-            if (dy === -1) pxRect(px + 1, py, ts - 2, 2, "rgba(220,240,255,0.45)");
-            if (dy === 1) pxRect(px + 1, py + ts - 2, ts - 2, 2, "rgba(180,210,230,0.35)");
-            if (dx === -1) pxRect(px, py + 1, 2, ts - 2, "rgba(200,230,245,0.3)");
-            if (dx === 1) pxRect(px + ts - 2, py + 1, 2, ts - 2, "rgba(200,230,245,0.3)");
+            if (dy === -1) pxRect(px + 1, py, ts - 2, 2, "rgba(255,255,255,0.55)");
+            if (dy === 1) pxRect(px + 1, py + ts - 2, ts - 2, 2, "rgba(200,230,255,0.4)");
+            if (dx === -1) pxRect(px, py + 1, 2, ts - 2, "rgba(220,240,255,0.35)");
+            if (dx === 1) pxRect(px + ts - 2, py + 1, 2, ts - 2, "rgba(220,240,255,0.35)");
           }
-        }
-        // Marsh lily pads
+        });
         if (kind === "marsh" && n01(wx, wy, 8) > 0.55) {
-          pxRect(px + ts * 0.25, py + ts * 0.35, 5, 3, "#2a6830");
-          pxRect(px + ts * 0.28, py + ts * 0.36, 3, 2, "#4a9048");
-          pxDot(px + ts * 0.45, py + ts * 0.3, "#e07090");
+          outlineRect(px + ts * 0.25, py + ts * 0.35, 5, 3, "#38a048");
+          pxDot(px + ts * 0.45, py + ts * 0.3, "#ff70a0");
         }
-        // Waterfall streaks
         if (kind === "waterfall" || kind === "stream") {
-          const fall = (state.animT * 10 + wx + wy * 3) % ts;
-          pxRect(px + ts * 0.3, py + fall, 2, 6, "rgba(220,245,255,0.7)");
-          pxRect(px + ts * 0.55, py + (fall + ts * 0.4) % ts, 2, 5, "rgba(180,230,255,0.55)");
-          pxRect(px + 2, py + ts - 3, ts - 4, 2, "rgba(255,255,255,0.35)");
+          const fall = (state.animT * 12 + wx * 3) % ts;
+          pxRect(px + ts * 0.3, py + fall, 2, 5, "#ffffff");
+          pxRect(px + ts * 0.55, py + (fall + ts * 0.4) % ts, 2, 4, "#c0e8ff");
         }
-        // River current lines
         if (kind === "river") {
-          const flow = (state.animT * 8 + wy) % (ts - 4);
-          pxRect(px + flow, py + ts * 0.4, 4, 1, "rgba(200,235,255,0.4)");
+          const flow = (state.animT * 10 + wy) % (ts - 4);
+          pxRect(px + flow, py + ts * 0.42, 5, 2, "rgba(255,255,255,0.45)");
         }
-        pxRect(px, py + ts - 2, ts, 2, "#061820");
-        pxRect(px, py, 1, ts, "rgba(0,20,40,0.25)");
         break;
       }
       case TILES.SAND: {
-        // Cool beach sand (beige, not Cheeto orange)
-        fillNoise(px, py, ts, wx, wy, c ? "#c8b890" : "#b8a880", "#a09070", 0.28);
-        pxRect(px + 3, py + 5, 4, 1, "#d8d0b0");
-        pxRect(px + ts * 0.6, py + ts * 0.4, 2, 2, "#908060");
-        pxDot(px + ts * 0.25, py + ts * 0.6, "#e8e0c8");
+        pxRect(px, py, ts, ts, c ? "#e0d090" : "#d4c480");
+        pxRect(px + 1, py + 1, ts - 2, ts - 2, c ? "#ece0a0" : "#e0d090");
+        pxDot(px + ts * 0.3, py + ts * 0.5, "#c0b070");
         break;
       }
       case TILES.PATH: {
-        fillNoise(px, py, ts, wx, wy, c ? "#9a8468" : "#8a7458", "#6a5840", 0.3);
-        pxRect(px + 1, py + 1, 3, 2, "#bca888");
-        pxRect(px + ts * 0.5, py + ts * 0.55, 4, 2, "#5a4830");
-        pxDot(px + ts * 0.35, py + ts * 0.3, "#d0b890");
+        pxRect(px, py, ts, ts, c ? "#c4a878" : "#b89868");
+        pxRect(px + 1, py + 1, ts - 2, ts - 2, c ? "#d4b888" : "#c4a878");
+        pxRect(px + 2, py + 2, 3, 2, "#e8d0a0");
         break;
       }
       case TILES.FLOOR: {
-        fillNoise(px, py, ts, wx, wy, "#4a3828", "#3a2818", 0.25);
-        // wood planks
-        pxRect(px + 1, py + 1, ts - 2, Math.floor(ts / 3) - 1, "#5a4834");
-        pxRect(px + 1, py + Math.floor(ts / 3) + 1, ts - 2, Math.floor(ts / 3) - 1, "#524030");
-        pxRect(px + 1, py + Math.floor((ts * 2) / 3) + 1, ts - 2, Math.floor(ts / 3) - 2, "#4a3828");
-        pxRect(px + 2, py + 2, ts - 4, 1, "#6a5840");
-        pxRect(px + 2, py + ts * 0.5, ts - 4, 1, "#2a1c10");
+        if (inD) {
+          // Purple-gray dungeon floor like Pixel Quest / RotMG
+          pxRect(px, py, ts, ts, c ? "#2a2438" : "#242030");
+          pxRect(px + 1, py + 1, ts - 2, ts - 2, c ? "#34304a" : "#2e2a40");
+          if (n01(wx, wy, 5) > 0.7) pxRect(px + ts * 0.4, py + ts * 0.4, 2, 2, "#4a4460");
+        } else {
+          pxRect(px, py, ts, ts, "#6a4a30");
+          pxRect(px + 1, py + 1, ts - 2, Math.floor(ts / 3) - 1, "#8a6848");
+          pxRect(px + 1, py + Math.floor(ts / 3), ts - 2, Math.floor(ts / 3), "#7a5838");
+          pxRect(px + 1, py + Math.floor((ts * 2) / 3), ts - 2, Math.floor(ts / 3) - 1, "#6a4a30");
+          pxRect(px + 2, py + 2, ts - 4, 1, "#a88860");
+        }
         break;
       }
       case TILES.WALL: {
-        fillNoise(px, py, ts, wx, wy, "#2a221a", "#1a1410", 0.4);
-        pxRect(px + 1, py + 1, ts - 2, ts - 2, "#32281e");
-        // brick lines
-        pxRect(px, py + ts * 0.33, ts, 1, "#0e0c0a");
-        pxRect(px, py + ts * 0.66, ts, 1, "#0e0c0a");
-        pxRect(px + ts * 0.5, py, 1, ts * 0.33, "#0e0c0a");
-        pxRect(px + ts * 0.25, py + ts * 0.33, 1, ts * 0.33, "#0e0c0a");
-        pxRect(px, py, ts, 2, "#4a4034");
-        pxRect(px, py, 2, ts, "#120e0a");
+        if (inD) {
+          pxRect(px, py, ts, ts, "#12101a");
+          outlineRect(px + 1, py + 1, ts - 2, ts - 2, "#3a3458");
+          pxRect(px + 2, py + 2, ts - 4, 2, "#5a5480");
+          pxRect(px, py + ts * 0.45, ts, 1, "#0a0810");
+          pxRect(px + ts * 0.5, py + 2, 1, ts * 0.4, "#0a0810");
+        } else {
+          pxRect(px, py, ts, ts, "#1a1410");
+          outlineRect(px + 1, py + 1, ts - 2, ts - 2, "#4a4038");
+          pxRect(px + 2, py + 2, ts - 4, 2, "#6a6058");
+        }
         break;
       }
       case TILES.LAVA: {
-        const pulse = 0.5 + Math.sin(state.animT * 4 + wx * 1.3 + wy) * 0.5;
-        pxRect(px, py, ts, ts, "#2a0804");
-        pxRect(px + 1, py + 1, ts - 2, ts - 2, mixHex("#8a1808", "#e05020", pulse));
-        pxRect(px + ts * 0.25, py + ts * 0.2, 4, 4, mixHex("#e06030", "#fff080", pulse));
-        pxRect(px + ts * 0.55, py + ts * 0.55, 3, 3, "#ff9040");
-        if (pulse > 0.7) pxDot(px + ts * 0.45, py + ts * 0.35, "#fff8c0");
-        pxRect(px, py + ts - 2, ts, 2, "#1a0400");
+        const pulse = 0.5 + Math.sin(state.animT * 5 + wx + wy) * 0.5;
+        pxRect(px, py, ts, ts, "#4a0800");
+        outlineRect(px + 1, py + 1, ts - 2, ts - 2, mixHex("#e04010", "#ff9020", pulse));
+        pxRect(px + ts * 0.3, py + ts * 0.3, 3, 3, "#ffe060");
         break;
       }
       case TILES.TREE: {
-        fillNoise(px, py, ts, wx, wy, "#1e3a1c", "#162e14", 0.2);
-        // trunk with bark
-        pxRect(px + ts * 0.4, py + ts * 0.45, ts * 0.2, ts * 0.55, "#4a3020");
-        pxRect(px + ts * 0.42, py + ts * 0.5, 1, ts * 0.4, "#2a1810");
-        pxRect(px + ts * 0.52, py + ts * 0.55, 1, ts * 0.3, "#6a4830");
-        // canopy layers
-        pxRect(px + ts * 0.1, py + ts * 0.08, ts * 0.8, ts * 0.42, "#1e4a22");
-        pxRect(px + ts * 0.2, py + ts * 0.02, ts * 0.6, ts * 0.35, "#2e6a30");
-        pxRect(px + ts * 0.3, py + ts * 0.1, ts * 0.4, ts * 0.25, "#3e8a40");
-        pxRect(px + ts * 0.35, py + ts * 0.12, ts * 0.2, ts * 0.12, "#6ab050");
-        pxDot(px + ts * 0.4, py + ts * 0.15, "#a0e070");
+        pxRect(px, py, ts, ts, c ? "#34a842" : "#2e943c");
+        // trunk
+        outlineRect(px + ts * 0.4, py + ts * 0.5, ts * 0.2, ts * 0.45, "#8a5030");
+        // canopy blobs with outline
+        outlineRect(px + ts * 0.12, py + ts * 0.08, ts * 0.76, ts * 0.42, "#228038");
+        outlineRect(px + ts * 0.22, py + 2, ts * 0.56, ts * 0.32, "#38b048");
+        pxRect(px + ts * 0.35, py + ts * 0.12, ts * 0.2, ts * 0.12, "#60e070");
         break;
       }
       case TILES.FLOWER: {
-        fillNoise(px, py, ts, wx, wy, "#326032", "#2a5028", 0.25);
-        pxRect(px + ts * 0.46, py + ts * 0.4, 2, ts * 0.4, "#1e4018");
-        pxRect(px + ts * 0.3, py + ts * 0.28, 5, 5, "#d06048");
-        pxRect(px + ts * 0.5, py + ts * 0.24, 5, 5, "#e07058");
-        pxRect(px + ts * 0.4, py + ts * 0.2, 5, 5, "#c05040");
-        pxRect(px + ts * 0.44, py + ts * 0.3, 3, 3, "#f0d060");
+        pxRect(px, py, ts, ts, c ? "#3cb84a" : "#34a842");
+        pxRect(px + ts * 0.45, py + ts * 0.4, 2, ts * 0.4, "#1e6018");
+        outlineRect(px + ts * 0.3, py + ts * 0.22, 5, 5, "#ff4860");
+        outlineRect(px + ts * 0.48, py + ts * 0.18, 5, 5, "#ff80a0");
+        pxRect(px + ts * 0.42, py + ts * 0.28, 3, 3, "#ffe060");
         break;
       }
       case TILES.FENCE: {
-        fillNoise(px, py, ts, wx, wy, "#5a7848", "#4a6838", 0.2);
-        pxRect(px + ts * 0.15, py + 2, 3, ts - 4, "#5a4030");
-        pxRect(px + ts * 0.7, py + 2, 3, ts - 4, "#5a4030");
-        pxRect(px + 2, py + ts * 0.3, ts - 4, 3, "#c4a574");
-        pxRect(px + 2, py + ts * 0.3, ts - 4, 1, "#e0c898");
-        pxRect(px + 2, py + ts * 0.58, ts - 4, 2, "#8a6840");
+        pxRect(px, py, ts, ts, c ? "#3cb84a" : "#34a842");
+        outlineRect(px + ts * 0.15, py + 2, 3, ts - 4, "#c4a060");
+        outlineRect(px + ts * 0.7, py + 2, 3, ts - 4, "#c4a060");
+        outlineRect(px + 2, py + ts * 0.3, ts - 4, 3, "#e0c080");
+        outlineRect(px + 2, py + ts * 0.55, ts - 4, 2, "#a88050");
         break;
       }
       case TILES.BANNER: {
-        fillNoise(px, py, ts, wx, wy, "#4a6840", "#3a5830", 0.2);
-        pxRect(px + ts * 0.45, py + 1, 2, ts - 2, "#4a3020");
-        pxRect(px + ts * 0.15, py + 2, ts * 0.55, ts * 0.45, "#c06040");
-        pxRect(px + ts * 0.2, py + 4, ts * 0.4, ts * 0.28, "#e08050");
-        pxRect(px + ts * 0.3, py + 6, ts * 0.25, ts * 0.15, "#f0c96a");
+        pxRect(px, py, ts, ts, "#34a842");
+        outlineRect(px + ts * 0.45, py + 1, 2, ts - 2, "#8a5030");
+        outlineRect(px + ts * 0.15, py + 2, ts * 0.5, ts * 0.4, "#e04040");
+        pxRect(px + ts * 0.25, py + 6, ts * 0.3, ts * 0.15, "#ffe060");
         break;
       }
       case TILES.DOOR: {
-        fillNoise(px, py, ts, wx, wy, "#4a3424", "#3a2818", 0.2);
-        pxRect(px + 2, py + 1, ts - 4, ts - 2, "#2a1c12");
-        pxRect(px + 3, py + 2, ts - 6, ts - 4, "#3a2818");
-        // panels
-        pxRect(px + 4, py + 3, ts * 0.28, ts * 0.35, "#4a3420");
-        pxRect(px + ts * 0.52, py + 3, ts * 0.28, ts * 0.35, "#4a3420");
-        pxRect(px + 4, py + ts * 0.5, ts * 0.28, ts * 0.35, "#4a3420");
-        pxRect(px + ts * 0.52, py + ts * 0.5, ts * 0.28, ts * 0.35, "#4a3420");
-        pxRect(px + ts * 0.7, py + ts * 0.48, 2, 2, "#f0c96a");
+        pxRect(px, py, ts, ts, "#5a3a20");
+        outlineRect(px + 2, py + 1, ts - 4, ts - 2, "#8a5830");
+        pxRect(px + 4, py + 3, ts * 0.28, ts * 0.35, "#6a4020");
+        pxRect(px + ts * 0.52, py + 3, ts * 0.28, ts * 0.35, "#6a4020");
+        pxRect(px + ts * 0.7, py + ts * 0.48, 2, 2, "#ffe060");
         break;
       }
       case TILES.VILLAGE: {
-        // Timber-frame cottage wall
-        fillNoise(px, py, ts, wx, wy, "#6a5038", "#4a3828", 0.2);
-        pxRect(px + 1, py + 1, ts - 2, ts - 2, "#d8c09a");
-        pxRect(px + 2, py + 2, ts - 4, 2, "#f0e0c0");
-        // dark timber beams
-        pxRect(px + 1, py + 1, 2, ts - 2, "#4a3020");
-        pxRect(px + ts - 3, py + 1, 2, ts - 2, "#4a3020");
-        pxRect(px + 1, py + 1, ts - 2, 2, "#4a3020");
-        pxRect(px + 1, py + ts - 3, ts - 2, 2, "#4a3020");
-        pxRect(px + ts * 0.45, py + 1, 2, ts - 2, "#3a2418");
-        // window glass with reflection
-        pxRect(px + ts * 0.22, py + ts * 0.28, ts * 0.28, ts * 0.32, "#2a5070");
-        pxRect(px + ts * 0.24, py + ts * 0.3, ts * 0.1, ts * 0.12, "#7ab0d8");
-        pxRect(px + ts * 0.55, py + ts * 0.28, ts * 0.28, ts * 0.32, "#2a5070");
-        pxRect(px + ts * 0.57, py + ts * 0.3, ts * 0.1, ts * 0.12, "#8ac0e0");
-        pxRect(px + 2, py + ts - 3, ts - 4, 2, "#5a4030");
+        // Flat plaster + black timber like Pixel Quest houses
+        pxRect(px, py, ts, ts, "#0a0a0a");
+        pxRect(px + 1, py + 1, ts - 2, ts - 2, "#e8d8b0");
+        pxRect(px + 2, py + 2, ts - 4, 2, "#fff0d0");
+        pxRect(px + 1, py + 1, 2, ts - 2, "#2a1a10");
+        pxRect(px + ts - 3, py + 1, 2, ts - 2, "#2a1a10");
+        pxRect(px + 1, py + 1, ts - 2, 2, "#2a1a10");
+        pxRect(px + ts * 0.45, py + 1, 2, ts - 2, "#2a1a10");
+        outlineRect(px + ts * 0.2, py + ts * 0.3, ts * 0.25, ts * 0.28, "#40a0e0");
+        outlineRect(px + ts * 0.55, py + ts * 0.3, ts * 0.25, ts * 0.28, "#40a0e0");
+        pxRect(px + ts * 0.22, py + ts * 0.32, 2, 2, "#a0e0ff");
         break;
       }
       case TILES.DUNGEON: {
-        // Swirling PORTAL — not a door
+        // Keep swirling portal effect
         const t = state.animT * 4 + wx + wy;
-        fillNoise(px, py, ts, wx, wy, "#0a0610", "#140818", 0.3);
-        // stone ring
-        pxRect(px + 1, py + 1, ts - 2, ts - 2, "#2a1a28");
+        pxRect(px, py, ts, ts, "#0a0610");
+        outlineRect(px + 1, py + 1, ts - 2, ts - 2, "#2a1a38");
         const cx0 = px + ts / 2, cy0 = py + ts / 2;
         const r = ts * 0.38;
-        // outer glow
-        pxRect(cx0 - r - 1, cy0 - r - 1, r * 2 + 2, r * 2 + 2, "rgba(120,60,200,0.35)");
-        // portal disc layers
-        pxRect(cx0 - r, cy0 - r, r * 2, r * 2, mixHex("#401878", "#2080c0", 0.4 + Math.sin(t) * 0.2));
-        pxRect(cx0 - r * 0.7, cy0 - r * 0.7, r * 1.4, r * 1.4, mixHex("#8030e0", "#40d0ff", 0.5 + Math.cos(t * 1.3) * 0.25));
-        pxRect(cx0 - r * 0.4, cy0 - r * 0.4, r * 0.8, r * 0.8, mixHex("#c060ff", "#a0f0ff", 0.5 + Math.sin(t * 2) * 0.3));
-        pxRect(cx0 - r * 0.18, cy0 - r * 0.18, r * 0.36, r * 0.36, "#f0e8ff");
-        // swirl ticks
+        pxRect(cx0 - r - 1, cy0 - r - 1, r * 2 + 2, r * 2 + 2, "rgba(120,60,220,0.4)");
+        pxRect(cx0 - r, cy0 - r, r * 2, r * 2, mixHex("#5018a0", "#2080ff", 0.4 + Math.sin(t) * 0.2));
+        pxRect(cx0 - r * 0.7, cy0 - r * 0.7, r * 1.4, r * 1.4, mixHex("#9030ff", "#40e0ff", 0.5 + Math.cos(t * 1.3) * 0.25));
+        pxRect(cx0 - r * 0.35, cy0 - r * 0.35, r * 0.7, r * 0.7, "#f0e8ff");
         for (let i = 0; i < 6; i++) {
           const a = t + i * 1.05;
-          const sx = cx0 + Math.cos(a) * r * 0.55;
-          const sy = cy0 + Math.sin(a) * r * 0.55;
-          pxRect(sx - 1, sy - 1, 2, 2, i % 2 ? "#60e0ff" : "#e080ff");
+          pxRect(cx0 + Math.cos(a) * r * 0.55 - 1, cy0 + Math.sin(a) * r * 0.55 - 1, 2, 2, i % 2 ? "#60e0ff" : "#e080ff");
         }
-        // rune stones
-        pxRect(px + 2, py + 2, 2, 2, "#c090ff");
-        pxRect(px + ts - 4, py + 2, 2, 2, "#80d0ff");
-        pxRect(px + 2, py + ts - 4, 2, 2, "#ff80c0");
-        pxRect(px + ts - 4, py + ts - 4, 2, 2, "#c090ff");
         break;
       }
       case TILES.TORCH: {
-        fillNoise(px, py, ts, wx, wy, "#2a2018", "#1a1410", 0.2);
-        pxRect(px + ts * 0.4, py + ts * 0.35, 3, ts * 0.55, "#5a4030");
-        pxRect(px + ts * 0.42, py + ts * 0.4, 1, ts * 0.4, "#3a2818");
-        const flicker = 0.5 + Math.sin(state.animT * 12 + wx * 3) * 0.5;
-        pxRect(px + ts * 0.3, py + ts * 0.12, 7, 8, mixHex("#e05020", "#f0c040", flicker));
-        pxRect(px + ts * 0.38, py + ts * 0.06, 4, 5, mixHex("#f0a030", "#fff4a0", flicker));
-        pxRect(px + ts * 0.12, py + ts * 0.15, ts * 0.76, ts * 0.55, `rgba(255,160,40,${0.08 + flicker * 0.1})`);
+        pxRect(px, py, ts, ts, inD ? "#2a2438" : "#3cb84a");
+        outlineRect(px + ts * 0.4, py + ts * 0.35, 3, ts * 0.5, "#8a5030");
+        const flicker = 0.5 + Math.sin(state.animT * 14 + wx) * 0.5;
+        outlineRect(px + ts * 0.32, py + ts * 0.12, 6, 6, mixHex("#ff6020", "#ffe060", flicker));
         break;
       }
       case TILES.CHEST: {
-        const bob = Math.sin(state.animT * 3 + wx) * 1;
-        fillNoise(px, py, ts, wx, wy, "#2a2218", "#1a1610", 0.15);
-        pxRect(px + 2, py + ts - 3, ts - 4, 2, "#0a0806");
-        pxRect(px + 2, py + 5 + bob, ts - 4, ts - 8, "#5a3a18");
-        pxRect(px + 3, py + 6 + bob, ts - 6, ts - 10, "#8a5a28");
-        pxRect(px + 4, py + 8 + bob, ts - 8, 1, "#3a2410");
-        pxRect(px + 4, py + 11 + bob, ts - 8, 1, "#b07838");
-        pxRect(px + 2, py + 2 + bob, ts - 4, 5, "#a07038");
-        pxRect(px + 3, py + 3 + bob, ts - 6, 2, "#d0a050");
-        pxRect(px + 2, py + 6 + bob, ts - 4, 2, "#d0b060");
-        pxRect(px + 2, py + ts - 6 + bob, ts - 4, 2, "#a88840");
-        const glow = 0.55 + Math.sin(state.animT * 5 + wx) * 0.45;
-        pxRect(px + ts * 0.38, py + 7 + bob, 5, 5, mixHex("#c09020", "#fff0a0", glow));
-        pxRect(px + ts * 0.45, py + 8 + bob, 2, 2, "#5a3810");
+        pxRect(px, py, ts, ts, inD ? "#2a2438" : "#34a842");
+        outlineRect(px + ts * 0.15, py + ts * 0.3, ts * 0.7, ts * 0.5, "#c08030");
+        pxRect(px + ts * 0.2, py + ts * 0.35, ts * 0.6, 2, "#e0a050");
+        pxRect(px + ts * 0.45, py + ts * 0.48, 3, 3, "#ffe060");
         break;
       }
       case TILES.STAIRS: {
-        fillNoise(px, py, ts, wx, wy, "#3a3028", "#2a2018", 0.2);
-        for (let i = 0; i < 4; i++) {
-          pxRect(px + 2 + i, py + 2 + i * 3, ts - 4 - i * 2, 3, i % 2 ? "#6a5840" : "#4a3c30");
-          pxRect(px + 2 + i, py + 2 + i * 3, ts - 4 - i * 2, 1, "#8a7860");
-        }
-        pxRect(px + ts * 0.4, py + ts * 0.15, 4, 4, "#40c8ff");
+        pxRect(px, py, ts, ts, "#1a1628");
+        outlineRect(px + 2, py + 2, ts - 4, ts - 4, "#4a4468");
+        for (let i = 0; i < 4; i++) pxRect(px + 4, py + 4 + i * (ts / 5), ts - 8, 2, "#7a74a0");
+        pxRect(px + ts * 0.4, py + ts * 0.15, ts * 0.2, 2, "#ffe060");
         break;
       }
       case TILES.EXIT: {
-        const pulse = 0.55 + Math.sin(state.animT * 4) * 0.45;
-        fillNoise(px, py, ts, wx, wy, "#101820", "#0a1018", 0.2);
-        pxRect(px + 2, py + 2, ts - 4, ts - 4, mixHex("#204060", "#60c0ff", pulse));
-        pxRect(px + ts * 0.3, py + ts * 0.2, ts * 0.4, ts * 0.6, mixHex("#4080c0", "#e0f8ff", pulse));
+        pxRect(px, py, ts, ts, "#1a1628");
+        outlineRect(px + 2, py + 2, ts - 4, ts - 4, "#3860a0");
+        pxRect(px + ts * 0.35, py + ts * 0.25, ts * 0.3, ts * 0.5, "#60a0ff");
         break;
       }
       case TILES.QUEST: {
-        const bob = Math.sin(state.animT * 4) * 2;
-        fillNoise(px, py, ts, wx, wy, "#7a6848", "#5a4830", 0.2);
-        pxRect(px + ts * 0.2, py + ts * 0.15 + bob, ts * 0.6, ts * 0.6, "#e0b040");
-        pxRect(px + ts * 0.25, py + ts * 0.2 + bob, ts * 0.5, 2, "#fff0a0");
-        pxRect(px + ts * 0.32, py + ts * 0.35 + bob, ts * 0.36, ts * 0.28, "#1a1408");
-        pxRect(px + ts * 0.42, py + ts * 0.42 + bob, 4, 4, "#f0c96a");
+        pxRect(px, py, ts, ts, "#34a842");
+        const bob = Math.sin(state.animT * 4 + wx) * 2;
+        outlineRect(px + ts * 0.25, py + ts * 0.15 + bob, ts * 0.5, ts * 0.55, "#ffe060");
+        pxRect(px + ts * 0.4, py + ts * 0.3 + bob, ts * 0.2, ts * 0.25, "#c08020");
         break;
       }
       case TILES.BOSS: {
         const pulse = 0.85 + Math.sin(state.animT * 5) * 0.15;
-        fillNoise(px, py, ts, wx, wy, "#1a0808", "#100404", 0.3);
+        pxRect(px, py, ts, ts, "#1a0810");
         const s = ts * 0.7 * pulse;
-        pxRect(px + (ts - s) / 2, py + (ts - s) / 2 - 1, s, s, "#b04038");
-        pxRect(px + ts * 0.28, py + ts * 0.28, 4, 4, "#ffe080");
-        pxRect(px + ts * 0.58, py + ts * 0.28, 4, 4, "#ffe080");
-        pxRect(px + ts * 0.35, py + ts * 0.55, ts * 0.3, 3, "#1a0808");
+        outlineRect(px + (ts - s) / 2, py + (ts - s) / 2, s, s, "#e04050");
+        pxRect(px + ts * 0.3, py + ts * 0.3, 3, 3, "#ffe060");
+        pxRect(px + ts * 0.58, py + ts * 0.3, 3, 3, "#ffe060");
+        break;
+      }
+      case TILES.ROOF: {
+        pxRect(px, py, ts, ts, "#a04030");
         break;
       }
       default:
@@ -2183,62 +2109,38 @@ const QUESTIONS = {
   }
 
   function drawBuildingRoof(b, camX, camY, tileSize, sw, sh) {
-    // One continuous pitched clay roof for the whole cottage
+    // Pixel Quest style: flat solid red roof slab with black outline + ridge
     const ox = Math.floor((b.x - camX) * tileSize + sw / 2);
     const oy = Math.floor((b.y - camY) * tileSize + sh / 2);
     const rw = b.w * tileSize;
     const rh = b.h * tileSize;
     if (ox + rw < -4 || oy + rh < -4 || ox > sw + 4 || oy > sh + 4) return;
 
-    const seed = n01(b.x, b.y, 7);
-    pxRect(ox - 2, oy + rh - 2, rw + 4, 5, "rgba(0,0,0,0.28)");
-
-    const rows = Math.max(6, Math.floor(rh / 2));
-    for (let row = 0; row < rows; row++) {
-      const t = row / (rows - 1 || 1);
-      const y = oy + Math.floor(t * (rh - 3));
-      const over = Math.floor(2 + t * 3);
-      const x = ox - over;
-      const w = rw + over * 2;
-      const mid = Math.floor(w / 2);
-      const leftCol = t < 0.15 ? "#6a3820" : (row % 2 ? "#8a4a2c" : "#7a4024");
-      const rightCol = t < 0.15 ? "#9a5840" : (row % 2 ? "#c07048" : "#b06038");
-      pxRect(x, y, mid, 3, leftCol);
-      pxRect(x + mid, y, w - mid, 3, rightCol);
-      for (let sx = 0; sx < w; sx += 4) {
-        const seamX = x + sx + ((row % 2) * 2);
-        if (seamX < x || seamX > x + w - 2) continue;
-        pxRect(seamX, y, 2, 2, sx < mid ? "#a05830" : "#d88858");
-        pxRect(seamX + 1, y + 1, 1, 1, "#4a2410");
-      }
-      if (seed > 0.55 && row % 5 === 3) pxRect(x + w * 0.2, y, 4, 2, "#3a6838");
-      if (seed > 0.7 && row % 7 === 2) pxRect(x + w * 0.72, y, 3, 2, "#4a7848");
+    // Drop shadow
+    pxRect(ox + 2, oy + rh - 1, rw, 4, "rgba(0,0,0,0.35)");
+    // Outer black outline
+    pxRect(ox - 2, oy - 2, rw + 4, rh + 3, "#0a0a0a");
+    // Main red roof plane
+    pxRect(ox - 1, oy - 1, rw + 2, rh + 1, "#c04838");
+    // Lit top edge / dark bottom
+    pxRect(ox, oy, rw, 3, "#e07058");
+    pxRect(ox, oy + rh - 2, rw, 2, "#802820");
+    // Horizontal shingle bands
+    for (let y = 4; y < rh - 2; y += Math.max(3, Math.floor(tileSize / 3))) {
+      pxRect(ox, oy + y, rw, 1, "#a03828");
+      pxRect(ox + 2, oy + y + 1, rw - 4, 1, "#d85840");
     }
-
-    pxRect(ox + rw * 0.15, oy - 1, rw * 0.7, 3, "#4a2818");
-    pxRect(ox + rw * 0.2, oy - 2, rw * 0.6, 2, "#d0a070");
-    pxRect(ox + rw * 0.48, oy, 2, Math.max(4, rh * 0.2), "rgba(0,0,0,0.22)");
-
-    for (let i = 0; i < Math.floor(rh * 0.45); i++) {
-      const inset = Math.floor(i * 0.9);
-      pxRect(ox - 1 + inset, oy + 2 + i, 2, 2, "#5a3020");
-      pxRect(ox + rw - 1 - inset, oy + 2 + i, 2, 2, "#5a3020");
+    // Center ridge
+    pxRect(ox + rw * 0.42, oy - 3, rw * 0.16, 4, "#0a0a0a");
+    pxRect(ox + rw * 0.44, oy - 2, rw * 0.12, 2, "#e88860");
+    // Chimney
+    const chx = ox + rw * 0.68;
+    const chy = oy + rh * 0.15;
+    outlineRect(chx, chy, Math.max(5, tileSize * 0.28), Math.max(8, rh * 0.28), "#7a7a82");
+    pxRect(chx - 1, chy - 2, Math.max(7, tileSize * 0.36), 3, "#9a9aa2");
+    if ((state.animT * 4 + b.x) % 1 > 0.3) {
+      pxRect(chx + 1, chy - 5, 2, 3, "rgba(200,200,200,0.4)");
     }
-
-    const chx = ox + Math.floor(rw * (0.55 + seed * 0.2));
-    const chy = oy + Math.floor(rh * 0.08);
-    pxRect(chx, chy, Math.max(4, tileSize * 0.28), Math.max(8, rh * 0.35), "#6a5444");
-    pxRect(chx + 1, chy + 3, Math.max(2, tileSize * 0.18), 1, "#4a3830");
-    pxRect(chx + 1, chy + 6, Math.max(2, tileSize * 0.18), 1, "#4a3830");
-    pxRect(chx - 1, chy - 2, Math.max(6, tileSize * 0.38), 3, "#8a6a50");
-    if (seed > 0.4) {
-      const smokeY = chy - 4 - Math.floor((state.animT * 6 + b.x) % 5);
-      pxRect(chx + 1, smokeY, 2, 3, "rgba(190,190,190,0.35)");
-      pxRect(chx + 2, smokeY - 3, 2, 2, "rgba(210,210,210,0.22)");
-    }
-
-    pxRect(ox + rw * 0.55, oy + rh * 0.15, 2, rh * 0.45, "rgba(255,210,150,0.18)");
-    pxRect(ox - 2, oy + rh - 1, rw + 4, 2, "rgba(0,0,0,0.4)");
   }
 
   function drawPlayer(ppx, ppy, ps) {
@@ -2247,8 +2149,8 @@ const QUESTIONS = {
     const tool = state.equipped.tool;
     const book = state.equipped.book;
     const body = armor
-      ? (armor.rarity === "legendary" ? "#d4a84b" : armor.rarity === "epic" ? "#a060c0" : armor.rarity === "rare" ? "#6a90c0" : armor.rarity === "uncommon" ? "#6b8f5a" : "#7a6a50")
-      : "#5a8a48";
+      ? (armor.rarity === "legendary" ? "#f0c050" : armor.rarity === "epic" ? "#c060ff" : armor.rarity === "rare" ? "#50a0ff" : armor.rarity === "uncommon" ? "#50d060" : "#a09070")
+      : "#40c050";
     const swim = state.swimming;
     const bob = swim ? Math.sin(state.animT * 6) * 1.5 : 0;
     const sub = swim ? ps * 0.28 : 0;
@@ -2256,99 +2158,85 @@ const QUESTIONS = {
     const lookX = Math.cos(face) * 2;
     const lookY = Math.sin(face) * 1;
     const right = Math.cos(face) >= 0 ? 1 : -1;
+    const s = Math.max(10, ps * 1.15); // chunkier Pixel Quest sprite
 
-    if (swim) pxRect(ppx - ps * 0.4, ppy + ps * 0.25 + bob, ps * 0.8, 4, "rgba(20,60,90,0.45)");
-    else pxRect(ppx - ps * 0.35, ppy + ps * 0.4, ps * 0.7, 3, "rgba(0,0,0,0.35)");
+    // Shadow
+    if (swim) pxRect(ppx - s * 0.4, ppy + s * 0.28 + bob, s * 0.8, 3, "rgba(20,60,120,0.45)");
+    else pxRect(ppx - s * 0.35, ppy + s * 0.42, s * 0.7, 3, "rgba(0,0,0,0.4)");
 
+    // Legs
     if (!swim) {
-      pxRect(ppx - ps * 0.28, ppy + ps * 0.15, ps * 0.22, ps * 0.35, "#3a2a1c");
-      pxRect(ppx + ps * 0.06, ppy + ps * 0.15, ps * 0.22, ps * 0.35, "#3a2a1c");
+      outlineRect(ppx - s * 0.28, ppy + s * 0.12 + bob, s * 0.22, s * 0.35, "#3a2818");
+      outlineRect(ppx + s * 0.06, ppy + s * 0.12 + bob, s * 0.22, s * 0.35, "#3a2818");
     }
 
-    // torso / armor
-    pxRect(ppx - ps / 2 + 1, ppy - ps * 0.1 + 2 + bob - sub, ps, ps * 0.45, "#0a0808");
-    pxRect(ppx - ps / 2, ppy - ps * 0.12 + bob - sub, ps, ps * 0.48, body);
-    if (armor) {
-      pxRect(ppx - ps * 0.4, ppy - ps * 0.05 + bob - sub, ps * 0.8, 2, "rgba(255,255,255,0.22)");
-      pxRect(ppx - ps * 0.15, ppy + ps * 0.05 + bob - sub, 3, 3, "#f0d080");
-    }
-    // head
-    pxRect(ppx - ps * 0.28, ppy - ps * 0.48 + bob - sub, ps * 0.56, ps * 0.4, "#c4a574");
-    pxRect(ppx - ps * 0.2, ppy - ps * 0.52 + bob - sub, ps * 0.4, ps * 0.18, "#6a4a30");
-    pxRect(ppx - 3 + lookX, ppy - ps * 0.28 + lookY + bob - sub, 2, 2, "#1a1210");
-    pxRect(ppx + 1 + lookX, ppy - ps * 0.28 + lookY + bob - sub, 2, 2, "#1a1210");
+    // Body with black outline
+    outlineRect(ppx - s / 2, ppy - s * 0.12 + bob - sub, s, s * 0.5, body);
+    if (armor) pxRect(ppx - s * 0.15, ppy + s * 0.05 + bob - sub, 3, 3, "#ffe060");
 
-    // BOOK on back / left hand
+    // Head
+    outlineRect(ppx - s * 0.3, ppy - s * 0.5 + bob - sub, s * 0.6, s * 0.42, "#f0c090");
+    outlineRect(ppx - s * 0.22, ppy - s * 0.55 + bob - sub, s * 0.44, s * 0.18, "#5a3820");
+    pxRect(ppx - 3 + lookX, ppy - s * 0.3 + lookY + bob - sub, 2, 2, "#0a0a0a");
+    pxRect(ppx + 1 + lookX, ppy - s * 0.3 + lookY + bob - sub, 2, 2, "#0a0a0a");
+
     if (book && !swim) {
-      const bx = ppx - right * (ps * 0.55);
-      const by = ppy - ps * 0.05 + bob;
-      pxRect(bx - 2, by, 6, 8, "#5a3020");
-      pxRect(bx - 1, by + 1, 4, 6, "#c07040");
-      pxRect(bx, by + 2, 2, 4, "#f0d080");
+      const bx = ppx - right * (s * 0.55);
+      outlineRect(bx - 2, ppy - s * 0.05 + bob, 6, 8, "#e06040");
+      pxRect(bx, ppy - s * 0.02 + bob, 2, 4, "#ffe060");
     }
-
-    // TOOL (pick/hammer/compass) in off-hand
     if (tool && !swim) {
-      const tx = ppx - right * (ps * 0.48) + lookX;
-      const ty = ppy + bob - sub;
-      pxRect(tx, ty, 2, ps * 0.45, "#6a5030");
-      pxRect(tx - 2, ty - 2, 6, 4, tool.rarity === "legendary" ? "#f0c96a" : "#a0a8b0");
-      pxRect(tx - 1, ty - 3, 4, 2, "#d0d8e0");
+      const tx = ppx - right * (s * 0.5) + lookX;
+      outlineRect(tx, ppy + bob - sub, 2, s * 0.45, "#8a6030");
+      outlineRect(tx - 2, ppy - 2 + bob - sub, 6, 4, tool.rarity === "legendary" ? "#ffe060" : "#c0c8d0");
     }
-
-    // SWORD / weapon — always visible when equipped; swings on attack
     if (weapon && !swim) {
       const swing = state.hitCd > 0 ? (0.25 - state.hitCd) / 0.25 : 0;
-      const swingOff = right * swing * ps * 0.55;
-      const swingUp = -swing * ps * 0.35;
-      const wx = ppx + right * (ps * 0.42) + lookX + swingOff;
-      const wy = ppy - ps * 0.25 + lookY + bob - sub + swingUp;
-      // blade
-      pxRect(wx, wy, 3, ps * 0.85, weapon.rarity === "legendary" ? "#e8f0ff" : "#c8d0d8");
-      pxRect(wx + 1, wy + 2, 1, ps * 0.7, "#ffffff");
-      // tip
-      pxRect(wx, wy - 2, 3, 2, "#f0f4ff");
-      // guard
-      pxRect(wx - 2, wy + ps * 0.55, 7, 3, weapon.rarity === "epic" || weapon.rarity === "legendary" ? "#f0c96a" : "#a08040");
-      // grip
-      pxRect(wx, wy + ps * 0.58, 3, ps * 0.22, "#5a3a20");
-      // pommel glow by rarity
-      const glow = weapon.rarity === "legendary" ? "#fff0a0" : weapon.rarity === "epic" ? "#c080e0" : "#d4a84b";
-      pxRect(wx, wy + ps * 0.78, 3, 3, glow);
-      if (swing > 0.05) {
-        pxRect(wx + right * 4, wy + ps * 0.2, 6, 2, "rgba(255,255,255,0.35)");
-      }
+      const wx = ppx + right * (s * 0.42) + lookX + right * swing * s * 0.55;
+      const wy = ppy - s * 0.25 + lookY + bob - sub - swing * s * 0.35;
+      outlineRect(wx, wy, 3, s * 0.85, weapon.rarity === "legendary" ? "#e8f0ff" : "#d0d8e0");
+      pxRect(wx + 1, wy + 2, 1, s * 0.65, "#ffffff");
+      outlineRect(wx - 2, wy + s * 0.55, 7, 3, "#ffe060");
+      outlineRect(wx, wy + s * 0.58, 3, s * 0.22, "#6a4020");
+      if (swing > 0.05) pxRect(wx + right * 4, wy + s * 0.2, 6, 2, "rgba(255,255,255,0.45)");
     } else if (!weapon && !swim) {
-      // fists when bare-handed so gear absence is clear
-      pxRect(ppx + right * (ps * 0.38), ppy + bob, 3, 3, "#c4a574");
+      outlineRect(ppx + right * (s * 0.38), ppy + bob, 3, 3, "#f0c090");
     }
 
     if (swim) {
-      pxRect(ppx - ps * 0.55, ppy + ps * 0.05 + bob, ps * 1.1, ps * 0.55, "rgba(30,100,140,0.45)");
-      pxRect(ppx - ps * 0.45, ppy + ps * 0.08 + bob, ps * 0.9, 2, "rgba(180,230,255,0.35)");
+      pxRect(ppx - s * 0.55, ppy + s * 0.05 + bob, s * 1.1, s * 0.5, "rgba(40,120,200,0.4)");
+      pxRect(ppx - s * 0.4, ppy + s * 0.08 + bob, s * 0.8, 2, "rgba(200,240,255,0.5)");
     }
     if (state.hurtCd > 0) {
-      ctx.globalAlpha = 0.35;
-      pxRect(ppx - ps / 2, ppy - ps / 2 + bob - sub, ps, ps, "#ff2020");
+      ctx.globalAlpha = 0.4;
+      pxRect(ppx - s / 2, ppy - s / 2 + bob - sub, s, s, "#ff2020");
       ctx.globalAlpha = 1;
     }
   }
 
   function drawMonster(m, px, py, ts) {
     const bob = Math.sin(state.animT * 6 + m.x) * 1.5;
-    const s = ts * 0.55;
-    pxRect(px - s / 2, py - s / 2 + bob, s, s, m.body || m.color);
-    pxRect(px - s * 0.3, py - s * 0.35 + bob, s * 0.22, s * 0.22, m.eye || "#fff");
-    pxRect(px + s * 0.08, py - s * 0.35 + bob, s * 0.22, s * 0.22, m.eye || "#fff");
-    if (m.type === "rat") pxRect(px - s * 0.4, py + s * 0.1 + bob, s * 0.8, s * 0.25, m.color);
+    const s = ts * 0.58;
+    // Black outline body (Pixel Quest enemy style)
+    outlineRect(px - s / 2, py - s / 2 + bob, s, s, m.body || m.color);
+    outlineRect(px - s * 0.32, py - s * 0.38 + bob, s * 0.24, s * 0.24, m.eye || "#ffffff");
+    outlineRect(px + s * 0.08, py - s * 0.38 + bob, s * 0.24, s * 0.24, m.eye || "#ffffff");
+    pxDot(px - s * 0.22, py - s * 0.28 + bob, "#0a0a0a");
+    pxDot(px + s * 0.18, py - s * 0.28 + bob, "#0a0a0a");
+    if (m.type === "rat") outlineRect(px - s * 0.45, py + s * 0.1 + bob, s * 0.9, s * 0.28, m.color);
     if (m.type === "spider") {
-      pxRect(px - s * 0.45, py + bob, 3, 2, m.color);
-      pxRect(px + s * 0.3, py + bob, 3, 2, m.color);
+      pxRect(px - s * 0.5, py + bob, 4, 2, "#0a0a0a");
+      pxRect(px + s * 0.28, py + bob, 4, 2, "#0a0a0a");
     }
-    if (m.type === "bat") pxRect(px - s * 0.5, py - s * 0.1 + bob, s, s * 0.35, "#2a1830");
+    if (m.type === "bat") outlineRect(px - s * 0.55, py - s * 0.1 + bob, s * 1.1, s * 0.35, "#4a2860");
+    if (m.type === "skeleton") pxRect(px - s * 0.15, py - s * 0.05 + bob, s * 0.3, 2, "#ffffff");
+    if (m.type === "guardian") {
+      outlineRect(px - s * 0.55, py - s * 0.55 + bob, s * 1.1, s * 1.1, "#f0c050");
+      pxRect(px - s * 0.2, py - s * 0.2 + bob, s * 0.4, s * 0.4, "#ffffff");
+    }
     const hpPct = m.hp / m.maxHp;
-    pxRect(px - s / 2, py - s / 2 - 4 + bob, s, 3, "#1a1010");
-    pxRect(px - s / 2, py - s / 2 - 4 + bob, s * hpPct, 3, hpPct > 0.4 ? "#40c060" : "#e04040");
+    pxRect(px - s / 2 - 1, py - s / 2 - 6 + bob, s + 2, 4, "#0a0a0a");
+    pxRect(px - s / 2, py - s / 2 - 5 + bob, s * hpPct, 2, hpPct > 0.4 ? "#40e060" : "#ff4040");
   }
 
   function resizeCanvas() {
@@ -2369,7 +2257,7 @@ const QUESTIONS = {
     resizeCanvas();
     const w = canvas.width, h = canvas.height;
     if (w <= 0 || h <= 0) return;
-    ctx.fillStyle = state.dungeon?.active ? "#0a0608" : "#0a0908";
+    ctx.fillStyle = state.dungeon?.active ? "#100e18" : "#1a3020";
     ctx.fillRect(0, 0, w, h);
 
     const fov = state.settings.fov;
@@ -2446,19 +2334,17 @@ const QUESTIONS = {
       return true;
     });
 
-    const grd = ctx.createRadialGradient(w / 2, h / 2, h * 0.2, w / 2, h / 2, h * 0.75);
+    // Pixel Quest-style vignette (lighter outdoors, purple in dungeons)
+    const grd = ctx.createRadialGradient(w / 2, h / 2, h * 0.25, w / 2, h / 2, h * 0.85);
     grd.addColorStop(0, "rgba(0,0,0,0)");
-    grd.addColorStop(1, state.dungeon?.active ? "rgba(4,0,8,0.65)" : "rgba(8,6,4,0.55)");
+    grd.addColorStop(1, state.dungeon?.active ? "rgba(10,0,24,0.55)" : "rgba(0,20,10,0.35)");
     ctx.fillStyle = grd;
     ctx.fillRect(0, 0, w, h);
-
-    // Soft daylight wash outdoors (more realistic atmosphere)
     if (!state.dungeon?.active) {
-      ctx.fillStyle = "rgba(255, 220, 160, 0.04)";
+      ctx.fillStyle = "rgba(180, 255, 160, 0.03)";
       ctx.fillRect(0, 0, w, h);
-      // cool water reflection tint when swimming
       if (state.swimming) {
-        ctx.fillStyle = "rgba(40, 120, 160, 0.12)";
+        ctx.fillStyle = "rgba(40, 120, 220, 0.14)";
         ctx.fillRect(0, 0, w, h);
       }
     }

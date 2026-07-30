@@ -1,25 +1,25 @@
 /* Ruin Scholar — Gamified Study Companion */
 
 :root {
-  --bg-deep: #1a1612;
-  --bg-stone: #2a241c;
-  --bg-panel: #322a22;
-  --bg-panel-2: #3d3428;
-  --moss: #6b8f5a;
-  --moss-bright: #8fb87a;
-  --sand: #c4a574;
-  --sand-dim: #9a7d52;
-  --clay: #a65d3f;
-  --clay-bright: #c97852;
-  --ash: #d9cbb8;
-  --ash-dim: #a89880;
-  --ink: #0e0c0a;
-  --danger: #b54a3c;
-  --danger-glow: #e06a55;
-  --gold: #d4a84b;
-  --gold-bright: #f0c96a;
-  --shadow: rgba(8, 6, 4, 0.65);
-  --radius: 4px;
+  --bg-deep: #0c0c14;
+  --bg-stone: #161622;
+  --bg-panel: #1c1c2a;
+  --bg-panel-2: #28283a;
+  --moss: #40c050;
+  --moss-bright: #60e070;
+  --sand: #e0c070;
+  --sand-dim: #a89050;
+  --clay: #e05040;
+  --clay-bright: #ff7060;
+  --ash: #e8e0d0;
+  --ash-dim: #a8a090;
+  --ink: #050508;
+  --danger: #e04040;
+  --danger-glow: #ff6060;
+  --gold: #ffe060;
+  --gold-bright: #fff0a0;
+  --shadow: rgba(0, 0, 0, 0.75);
+  --radius: 2px;
   --font-display: "Press Start 2P", monospace;
   --font-body: "VT323", monospace;
   --hud-h: 52px;
@@ -327,7 +327,7 @@ select {
   height: 100%;
   min-height: 0;
   overflow: hidden;
-  background: #0a0908;
+  background: #101018;
 }
 
 #game-canvas {
@@ -350,8 +350,8 @@ select {
   justify-content: space-between;
   gap: 0.5rem;
   padding: 0.4rem 0.65rem;
-  background: linear-gradient(180deg, rgba(14, 12, 10, 0.92), rgba(14, 12, 10, 0.55));
-  border-bottom: 2px solid rgba(154, 125, 82, 0.45);
+  background: linear-gradient(180deg, rgba(8, 8, 16, 0.95), rgba(12, 12, 24, 0.7));
+  border-bottom: 2px solid rgba(255, 224, 96, 0.35);
   pointer-events: none;
   z-index: 5;
 }
@@ -651,8 +651,8 @@ select {
   max-height: min(90dvh, 640px);
   overflow: auto;
   background: linear-gradient(165deg, var(--bg-panel-2), var(--bg-panel));
-  border: 3px solid var(--sand-dim);
-  box-shadow: 0 0 0 2px var(--ink), 8px 10px 0 var(--shadow);
+  border: 3px solid var(--gold);
+  box-shadow: 0 0 0 2px var(--ink), 6px 8px 0 var(--shadow);
   animation: panel-in 0.3s ease-out;
 }
 
@@ -662,7 +662,7 @@ select {
   justify-content: space-between;
   gap: 0.75rem;
   padding: 0.9rem 1rem;
-  border-bottom: 2px solid rgba(154, 125, 82, 0.4);
+  border-bottom: 2px solid rgba(255, 224, 96, 0.35);
 }
 
 .modal-header h2 {
