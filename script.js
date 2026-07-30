@@ -36,24 +36,31 @@
 
   const LOOT_TABLE = [
     { key: "wood_blade", name: "Wood Practice Blade", slot: "weapon", rarity: "common", pwr: 1, def: 0, know: 0 },
+    { key: "short_bow", name: "Short Bow", slot: "bow", rarity: "common", pwr: 2, def: 0, know: 0, range: 5.5 },
+    { key: "wood_pick", name: "Wood Pickaxe", slot: "tool", rarity: "common", pwr: 0, def: 0, know: 0, mine: 1 },
     { key: "slate_chalk", name: "Slate & Chalk", slot: "tool", rarity: "common", pwr: 0, def: 0, know: 1 },
     { key: "linen_cloak", name: "Linen Cloak", slot: "armor", rarity: "common", pwr: 0, def: 1, know: 0 },
     { key: "primer", name: "Pocket Primer", slot: "book", rarity: "common", pwr: 0, def: 0, know: 2 },
     { key: "iron_quill", name: "Iron Quill Blade", slot: "weapon", rarity: "uncommon", pwr: 3, def: 0, know: 1 },
     { key: "leather_vest", name: "Scholar's Leather", slot: "armor", rarity: "uncommon", pwr: 0, def: 3, know: 0 },
     { key: "compass", name: "Ruin Compass", slot: "tool", rarity: "uncommon", pwr: 1, def: 0, know: 2 },
+    { key: "hunter_bow", name: "Hunter Bow", slot: "bow", rarity: "uncommon", pwr: 4, def: 0, know: 0, range: 6.5 },
+    { key: "iron_pick", name: "Iron Pickaxe", slot: "tool", rarity: "uncommon", pwr: 1, def: 0, know: 0, mine: 2 },
     { key: "field_notes", name: "Field Notes", slot: "book", rarity: "uncommon", pwr: 0, def: 0, know: 4 },
     { key: "bronze_saber", name: "Bronze Saber", slot: "weapon", rarity: "rare", pwr: 5, def: 1, know: 0 },
     { key: "chain_hood", name: "Chain Hood", slot: "armor", rarity: "rare", pwr: 0, def: 5, know: 1 },
-    { key: "pick_lens", name: "Crystal Pick-Lens", slot: "tool", rarity: "rare", pwr: 3, def: 0, know: 3 },
+    { key: "pick_lens", name: "Crystal Pick-Lens", slot: "tool", rarity: "rare", pwr: 3, def: 0, know: 3, mine: 3 },
+    { key: "longbow", name: "Ruin Longbow", slot: "bow", rarity: "rare", pwr: 6, def: 0, know: 1, range: 7.5 },
     { key: "annotated", name: "Annotated Codex", slot: "book", rarity: "rare", pwr: 1, def: 0, know: 6 },
     { key: "runed_edge", name: "Runed Edge", slot: "weapon", rarity: "epic", pwr: 8, def: 2, know: 2 },
     { key: "guardian_plate", name: "Guardian Plate", slot: "armor", rarity: "epic", pwr: 1, def: 9, know: 1 },
-    { key: "aether_hammer", name: "Aether Hammer", slot: "tool", rarity: "epic", pwr: 6, def: 1, know: 4 },
+    { key: "aether_hammer", name: "Aether Hammer", slot: "tool", rarity: "epic", pwr: 6, def: 1, know: 4, mine: 4 },
+    { key: "storm_bow", name: "Storm Bow", slot: "bow", rarity: "epic", pwr: 9, def: 1, know: 1, range: 8.5 },
     { key: "elder_tome", name: "Elder Tome", slot: "book", rarity: "epic", pwr: 2, def: 1, know: 10 },
     { key: "eclipse_blade", name: "Eclipse Blade", slot: "weapon", rarity: "legendary", pwr: 12, def: 3, know: 3 },
     { key: "starfall_mail", name: "Starfall Mail", slot: "armor", rarity: "legendary", pwr: 2, def: 14, know: 2 },
-    { key: "world_spade", name: "Worldspade", slot: "tool", rarity: "legendary", pwr: 9, def: 2, know: 6 },
+    { key: "world_spade", name: "Worldspade", slot: "tool", rarity: "legendary", pwr: 9, def: 2, know: 6, mine: 5 },
+    { key: "eclipse_bow", name: "Eclipse Bow", slot: "bow", rarity: "legendary", pwr: 12, def: 2, know: 2, range: 10 },
     { key: "codex_eternity", name: "Codex of Eternity", slot: "book", rarity: "legendary", pwr: 4, def: 2, know: 16 },
   ];
 
@@ -255,7 +262,7 @@ const QUESTIONS = {
     bubbleCd: 0,
     drownCd: 0,
     inventory: [],
-    equipped: { weapon: null, armor: null, tool: null, book: null },
+    equipped: { weapon: null, armor: null, tool: null, book: null, bow: null },
     selectedItem: null,
     spawn: { x: 8.5, y: 8.5 },
     checkpoint: { x: 8.5, y: 8.5 },
@@ -276,6 +283,12 @@ const QUESTIONS = {
     animT: 0,
     hitCd: 0,
     hurtCd: 0,
+    attackAnim: 0,
+    attackArc: 0,
+    swimAnim: 0,
+    mineAnim: 0,
+    mineTarget: null,
+    projectiles: [],
     nextId: 1,
   };
 
@@ -544,6 +557,13 @@ const QUESTIONS = {
 
   function placeVillage(tiles, cx, cy) {
     const ox = 2, oy = 2;
+    // Flatten any leftover water under the village to solid ground first
+    for (let y = 0; y < 12; y++) {
+      for (let x = 0; x < 12; x++) {
+        const i = (oy + y) * CHUNK + (ox + x);
+        tiles[i] = TILES.GRASS;
+      }
+    }
     for (let y = 0; y < 12; y++) {
       for (let x = 0; x < 12; x++) {
         const i = (oy + y) * CHUNK + (ox + x);
@@ -579,6 +599,12 @@ const QUESTIONS = {
 
   function placeDungeon(tiles, cx, cy) {
     const ox = 1, oy = 1;
+    // Ensure dungeon sits on land (wipe water under footprint)
+    for (let y = 0; y < 14; y++) {
+      for (let x = 0; x < 14; x++) {
+        tiles[(oy + y) * CHUNK + (ox + x)] = TILES.STONE;
+      }
+    }
     for (let y = 0; y < 14; y++) {
       for (let x = 0; x < 14; x++) {
         const i = (oy + y) * CHUNK + (ox + x);
@@ -605,6 +631,23 @@ const QUESTIONS = {
     registerStructure(wx, wy, "dungeon_entrance", dungeonName(cx, cy), rank, { level: 1 + Math.floor(dist / 4), wx2: wx + 1 });
   }
 
+  function isLandTileType(t) {
+    return t !== TILES.WATER && t !== TILES.LAVA;
+  }
+
+  /** True if a structure footprint would sit mostly on dry land (grass/sand/stone/etc). */
+  function chunkFootprintIsLand(cx, cy, ox, oy, w, h) {
+    let land = 0, total = 0;
+    for (let ly = oy; ly < oy + h; ly++) {
+      for (let lx = ox; lx < ox + w; lx++) {
+        total++;
+        const t = baseTile(cx * CHUNK + lx, cy * CHUNK + ly);
+        if (isLandTileType(t)) land++;
+      }
+    }
+    return total > 0 && land / total >= 0.82;
+  }
+
   function ensureChunk(cx, cy) {
     const key = chunkKey(cx, cy);
     if (state.chunks.has(key)) return state.chunks.get(key);
@@ -617,13 +660,18 @@ const QUESTIONS = {
     const dist = Math.abs(cx) + Math.abs(cy);
     const r = hash2(cx, cy, state.seed ^ 0xabc);
     const r2 = hash2(cx + 7, cy - 3, state.seed ^ 0xdef);
-    if (r > 0.91 && dist > 1) placeVillage(tiles, cx, cy);
-    else if (r2 > 0.925 && dist > 2) placeDungeon(tiles, cx, cy);
-    else if (r > 0.76 && r < 0.84) {
+    // Villages / dungeons only on solid land — never floating on water
+    if (r > 0.91 && dist > 1 && chunkFootprintIsLand(cx, cy, 2, 2, 12, 12)) {
+      placeVillage(tiles, cx, cy);
+    } else if (r2 > 0.925 && dist > 2 && chunkFootprintIsLand(cx, cy, 1, 1, 14, 14)) {
+      placeDungeon(tiles, cx, cy);
+    } else if (r > 0.76 && r < 0.84) {
       const lx = 4 + Math.floor(hash2(cx, cy, 11) * 8);
       const ly = 4 + Math.floor(hash2(cx, cy, 22) * 8);
-      tiles[ly * CHUNK + lx] = TILES.QUEST;
-      registerStructure(cx * CHUNK + lx, cy * CHUNK + ly, "quest", randomQuestName(cx * CHUNK + lx, cy * CHUNK + ly), questRank(dist));
+      if (isLandTileType(tiles[ly * CHUNK + lx])) {
+        tiles[ly * CHUNK + lx] = TILES.QUEST;
+        registerStructure(cx * CHUNK + lx, cy * CHUNK + ly, "quest", randomQuestName(cx * CHUNK + lx, cy * CHUNK + ly), questRank(dist));
+      }
     }
     if (cx === 0 && cy === 0) {
       for (let ly = 6; ly <= 9; ly++) for (let lx = 6; lx <= 9; lx++) tiles[ly * CHUNK + lx] = TILES.PATH;
@@ -1034,7 +1082,7 @@ const QUESTIONS = {
 
   function clearInventoryAndGear() {
     state.inventory = [];
-    state.equipped = { weapon: null, armor: null, tool: null, book: null };
+    state.equipped = { weapon: null, armor: null, tool: null, book: null, bow: null };
     state.selectedItem = null;
     updateInventoryUI();
     updateEquipUI();
@@ -1045,8 +1093,8 @@ const QUESTIONS = {
     const idx = state.inventory.findIndex((i) => i.uid === itemUid);
     if (idx < 0) return;
     const item = state.inventory[idx];
-    if (item.type === "consumable" || !item.slot) {
-      showToast("Potions are used, not equipped. Press Use or H.");
+    if (item.type === "consumable" || item.type === "material" || !item.slot) {
+      showToast(item.type === "material" ? "Materials can't be equipped." : "Potions are used, not equipped. Press Use or H.");
       state.selectedItem = null;
       updateInventoryUI();
       return;
@@ -1127,7 +1175,7 @@ const QUESTIONS = {
       if (item.effect === "might") return "💪";
       return "⚗";
     }
-    return { weapon: "⚔", armor: "🛡", tool: "⛏", book: "📖" }[item.slot] || "•";
+    return { weapon: "⚔", armor: "🛡", tool: "⛏", book: "📖", bow: "🏹" }[item.slot] || "•";
   }
 
   function updateEquipUI() {
@@ -1145,9 +1193,10 @@ const QUESTIONS = {
     set("eq-armor", "slot-armor-name", e.armor);
     set("eq-tool", "slot-tool-name", e.tool);
     set("eq-book", "slot-book-name", e.book);
+    if ($("eq-bow") && $("slot-bow-name")) set("eq-bow", "slot-bow-name", e.bow);
     // Highlight matching empty slot when an item is selected
     const sel = state.selectedItem && state.inventory.find((i) => i.uid === state.selectedItem);
-    ["weapon", "armor", "tool", "book"].forEach((slot) => {
+    ["weapon", "armor", "tool", "book", "bow"].forEach((slot) => {
       const el = $(`slot-${slot}`);
       if (!el) return;
       const match = !!(sel && sel.slot === slot && !e[slot]);
@@ -1181,14 +1230,16 @@ const QUESTIONS = {
       cell.className = `bag-cell rarity-${item.rarity}` + (state.selectedItem === item.uid ? " selected" : "");
       cell.setAttribute("data-uid", item.uid);
       const isPotion = item.type === "consumable";
+      const isMat = item.type === "material";
       const meta = isPotion
         ? (item.effect === "heal" ? `+${item.amount} HP` : item.effect === "breath" ? "+breath" : item.effect === "might" ? `+${item.amount} ATK` : "use")
+        : isMat ? "material · mined"
         : `${item.slot} · PWR ${item.pwr || 0}`;
       cell.innerHTML = `
-        <span class="bag-ico">${itemIcon(item)}</span>
+        <span class="bag-ico">${isMat ? "🪨" : itemIcon(item)}</span>
         <span class="bag-name">${item.name}</span>
         <span class="bag-meta">${meta}</span>
-        ${isPotion ? `<span class="bag-use" data-use="${item.uid}">Use</span>` : `<span class="bag-tip">→ ${item.slot}</span>`}`;
+        ${isPotion ? `<span class="bag-use" data-use="${item.uid}">Use</span>` : isMat ? `<span class="bag-tip">loot</span>` : `<span class="bag-tip">→ ${item.slot}</span>`}`;
       cell.addEventListener("click", (ev) => {
         if (ev.target.closest("[data-use]")) {
           useItem(item.uid);
@@ -1196,6 +1247,10 @@ const QUESTIONS = {
         }
         if (isPotion) {
           useItem(item.uid);
+          return;
+        }
+        if (isMat) {
+          showToast("Stone chunks are materials from mining.");
           return;
         }
         selectBagItem(item.uid);
@@ -1455,11 +1510,9 @@ const QUESTIONS = {
     return null;
   }
 
-  function openChest(chest) {
-    if (!chest || chest.opened) {
-      showToast("Chest already looted.");
-      return;
-    }
+  function finalizeChestLoot(chest) {
+    if (!chest || chest.looted) return;
+    chest.looted = true;
     chest.opened = true;
     const rank = Math.max(
       chest.rank || 0,
@@ -1468,7 +1521,6 @@ const QUESTIONS = {
     );
     const count = Math.max(1, 1 + (rank > 0 ? 1 : 0) + (state.dungeon?.active ? 1 : 0));
     const loot = [];
-    // Dungeon chests always include at least one potion/heal
     if (state.dungeon?.active) {
       loot.push(...grantLoot({ count: 1, rank, preferPotion: true }));
       if (count > 1) loot.push(...grantLoot({ count: count - 1, rank, boss: rank >= 2 }));
@@ -1477,12 +1529,37 @@ const QUESTIONS = {
     }
     const cx = chest.wx != null ? chest.wx : chest.x;
     const cy = chest.wy != null ? chest.wy : chest.y;
-    if (cx != null && cy != null) setTile(cx, cy, state.dungeon?.active ? TILES.FLOOR : TILES.PATH);
-    spawnParticles(cx + 0.5, cy + 0.5, 18);
+    spawnParticles(cx + 0.5, cy + 0.5, 18, "spark");
     updateHUD();
     const names = loot.map((l) => l.name).join(", ");
     showToast(`Opened chest! +${names}`);
     showResult("Chest Loot!", `You found: ${names}. Press I to Equip gear or Use potions (H = quick heal).`);
+  }
+
+  function openChest(chest) {
+    if (!chest || chest.opened || chest.opening) {
+      if (chest && chest.opened) showToast("Chest already looted.");
+      return;
+    }
+    // Require intentional open (E / tap) — play lid animation first
+    chest.opening = true;
+    chest.openT = 0;
+    spawnParticles((chest.wx ?? chest.x) + 0.5, (chest.wy ?? chest.y) + 0.35, 6, "spark");
+    showToast("Opening chest…");
+  }
+
+  function updateChests(dt) {
+    const list = [];
+    if (state.dungeon?.active) list.push(...(state.dungeon.chests || []));
+    for (const c of state.chests.values()) list.push(c);
+    for (const chest of list) {
+      if (!chest.opening || chest.looted) continue;
+      chest.openT = (chest.openT || 0) + dt;
+      if (chest.openT >= 0.55) {
+        chest.opening = false;
+        finalizeChestLoot(chest);
+      }
+    }
   }
 
   function findInteractable() {
@@ -1495,14 +1572,13 @@ const QUESTIONS = {
       const chest = findChestAt(wx, wy);
       if (chest || getTile(wx, wy) === TILES.CHEST) {
         const c = chest || findChestAt(wx, wy);
-        if (c && !c.opened) return { type: "chest", data: c, label: "Open chest" };
+        if (c && !c.opened && !c.opening) return { type: "chest", data: c, label: "Open chest (E)" };
         if (getTile(wx, wy) === TILES.CHEST) {
-          // Orphan chest tile — still give loot
-          return {
-            type: "chest",
-            data: { id: uid(), wx, wy, x: wx, y: wy, opened: false, rank: state.dungeon?.rank || 0, dungeon: !!state.dungeon?.active },
-            label: "Open chest",
-          };
+          const orphan = c || { id: uid(), wx, wy, x: wx, y: wy, opened: false, rank: state.dungeon?.rank || 0, dungeon: !!state.dungeon?.active };
+          if (!orphan.opened && !orphan.opening) {
+            if (!c) state.chests.set(tileKey(wx, wy), orphan);
+            return { type: "chest", data: orphan, label: "Open chest (E)" };
+          }
         }
       }
     }
@@ -1530,6 +1606,17 @@ const QUESTIONS = {
         if (s && !s.done) return { type: s.type, data: s, label: "Challenge" };
       }
     }
+    // Mineable stone with pickaxe equipped
+    const pick = state.equipped.tool;
+    if (pick && (pick.mine || /pick/i.test(pick.name) || /hammer|spade|pick-lens/i.test(pick.key || ""))) {
+      for (const [dx, dy] of near) {
+        const wx = px + dx, wy = py + dy;
+        const tile = getTile(wx, wy);
+        if (tile === TILES.STONE || tile === TILES.COBBLE || tile === TILES.RUIN) {
+          return { type: "mine", data: { wx, wy, tile }, label: "Mine stone (E)" };
+        }
+      }
+    }
     return null;
   }
 
@@ -1541,6 +1628,7 @@ const QUESTIONS = {
     else if (target.type === "boss") startBoss(target.data);
     else if (target.type === "dungeon_entrance") openDungeonPortal(target.data);
     else if (target.type === "chest") openChest(target.data);
+    else if (target.type === "mine") startMining(target.data.wx, target.data.wy);
     else if (target.type === "stairs") nextDungeonFloor();
     else if (target.type === "exit") leaveDungeon();
     else if (target.type === "boss_tile") {
@@ -1551,16 +1639,22 @@ const QUESTIONS = {
     }
   }
 
-  function attackMonster(monster) {
-    if (!monster || state.hitCd > 0 || state.paused) return;
-    const dmg = 5 + gearStats().pwr;
+  const MELEE_RANGE = 1.45;
+  const FIST_RANGE = 0.85;
+
+  function meleeRange() {
+    return state.equipped.weapon ? MELEE_RANGE : FIST_RANGE;
+  }
+
+  function damageMonster(monster, dmg) {
+    if (!monster || !state.dungeon?.active) return;
     monster.hp -= dmg;
-    state.hitCd = 0.25;
-    spawnParticles(monster.x, monster.y, 6);
+    monster.hitFlash = 0.2;
+    spawnParticles(monster.x, monster.y, 8, "spark");
     if (monster.hp <= 0) {
       state.dungeon.monsters = state.dungeon.monsters.filter((m) => m.id !== monster.id);
       state.kp += 3 + state.dungeon.floor;
-      showToast(`${monster.type} defeated! +${dmg} dmg`);
+      showToast(`${monster.type} defeated!`);
       if (state.dungeon.floor === 10 && state.dungeon.monsters.length === 0 && !state.dungeon.bossStarted) {
         state.dungeon.bossStarted = true;
         setTimeout(() => startBoss({ name: `${state.dungeon.name} Guardian`, rank: state.dungeon.rank, done: false }), 400);
@@ -1568,6 +1662,128 @@ const QUESTIONS = {
     } else {
       showToast(`Hit ${monster.type} for ${dmg}!`);
     }
+  }
+
+  function performMeleeSwing() {
+    if (state.hitCd > 0 || state.paused) return false;
+    const hasWeapon = !!state.equipped.weapon;
+    const range = meleeRange();
+    const base = hasWeapon ? (5 + gearStats().pwr) : 2;
+    state.hitCd = hasWeapon ? 0.38 : 0.32;
+    state.attackAnim = 0.35;
+    state.attackArc = range;
+    // Face toward nearest monster in range if any
+    let hitAny = false;
+    if (state.dungeon?.active) {
+      for (const m of state.dungeon.monsters) {
+        const dist = Math.hypot(m.x - state.player.x, m.y - state.player.y);
+        if (dist <= range) {
+          // Prefer hits in facing cone (~200 deg) but allow full circle for fairness
+          const ang = Math.atan2(m.y - state.player.y, m.x - state.player.x);
+          let diff = Math.abs(((ang - state.player.facing + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+          if (diff < 2.1 || dist < 0.7) {
+            damageMonster(m, base);
+            hitAny = true;
+          }
+        }
+      }
+    }
+    spawnParticles(state.player.x + Math.cos(state.player.facing) * 0.6, state.player.y + Math.sin(state.player.facing) * 0.6, 5, "spark");
+    if (!hitAny && state.dungeon?.active) showToast(hasWeapon ? "Swing missed — get in range!" : "Fists miss — get closer!");
+    return true;
+  }
+
+  function shootBow(tx, ty) {
+    const bow = state.equipped.bow;
+    if (!bow || state.hitCd > 0 || state.paused) return false;
+    const dx = tx - state.player.x, dy = ty - state.player.y;
+    const dist = Math.hypot(dx, dy) || 1;
+    const range = bow.range || 6;
+    if (dist > range + 0.5) {
+      showToast("Out of bow range!");
+      return false;
+    }
+    state.player.facing = Math.atan2(dy, dx);
+    state.hitCd = 0.45;
+    state.attackAnim = 0.3;
+    const spd = 9;
+    state.projectiles.push({
+      x: state.player.x, y: state.player.y,
+      vx: (dx / dist) * spd, vy: (dy / dist) * spd,
+      life: 1.2, dmg: 4 + (bow.pwr || 0) + Math.floor(gearStats().pwr * 0.35),
+      kind: "arrow",
+    });
+    spawnParticles(state.player.x, state.player.y, 4, "spark");
+    return true;
+  }
+
+  function startMining(wx, wy) {
+    const pick = state.equipped.tool;
+    if (!pick) { showToast("Equip a pickaxe in the Tool slot!", true); return; }
+    const minePow = pick.mine || (/pick|hammer|spade|lens/i.test(pick.key || pick.name || "") ? 1 : 0);
+    if (!minePow) { showToast("That tool can't mine stone.", true); return; }
+    const tile = getTile(wx, wy);
+    if (![TILES.STONE, TILES.COBBLE, TILES.RUIN].includes(tile)) return;
+    if (state.mineTarget && state.mineTarget.wx === wx && state.mineTarget.wy === wy) return;
+    state.mineTarget = { wx, wy, progress: 0, need: Math.max(0.55, 1.4 - minePow * 0.18) };
+    state.mineAnim = 0.01;
+    showToast("Mining…");
+  }
+
+  function updateMining(dt) {
+    if (!state.mineTarget) {
+      if (state.mineAnim > 0) state.mineAnim = Math.max(0, state.mineAnim - dt);
+      return;
+    }
+    const pick = state.equipped.tool;
+    if (!pick) { state.mineTarget = null; return; }
+    const { wx, wy } = state.mineTarget;
+    if (Math.hypot(state.player.x - wx - 0.5, state.player.y - wy - 0.5) > 2.2) {
+      state.mineTarget = null;
+      showToast("Too far to mine.", true);
+      return;
+    }
+    state.mineAnim = 0.25;
+    state.mineTarget.progress += dt;
+    if (Math.random() < 0.08) spawnParticles(wx + 0.5, wy + 0.5, 2, "dust");
+    if (state.mineTarget.progress >= state.mineTarget.need) {
+      const tile = getTile(wx, wy);
+      setTile(wx, wy, tile === TILES.RUIN ? TILES.DIRT : TILES.DIRT);
+      spawnParticles(wx + 0.5, wy + 0.5, 14, "dust");
+      // Stone drop — craftable-feel loot
+      const stone = { key: "stone_chunk", name: "Stone Chunk", type: "consumable", effect: "heal", amount: 5, rarity: "common", uid: uid(), slot: null };
+      // Keep as material-ish: just inventory junk that heals tiny? Better as non-consumable material
+      const mat = { key: "stone_chunk", name: "Stone Chunk", slot: "tool", rarity: "common", pwr: 0, def: 0, know: 0, uid: uid(), material: true };
+      // Actually put as simple bag item without equip — use consumable false material
+      state.inventory.push({ key: "stone_chunk", name: "Stone Chunk", type: "material", rarity: "common", uid: uid(), slot: null });
+      updateInventoryUI();
+      showToast("Mined stone! +Stone Chunk");
+      state.mineTarget = null;
+      state.mineAnim = 0;
+      state.kp += 1;
+      updateHUD();
+    }
+  }
+
+  function updateProjectiles(dt) {
+    if (!state.projectiles.length) return;
+    state.projectiles = state.projectiles.filter((p) => {
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.life -= dt;
+      if (p.life <= 0) return false;
+      if (isSolidTile(getTile(Math.floor(p.x), Math.floor(p.y)))) return false;
+      if (state.dungeon?.active) {
+        for (const m of state.dungeon.monsters) {
+          if (Math.hypot(m.x - p.x, m.y - p.y) < 0.45) {
+            damageMonster(m, p.dmg);
+            spawnParticles(p.x, p.y, 6, "spark");
+            return false;
+          }
+        }
+      }
+      return true;
+    });
   }
 
   function monsterAtWorld(wx, wy) {
@@ -1591,11 +1807,32 @@ const QUESTIONS = {
     const camX = state.player.x, camY = state.player.y;
     const wx = camX + (cx - w / 2) / tileSize;
     const wy = camY + (cy - h / 2) / tileSize;
-    if (state.dungeon?.active) {
-      const m = monsterAtWorld(wx, wy);
-      if (m) { attackMonster(m); return; }
+    const dist = Math.hypot(wx - state.player.x, wy - state.player.y);
+
+    // Face click
+    state.player.facing = Math.atan2(wy - state.player.y, wx - state.player.x);
+
+    // Mining click on stone
+    const ttile = getTile(Math.floor(wx), Math.floor(wy));
+    if (state.equipped.tool && (state.equipped.tool.mine || /pick|hammer|spade|lens/i.test(state.equipped.tool.key || ""))
+      && [TILES.STONE, TILES.COBBLE, TILES.RUIN].includes(ttile) && dist < 2.4) {
+      startMining(Math.floor(wx), Math.floor(wy));
+      return;
     }
-    if (state.interactTarget) tryInteract();
+
+    // Bow shot if bow equipped and click is beyond melee
+    if (state.equipped.bow && dist > meleeRange() + 0.15) {
+      if (shootBow(wx, wy)) return;
+    }
+
+    // Melee swing (radius attack) — dungeon combat or practice swing
+    if (state.dungeon?.active || state.equipped.weapon) {
+      performMeleeSwing();
+      return;
+    }
+
+    // Interact only via E/tap on prompt — canvas click near interactable still works
+    if (state.interactTarget && dist < 2.2) tryInteract();
   }
 
   function playerHurt(dmg) {
@@ -1796,12 +2033,11 @@ const QUESTIONS = {
       }
     }
     updateMonsters(dt);
-
-    // Auto-open chest when standing on it
-    const standing = findChestAt(Math.floor(state.player.x), Math.floor(state.player.y));
-    if (standing && !standing.opened && !state.paused) {
-      openChest(standing);
-    }
+    updateChests(dt);
+    updateMining(dt);
+    updateProjectiles(dt);
+    if (state.attackAnim > 0) state.attackAnim = Math.max(0, state.attackAnim - dt);
+    if (state.swimming) state.swimAnim = (state.swimAnim || 0) + dt; else state.swimAnim = 0;
 
     state.interactTarget = findInteractable();
     const prompt = $("interact-prompt");
@@ -2126,10 +2362,21 @@ const QUESTIONS = {
       }
       case TILES.CHEST: {
         fillNoise(px, py, ts, wx, wy, inD ? "#2a2438" : "#2f9a3c", inD ? "#34304a" : "#288834", 0.2);
-        outlineRect(px + ts * 0.12, py + ts * 0.28, ts * 0.76, ts * 0.52, "#c08030");
-        pxRect(px + ts * 0.18, py + ts * 0.34, ts * 0.64, 2, "#e0a050");
-        pxRect(px + ts * 0.18, py + ts * 0.5, ts * 0.64, 1, "#8a5020");
-        outlineRect(px + ts * 0.42, py + ts * 0.45, 4, 4, "#ffe060");
+        const ch = findChestAt(wx, wy);
+        const openAmt = ch ? (ch.opened || ch.looted ? 1 : (ch.opening ? Math.min(1, (ch.openT || 0) / 0.55) : 0)) : 0;
+        // body
+        outlineRect(px + ts * 0.12, py + ts * 0.38, ts * 0.76, ts * 0.42, "#c08030");
+        pxRect(px + ts * 0.18, py + ts * 0.55, ts * 0.64, 1, "#8a5020");
+        outlineRect(px + ts * 0.42, py + ts * 0.52, 4, 4, openAmt > 0.5 ? "#ffe060" : "#d4a84b");
+        // lid — lifts / tilts open
+        const lidY = py + ts * 0.28 - openAmt * ts * 0.35;
+        const lidH = Math.max(4, ts * 0.22);
+        outlineRect(px + ts * 0.1, lidY, ts * 0.8, lidH, "#e0a050");
+        pxRect(px + ts * 0.16, lidY + 2, ts * 0.68, 2, "#f0c070");
+        if (openAmt > 0.2) {
+          // gold glow from inside
+          pxRect(px + ts * 0.3, py + ts * 0.4, ts * 0.4, ts * 0.15, `rgba(255,220,80,${0.25 + openAmt * 0.45})`);
+        }
         shadeTile(px, py, ts);
         break;
       }
@@ -2241,17 +2488,21 @@ const QUESTIONS = {
     const weapon = state.equipped.weapon;
     const tool = state.equipped.tool;
     const book = state.equipped.book;
+    const bow = state.equipped.bow;
     const body = armor
       ? (armor.rarity === "legendary" ? "#f0c050" : armor.rarity === "epic" ? "#c060ff" : armor.rarity === "rare" ? "#50a0ff" : armor.rarity === "uncommon" ? "#50d060" : "#a09070")
       : "#40c050";
     const swim = state.swimming;
-    const bob = swim ? Math.sin(state.animT * 6) * 1.5 : 0;
+    const swimKick = swim ? Math.sin((state.swimAnim || 0) * 10) * 3 : 0;
+    const bob = swim ? Math.sin((state.swimAnim || 0) * 6) * 1.5 : 0;
     const sub = swim ? ps * 0.28 : 0;
     const face = state.player.facing || 0;
     const lookX = Math.cos(face) * 2;
     const lookY = Math.sin(face) * 1;
     const right = Math.cos(face) >= 0 ? 1 : -1;
     const s = Math.max(10, ps * 1.12);
+    const swingT = state.attackAnim > 0 ? (state.attackAnim / 0.35) : 0;
+    const mineT = state.mineAnim > 0 ? Math.sin(state.animT * 18) : 0;
 
     if (swim) pxRect(ppx - s * 0.4, ppy + s * 0.28 + bob, s * 0.8, 3, "rgba(20,60,120,0.45)");
     else pxRect(ppx - s * 0.35, ppy + s * 0.42, s * 0.7, 3, "rgba(0,0,0,0.4)");
@@ -2259,9 +2510,12 @@ const QUESTIONS = {
     if (!swim) {
       outlineRect(ppx - s * 0.28, ppy + s * 0.12 + bob, s * 0.22, s * 0.35, "#3a2818");
       outlineRect(ppx + s * 0.06, ppy + s * 0.12 + bob, s * 0.22, s * 0.35, "#3a2818");
+    } else {
+      // swimming kick legs
+      outlineRect(ppx - s * 0.3 - swimKick * 0.3, ppy + s * 0.15 + bob, s * 0.2, s * 0.25, "#3a2818");
+      outlineRect(ppx + s * 0.1 + swimKick * 0.3, ppy + s * 0.15 + bob, s * 0.2, s * 0.25, "#3a2818");
     }
 
-    // torso with outline + highlight
     outlineRect(ppx - s / 2, ppy - s * 0.12 + bob - sub, s, s * 0.5, body);
     pxRect(ppx - s * 0.4, ppy - s * 0.05 + bob - sub, s * 0.8, 2, "rgba(255,255,255,0.2)");
     if (armor) pxRect(ppx - s * 0.15, ppy + s * 0.05 + bob - sub, 3, 3, "#ffe060");
@@ -2270,35 +2524,62 @@ const QUESTIONS = {
     outlineRect(ppx - s * 0.22, ppy - s * 0.55 + bob - sub, s * 0.44, s * 0.18, "#5a3820");
     pxRect(ppx - 3 + lookX, ppy - s * 0.3 + lookY + bob - sub, 2, 2, "#0a0a0a");
     pxRect(ppx + 1 + lookX, ppy - s * 0.3 + lookY + bob - sub, 2, 2, "#0a0a0a");
-    // cheek highlight
-    pxRect(ppx + s * 0.08, ppy - s * 0.22 + bob - sub, 2, 1, "rgba(255,200,160,0.35)");
 
     if (book && !swim) {
-      const bx = ppx - right * (s * 0.55);
-      outlineRect(bx - 2, ppy - s * 0.05 + bob, 6, 8, "#e06040");
-      pxRect(bx, ppy - s * 0.02 + bob, 2, 4, "#ffe060");
+      outlineRect(ppx - right * (s * 0.55) - 2, ppy - s * 0.05 + bob, 6, 8, "#e06040");
     }
+
+    // TOOL / pickaxe — swings while mining
     if (tool && !swim) {
-      const tx = ppx - right * (s * 0.5) + lookX;
-      outlineRect(tx, ppy + bob - sub, 2, s * 0.45, "#8a6030");
-      outlineRect(tx - 2, ppy - 2 + bob - sub, 6, 4, tool.rarity === "legendary" ? "#ffe060" : "#c0c8d0");
+      const mineSwing = mineT * right * s * 0.35;
+      const tx = ppx - right * (s * 0.48) + lookX + mineSwing;
+      const ty = ppy + bob - sub - Math.abs(mineT) * s * 0.25;
+      outlineRect(tx, ty, 2, s * 0.45, "#8a6030");
+      const head = tool.mine ? "#c0c8d0" : (tool.rarity === "legendary" ? "#ffe060" : "#a0a8b0");
+      outlineRect(tx - 3, ty - 3, 8, 5, head);
+      if (state.mineAnim > 0) pxRect(tx + right * 4, ty, 4, 2, "rgba(255,255,255,0.35)");
     }
+
+    // BOW on back / drawn when shooting
+    if (bow && !swim) {
+      const drawBack = state.attackAnim > 0 && !weapon ? 1 : 0;
+      const bx = ppx - right * (s * 0.42) + lookX * drawBack;
+      const by = ppy - s * 0.2 + bob - sub;
+      outlineRect(bx, by, 2, s * 0.7, "#8a5030");
+      pxRect(bx - 3, by + 2, 8, 2, "#d0d0d0");
+      pxRect(bx - 3, by + s * 0.55, 8, 2, "#d0d0d0");
+      if (drawBack) pxRect(bx + right * 2, by + s * 0.3, 6, 1, "#f0e0c0");
+    }
+
+    // SWORD swing animation in arc
     if (weapon && !swim) {
-      const swing = state.hitCd > 0 ? (0.25 - state.hitCd) / 0.25 : 0;
-      const wx = ppx + right * (s * 0.42) + lookX + right * swing * s * 0.55;
-      const wy = ppy - s * 0.25 + lookY + bob - sub - swing * s * 0.35;
-      outlineRect(wx, wy, 3, s * 0.85, weapon.rarity === "legendary" ? "#e8f0ff" : "#d0d8e0");
-      pxRect(wx + 1, wy + 2, 1, s * 0.65, "#ffffff");
-      outlineRect(wx - 2, wy + s * 0.55, 7, 3, "#ffe060");
-      outlineRect(wx, wy + s * 0.58, 3, s * 0.22, "#6a4020");
-      const glow = weapon.rarity === "legendary" ? "#fff0a0" : weapon.rarity === "epic" ? "#c080e0" : "#d4a84b";
-      pxRect(wx, wy + s * 0.78, 3, 3, glow);
-      if (swing > 0.05) pxRect(wx + right * 4, wy + s * 0.2, 6, 2, "rgba(255,255,255,0.45)");
-    } else if (!weapon && !swim) {
+      const swing = swingT;
+      const ang = face + (1 - swing) * 1.6 * right - 0.4 * right;
+      const reach = s * (0.55 + swing * 0.5);
+      const wx = ppx + Math.cos(ang) * reach;
+      const wy = ppy + Math.sin(ang) * reach * 0.55 + bob - sub;
+      outlineRect(wx - 1, wy - s * 0.35, 3, s * 0.75, weapon.rarity === "legendary" ? "#e8f0ff" : "#d0d8e0");
+      pxRect(wx, wy - s * 0.3, 1, s * 0.55, "#ffffff");
+      outlineRect(wx - 3, wy + s * 0.25, 7, 3, "#ffe060");
+      if (swing > 0.15) {
+        // slash arc trail
+        for (let i = 0; i < 4; i++) {
+          const a2 = ang - right * i * 0.2;
+          pxRect(ppx + Math.cos(a2) * reach * 0.85, ppy + Math.sin(a2) * reach * 0.45 + bob, 3, 2, `rgba(255,255,255,${0.35 - i * 0.07})`);
+        }
+      }
+    } else if (!weapon && !swim && swingT > 0) {
+      // fist punch
+      outlineRect(ppx + right * (s * 0.4 + swingT * s * 0.35), ppy + bob, 4, 4, "#f0c090");
+    } else if (!weapon && !bow && !swim) {
       outlineRect(ppx + right * (s * 0.38), ppy + bob, 3, 3, "#f0c090");
     }
 
     if (swim) {
+      // arm paddle
+      const paddle = Math.sin((state.swimAnim || 0) * 9) * s * 0.25;
+      outlineRect(ppx - s * 0.55 + paddle, ppy + bob, 4, 3, "#f0c090");
+      outlineRect(ppx + s * 0.35 - paddle, ppy + bob, 4, 3, "#f0c090");
       pxRect(ppx - s * 0.55, ppy + s * 0.05 + bob, s * 1.1, s * 0.5, "rgba(40,120,200,0.4)");
       pxRect(ppx - s * 0.4, ppy + s * 0.08 + bob, s * 0.8, 2, "rgba(200,240,255,0.5)");
     }
@@ -2309,9 +2590,18 @@ const QUESTIONS = {
     }
   }
 
+  function tileSizeGuess() {
+    const fov = state.settings.fov;
+    return Math.max(10, Math.floor(Math.min(canvas.width, canvas.height) / fov));
+  }
+
   function drawMonster(m, px, py, ts) {
     const bob = Math.sin(state.animT * 6 + m.x) * 1.5;
     const s = ts * 0.58;
+    if (m.hitFlash > 0) {
+      m.hitFlash -= 0.016;
+      ctx.globalAlpha = 0.7;
+    }
     outlineRect(px - s / 2, py - s / 2 + bob, s, s, m.body || m.color);
     pxRect(px - s * 0.35, py - s * 0.35 + bob, s * 0.7, 2, "rgba(255,255,255,0.15)");
     outlineRect(px - s * 0.32, py - s * 0.38 + bob, s * 0.24, s * 0.24, m.eye || "#ffffff");
@@ -2325,13 +2615,12 @@ const QUESTIONS = {
     }
     if (m.type === "bat") outlineRect(px - s * 0.55, py - s * 0.1 + bob, s * 1.1, s * 0.35, "#4a2860");
     if (m.type === "skeleton") pxRect(px - s * 0.15, py - s * 0.05 + bob, s * 0.3, 2, "#ffffff");
-    if (m.type === "slime") {
-      pxRect(px - s * 0.25, py - s * 0.15 + bob, 3, 2, "rgba(255,255,255,0.35)");
-    }
+    if (m.type === "slime") pxRect(px - s * 0.25, py - s * 0.15 + bob, 3, 2, "rgba(255,255,255,0.35)");
     if (m.type === "guardian") {
       outlineRect(px - s * 0.55, py - s * 0.55 + bob, s * 1.1, s * 1.1, "#f0c050");
       pxRect(px - s * 0.2, py - s * 0.2 + bob, s * 0.4, s * 0.4, "#ffffff");
     }
+    ctx.globalAlpha = 1;
     const hpPct = m.hp / m.maxHp;
     pxRect(px - s / 2 - 1, py - s / 2 - 6 + bob, s + 2, 4, "#0a0a0a");
     pxRect(px - s / 2, py - s / 2 - 5 + bob, s * hpPct, 2, hpPct > 0.4 ? "#40e060" : "#ff4040");
@@ -2388,6 +2677,46 @@ const QUESTIONS = {
         const py = Math.floor((m.y - camY) * tileSize + h / 2);
         drawMonster(m, px, py, tileSize);
       }
+    }
+
+    // Mining crack overlay
+    if (state.mineTarget) {
+      const mx = state.mineTarget.wx, my = state.mineTarget.wy;
+      const mpx = Math.floor((mx - camX) * tileSize + w / 2);
+      const mpy = Math.floor((my - camY) * tileSize + h / 2);
+      const pct = Math.min(1, state.mineTarget.progress / state.mineTarget.need);
+      pxRect(mpx + tileSize * 0.2, mpy + tileSize * 0.3, 2, tileSize * 0.4 * pct, "#1a1010");
+      pxRect(mpx + tileSize * 0.5, mpy + tileSize * 0.25, 2, tileSize * 0.45 * pct, "#1a1010");
+      pxRect(mpx + tileSize * 0.35, mpy + tileSize * 0.2, tileSize * 0.3 * pct, 2, "#1a1010");
+      // progress bar
+      pxRect(mpx + 2, mpy - 4, tileSize - 4, 3, "#0a0a0a");
+      pxRect(mpx + 2, mpy - 4, (tileSize - 4) * pct, 3, "#ffe060");
+    }
+
+    // Melee attack radius visual
+    if (state.attackAnim > 0 && state.attackArc > 0) {
+      const rad = state.attackArc * tileSize;
+      const alpha = Math.min(0.35, state.attackAnim * 1.2);
+      ctx.strokeStyle = `rgba(255,240,120,${alpha})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(w / 2, h / 2, rad, state.player.facing - 1.1, state.player.facing + 1.1);
+      ctx.stroke();
+      ctx.fillStyle = `rgba(255,220,80,${alpha * 0.25})`;
+      ctx.beginPath();
+      ctx.moveTo(w / 2, h / 2);
+      ctx.arc(w / 2, h / 2, rad, state.player.facing - 1.1, state.player.facing + 1.1);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // Projectiles (arrows)
+    for (const p of state.projectiles) {
+      const ax = Math.floor((p.x - camX) * tileSize + w / 2);
+      const ay = Math.floor((p.y - camY) * tileSize + h / 2);
+      const ang = Math.atan2(p.vy, p.vx);
+      outlineRect(ax - 1, ay - 1, 6, 2, "#e8d0a0");
+      pxRect(ax + Math.cos(ang) * 4, ay + Math.sin(ang) * 2, 3, 2, "#c0c8d0");
     }
 
     const ppx = Math.floor(w / 2), ppy = Math.floor(h / 2);
@@ -2531,7 +2860,7 @@ const QUESTIONS = {
     state.drownCd = 0;
     state.maxHp = 100;
     state.inventory = [];
-    state.equipped = { weapon: null, armor: null, tool: null, book: null };
+    state.equipped = { weapon: null, armor: null, tool: null, book: null, bow: null };
     state.chunks.clear();
     state.structures.clear();
     state.buildings.clear();
@@ -2551,23 +2880,19 @@ const QUESTIONS = {
 
     state.tempPwr = 0;
     state.tempPwrT = 0;
-
-    const give = (table, key, uidTag) => {
-      const base = table.find((l) => l.key === key);
-      if (!base) return null;
-      const item = { ...base, uid: `${uidTag}-${uid()}` };
-      state.inventory.push(item);
-      return item;
-    };
-    const blade = give(LOOT_TABLE, "wood_blade", "starter-blade");
-    give(LOOT_TABLE, "slate_chalk", "starter-tool");
-    give(LOOT_TABLE, "primer", "starter-book");
-    give(POTION_TABLE, "heal_small", "starter-heal");
-    give(POTION_TABLE, "heal_small", "starter-heal2");
-    give(POTION_TABLE, "heal_med", "starter-heal3");
-    if (blade) {
-      state.equipped.weapon = blade;
-      state.inventory = state.inventory.filter((i) => i.uid !== blade.uid);
+    state.selectedItem = null;
+    state.projectiles = [];
+    state.attackAnim = 0;
+    state.attackArc = 0;
+    state.mineTarget = null;
+    state.mineAnim = 0;
+    state.swimAnim = 0;
+    // Start unequipped — grind quests/chests/dungeons for weapons, armor, picks & bows
+    // Only a couple emergency heals in the satchel
+    const heal = POTION_TABLE.find((p) => p.key === "heal_small");
+    if (heal) {
+      state.inventory.push({ ...heal, uid: uid(), slot: null });
+      state.inventory.push({ ...heal, uid: uid(), slot: null });
     }
 
     ensureChunk(0, 0);
@@ -2582,7 +2907,7 @@ const QUESTIONS = {
     requestAnimationFrame(() => {
       resizeCanvas();
       draw();
-      showToast(`Grade ${state.grade} · ${state.bookTitle}. Blade equipped · I = bag · H = heal.`);
+      showToast(`Grade ${state.grade} · ${state.bookTitle}. Unequipped — grind gear! I = bag · E = chests · H = heal.`);
     });
   }
 

@@ -151,6 +151,7 @@
 
         <div id="equip-strip" class="equip-strip" aria-label="Equipped gear">
           <div class="equip-chip" data-slot="weapon"><span class="slot-ico">⚔</span><span id="eq-weapon">—</span></div>
+          <div class="equip-chip" data-slot="bow"><span class="slot-ico">🏹</span><span id="eq-bow">—</span></div>
           <div class="equip-chip" data-slot="armor"><span class="slot-ico">🛡</span><span id="eq-armor">—</span></div>
           <div class="equip-chip" data-slot="tool"><span class="slot-ico">⛏</span><span id="eq-tool">—</span></div>
           <div class="equip-chip" data-slot="book"><span class="slot-ico">📖</span><span id="eq-book">—</span></div>
@@ -175,7 +176,7 @@
           </div>
         </div>
 
-        <div id="combat-hint" class="combat-hint hidden">LMB / Tap monsters to attack · Find chests &amp; stairs</div>
+        <div id="combat-hint" class="combat-hint hidden">LMB swing (radius) · Bow = click far · E chest/mine · H heal</div>
 
         <div id="toast" class="toast hidden" role="status"></div>
 
@@ -249,8 +250,13 @@
               <div class="doll-col">
                 <button type="button" class="item-slot" data-slot="weapon" id="slot-weapon" title="Weapon slot">
                   <span class="slot-ico-lg">⚔</span>
-                  <span class="slot-label">Weapon</span>
+                  <span class="slot-label">Sword</span>
                   <span class="slot-value" id="slot-weapon-name">Empty</span>
+                </button>
+                <button type="button" class="item-slot" data-slot="bow" id="slot-bow" title="Bow slot">
+                  <span class="slot-ico-lg">🏹</span>
+                  <span class="slot-label">Bow</span>
+                  <span class="slot-value" id="slot-bow-name">Empty</span>
                 </button>
                 <button type="button" class="item-slot" data-slot="book" id="slot-book" title="Study book slot">
                   <span class="slot-ico-lg">📖</span>
@@ -269,9 +275,9 @@
                   <span class="slot-label">Armor</span>
                   <span class="slot-value" id="slot-armor-name">Empty</span>
                 </button>
-                <button type="button" class="item-slot" data-slot="tool" id="slot-tool" title="Tool slot">
+                <button type="button" class="item-slot" data-slot="tool" id="slot-tool" title="Pickaxe / tool slot">
                   <span class="slot-ico-lg">⛏</span>
-                  <span class="slot-label">Tool</span>
+                  <span class="slot-label">Pickaxe</span>
                   <span class="slot-value" id="slot-tool-name">Empty</span>
                 </button>
               </div>
