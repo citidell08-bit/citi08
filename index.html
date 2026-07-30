@@ -305,6 +305,60 @@
       </div>
     </div>
 
+    <!-- DUNGEON PORTAL MODAL -->
+    <div id="dungeon-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="dungeon-portal-title">
+      <div class="modal-panel dungeon-portal-panel">
+        <header class="modal-header boss-header">
+          <h2 id="dungeon-portal-title">Dungeon Portal</h2>
+        </header>
+        <div class="modal-body">
+          <div class="portal-art" aria-hidden="true">
+            <div class="portal-ring"></div>
+          </div>
+          <p id="dungeon-portal-flavor" class="flavor">A swirling gate hums with ancient power. Choose how deep the trial will cut.</p>
+          <p id="dungeon-portal-name" class="book-tag"></p>
+          <fieldset class="difficulty-field portal-diff">
+            <legend>Dungeon difficulty</legend>
+            <div class="diff-grid" role="radiogroup" aria-label="Dungeon difficulty">
+              <label class="diff-option">
+                <input type="radio" name="dungeon-difficulty" value="easy" checked />
+                <span class="diff-card">
+                  <strong>Easy</strong>
+                  <small>Weaker foes · basic chest loot</small>
+                </span>
+              </label>
+              <label class="diff-option">
+                <input type="radio" name="dungeon-difficulty" value="medium" />
+                <span class="diff-card">
+                  <strong>Medium</strong>
+                  <small>Fair monsters · solid loot</small>
+                </span>
+              </label>
+              <label class="diff-option">
+                <input type="radio" name="dungeon-difficulty" value="hard" />
+                <span class="diff-card">
+                  <strong>Hard</strong>
+                  <small>Tough packs · rare gear</small>
+                </span>
+              </label>
+              <label class="diff-option raid">
+                <input type="radio" name="dungeon-difficulty" value="raid" />
+                <span class="diff-card">
+                  <strong>Raid</strong>
+                  <small>Brutal · legendary chests</small>
+                </span>
+              </label>
+            </div>
+          </fieldset>
+          <p class="portal-note">10 floors await. Clear rooms, open chests, climb deeper — Floor 10 holds the Guardian.</p>
+          <div class="settings-actions">
+            <button type="button" class="btn ghost" id="btn-portal-cancel">Step Away</button>
+            <button type="button" class="btn primary" id="btn-portal-enter">Enter Portal</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- RESULT OVERLAY -->
     <div id="result-modal" class="modal hidden" role="dialog" aria-modal="true">
       <div class="modal-panel result-panel">

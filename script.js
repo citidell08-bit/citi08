@@ -250,6 +250,7 @@ const QUESTIONS = {
     buildings: new Map(),
     chests: new Map(),
     dungeon: null,
+    pendingDungeon: null,
     interactTarget: null,
     particles: [],
     usedQuestions: new Set(),
@@ -486,6 +487,9 @@ const QUESTIONS = {
     placeCottage(tiles, cx, cy, ox, oy, 2, 2, 4, 4);
     placeCottage(tiles, cx, cy, ox, oy, 7, 2, 4, 4);
     placeCottage(tiles, cx, cy, ox, oy, 4, 7, 5, 4);
+    // Outdoor village chests so loot is easy to find
+    registerChest(cx * CHUNK + ox + 3, cy * CHUNK + oy + 5, questRank(Math.abs(cx) + Math.abs(cy)), false, tiles, cx, cy);
+    registerChest(cx * CHUNK + ox + 8, cy * CHUNK + oy + 6, questRank(Math.abs(cx) + Math.abs(cy)), false, tiles, cx, cy);
     const qx = ox + 5, qy = oy + 5;
     tiles[qy * CHUNK + qx] = TILES.QUEST;
     const dist = Math.abs(cx) + Math.abs(cy);
@@ -607,7 +611,7 @@ const QUESTIONS = {
   }
 
 
-  function generateDungeonFloor(floor, rank, name) {
+  function generateDungeonFloor(floor, rank, name, monsterMult = 1) {
     const theme = FLOOR_THEMES[floor - 1];
     const w = 56 + floor * 2, h = 40 + floor;
     const tiles = Array.from({ length: h }, () => Array(w).fill(TILES.WALL));
@@ -651,23 +655,28 @@ const QUESTIONS = {
       if (idx === 0) return;
       const cx = Math.floor(room.x + room.w / 2);
       const cy = Math.floor(room.y + room.h / 2);
-      if (hash2(cx, cy, floor * 991 + rank) > 0.35) {
-        const mhp = Math.floor(theme.hp * (1 + rank * 0.15 + floor * 0.08));
+      if (hash2(cx, cy, floor * 991 + rank) > 0.28) {
+        const mhp = Math.floor(theme.hp * (1 + rank * 0.15 + floor * 0.08) * monsterMult);
         monsters.push({
           id: uid(), x: cx + 0.5, y: cy + 0.5, hp: mhp, maxHp: mhp,
-          type: theme.monster, dmg: theme.dmg + Math.floor(floor / 2),
+          type: theme.monster, dmg: Math.floor((theme.dmg + Math.floor(floor / 2)) * monsterMult),
           spd: theme.spd, color: theme.color, body: theme.body, eye: theme.eye,
           hitCd: 0,
         });
       }
-      if (hash2(cx + 3, cy + 1, floor * 313) > 0.4) {
-        const ch = { id: uid(), x: cx, y: cy, opened: false, rank };
-        chests.push(ch);
-        tiles[cy][cx] = TILES.CHEST;
+      // Always at least one chest chance high — guarantee chest in many rooms
+      if (hash2(cx + 3, cy + 1, floor * 313) > 0.15 || idx === rooms.length - 1 || idx === 1) {
+        const chx = Math.min(room.x + room.w - 2, Math.max(room.x + 1, cx + (idx % 2)));
+        const chy = Math.min(room.y + room.h - 2, Math.max(room.y + 1, cy));
+        if (tiles[chy][chx] === TILES.FLOOR || tiles[chy][chx] === TILES.COBBLE) {
+          const ch = { id: uid(), x: chx, y: chy, wx: chx, wy: chy, opened: false, rank, dungeon: true };
+          chests.push(ch);
+          tiles[chy][chx] = TILES.CHEST;
+        }
       }
       if (hash2(cx, cy, floor * 77) > 0.82 && floor < 10) {
         const tx = room.x + 1, ty = room.y + 1;
-        tiles[ty][tx] = TILES.TORCH;
+        if (tiles[ty][tx] === TILES.FLOOR) tiles[ty][tx] = TILES.TORCH;
       }
     });
     let stairs = null, bossTile = null, exit = null;
@@ -697,15 +706,55 @@ const QUESTIONS = {
     return { w, h, tiles, monsters, chests, stairs, exit, bossTile, spawnX, spawnY, theme };
   }
 
-  function enterDungeon(structure) {
+  function openDungeonPortal(structure) {
+    state.paused = true;
+    state.pendingDungeon = structure;
+    $("dungeon-portal-title").textContent = "Dungeon Portal";
+    $("dungeon-portal-name").textContent = `⚔ ${structure.name} · Overworld Rank ${rankLabel(structure.rank || 0)} · 10 floors`;
+    $("dungeon-portal-flavor").textContent =
+      `A swirling gate opens into ${structure.name}. Choose the dungeon difficulty, then step through the portal to begin Floor 1.`;
+    // Default dungeon difficulty to current world difficulty
+    const pref = state.difficulty || "easy";
+    const radio = document.querySelector(`input[name="dungeon-difficulty"][value="${pref}"]`);
+    if (radio) radio.checked = true;
+    openModal("dungeon-modal");
+  }
+
+  function confirmEnterPortal() {
+    const structure = state.pendingDungeon;
+    if (!structure) return;
+    const dungeonDiff = (document.querySelector('input[name="dungeon-difficulty"]:checked') || {}).value || "easy";
+    closeModal("dungeon-modal");
+    state.paused = false;
+    state.pendingDungeon = null;
+    enterDungeon(structure, dungeonDiff);
+  }
+
+  function cancelPortal() {
+    closeModal("dungeon-modal");
+    state.pendingDungeon = null;
+    state.paused = false;
+  }
+
+  function dungeonDiffMult(diff) {
+    return { easy: 0.75, medium: 1, hard: 1.35, raid: 1.8 }[diff] || 1;
+  }
+
+  function enterDungeon(structure, dungeonDiff = "medium") {
     state.overworldReturn = { x: state.player.x, y: state.player.y };
     const floor = 1;
-    const gen = generateDungeonFloor(floor, structure.rank || 0, structure.name);
+    const diffKey = dungeonDiff || "medium";
+    const mult = dungeonDiffMult(diffKey);
+    const baseRank = structure.rank || 0;
+    const rank = Math.min(3, baseRank + ({ easy: 0, medium: 0, hard: 1, raid: 2 }[diffKey] || 0));
+    const gen = generateDungeonFloor(floor, rank, structure.name, mult);
     state.dungeon = {
       active: true,
       floor,
       name: structure.name,
-      rank: structure.rank || 0,
+      rank,
+      dungeonDiff: diffKey,
+      monsterMult: mult,
       structure,
       tiles: gen.tiles,
       w: gen.w,
@@ -721,8 +770,9 @@ const QUESTIONS = {
     state.player.x = gen.spawnX;
     state.player.y = gen.spawnY;
     recalcHp();
+    state.hp = state.maxHp;
     updateDungeonUI();
-    showToast(`Entered ${structure.name} — Floor 1: ${gen.theme.name}`);
+    showToast(`Portal crossed → ${structure.name} [${DIFFICULTY[diffKey].label}] · Floor 1: ${gen.theme.name}`);
   }
 
   function leaveDungeon() {
@@ -738,7 +788,7 @@ const QUESTIONS = {
     const d = state.dungeon;
     if (!d || !d.stairs) return;
     const next = d.floor + 1;
-    const gen = generateDungeonFloor(next, d.rank, d.name);
+    const gen = generateDungeonFloor(next, d.rank, d.name, d.monsterMult || 1);
     d.floor = next;
     d.tiles = gen.tiles;
     d.w = gen.w;
@@ -790,12 +840,14 @@ const QUESTIONS = {
   function grantLoot({ count = 1, rank = 0, boss = false } = {}) {
     const diff = DIFFICULTY[state.difficulty];
     const gained = [];
-    const floor = Math.min(4, diff.lootFloor + rank + (boss ? 1 : 0));
-    const ceil = Math.min(4, Math.max(floor, diff.lootCeil + (boss ? 1 : 0)));
-    for (let i = 0; i < count; i++) {
-      const rarityIdx = floor + Math.floor(Math.random() * (ceil - floor + 1));
-      const rarity = RARITY_ORDER[rarityIdx];
-      const options = LOOT_TABLE.filter((l) => l.rarity === rarity);
+    const n = Math.max(1, count | 0);
+    const floor = Math.min(4, Math.max(0, (diff.lootFloor | 0) + (rank | 0) + (boss ? 1 : 0)));
+    const ceil = Math.min(4, Math.max(floor, (diff.lootCeil | 0) + (boss ? 1 : 0)));
+    for (let i = 0; i < n; i++) {
+      const rarityIdx = Math.min(4, floor + Math.floor(Math.random() * (ceil - floor + 1)));
+      const rarity = RARITY_ORDER[rarityIdx] || "common";
+      let options = LOOT_TABLE.filter((l) => l.rarity === rarity);
+      if (!options.length) options = LOOT_TABLE.filter((l) => l.rarity === "common");
       const base = options[Math.floor(Math.random() * options.length)] || LOOT_TABLE[0];
       const item = { ...base, uid: uid(), fromRank: rank };
       state.inventory.push(item);
@@ -913,9 +965,14 @@ const QUESTIONS = {
   function showResult(title, body) {
     $("result-title").textContent = title;
     $("result-body").textContent = body;
+    state.paused = true;
     openModal("result-modal");
     const btn = $("btn-result-ok");
-    const handler = () => { btn.removeEventListener("click", handler); closeModal("result-modal"); };
+    const handler = () => {
+      btn.removeEventListener("click", handler);
+      closeModal("result-modal");
+      state.paused = false;
+    };
     btn.addEventListener("click", handler);
   }
 
@@ -1119,45 +1176,82 @@ const QUESTIONS = {
     }
   }
 
-  function openChest(chest) {
-    if (chest.opened) { showToast("Chest already looted."); return; }
-    chest.opened = true;
-    const rank = chest.rank || 0;
-    const loot = grantLoot({ count: 1 + (rank > 1 ? 1 : 0), rank, boss: false });
-    if (!chest.dungeon) setTile(chest.wx, chest.wy, TILES.FLOOR);
-    else {
-      const d = state.dungeon;
-      const ch = d.chests.find((c) => c.id === chest.id);
-      if (ch) { setTile(ch.x, ch.y, TILES.FLOOR); }
+  function findChestAt(wx, wy) {
+    if (state.dungeon?.active) {
+      const dc = state.dungeon.chests.find((c) => !c.opened && c.x === wx && c.y === wy);
+      if (dc) return dc;
     }
-    showToast(`Chest: ${loot.map((l) => l.name).join(", ")}`);
-    spawnParticles(chest.wx || chest.x, chest.wy || chest.y, 12);
+    const oc = state.chests.get(tileKey(wx, wy));
+    if (oc && !oc.opened) return oc;
+    return null;
+  }
+
+  function openChest(chest) {
+    if (!chest || chest.opened) {
+      showToast("Chest already looted.");
+      return;
+    }
+    chest.opened = true;
+    const rank = Math.max(
+      chest.rank || 0,
+      state.dungeon?.rank || 0,
+      ({ easy: 0, medium: 1, hard: 2, raid: 3 }[state.dungeon?.dungeonDiff] || 0)
+    );
+    const count = Math.max(1, 1 + (rank > 0 ? 1 : 0) + (state.dungeon?.active ? 1 : 0));
+    const loot = grantLoot({ count, rank, boss: !!state.dungeon?.active && rank >= 2 });
+    const cx = chest.wx != null ? chest.wx : chest.x;
+    const cy = chest.wy != null ? chest.wy : chest.y;
+    if (cx != null && cy != null) setTile(cx, cy, state.dungeon?.active ? TILES.FLOOR : TILES.PATH);
+    spawnParticles(cx + 0.5, cy + 0.5, 18);
+    updateHUD();
+    const names = loot.map((l) => l.name).join(", ");
+    showToast(`Opened chest! +${names}`);
+    showResult("Chest Loot!", `You found: ${names}. Open Inventory (I) to equip.`);
   }
 
   function findInteractable() {
     const px = Math.floor(state.player.x), py = Math.floor(state.player.y);
-    const near = [[0,0],[0,-1],[0,1],[-1,0],[1,0],[-1,-1],[1,-1],[-1,1],[1,1]];
+    const near = [[0, 0], [0, -1], [0, 1], [-1, 0], [1, 0], [-1, -1], [1, -1], [-1, 1], [1, 1]];
+
+    // Chests first so loot is never blocked by other prompts
+    for (const [dx, dy] of near) {
+      const wx = px + dx, wy = py + dy;
+      const chest = findChestAt(wx, wy);
+      if (chest || getTile(wx, wy) === TILES.CHEST) {
+        const c = chest || findChestAt(wx, wy);
+        if (c && !c.opened) return { type: "chest", data: c, label: "Open chest" };
+        if (getTile(wx, wy) === TILES.CHEST) {
+          // Orphan chest tile — still give loot
+          return {
+            type: "chest",
+            data: { id: uid(), wx, wy, x: wx, y: wy, opened: false, rank: state.dungeon?.rank || 0, dungeon: !!state.dungeon?.active },
+            label: "Open chest",
+          };
+        }
+      }
+    }
+
     for (const [dx, dy] of near) {
       const wx = px + dx, wy = py + dy;
       const tile = getTile(wx, wy);
-      if (tile === TILES.QUEST || tile === TILES.BOSS) {
-        const s = state.structures.get(tileKey(wx, wy)) || state.structures.get(tileKey(wx - 1, wy));
-        if (s && !s.done) return { type: s.type, data: s };
+      if (tile === TILES.QUEST) {
+        const s = state.structures.get(tileKey(wx, wy));
+        if (s && !s.done) return { type: "quest", data: s, label: "Start trial" };
       }
       if (tile === TILES.DUNGEON) {
         const s = state.structures.get(tileKey(wx, wy)) || state.structures.get(tileKey(wx - 1, wy));
-        if (s && s.type === "dungeon_entrance") return { type: "dungeon_entrance", data: s };
-      }
-      if (tile === TILES.CHEST) {
-        const c = state.chests.get(tileKey(wx, wy));
-        if (c && !c.opened) return { type: "chest", data: c };
+        if (s && s.type === "dungeon_entrance") return { type: "dungeon_entrance", data: s, label: "Enter portal" };
       }
       if (state.dungeon?.active) {
-        if (tile === TILES.STAIRS) return { type: "stairs", data: state.dungeon.stairs };
-        if (tile === TILES.EXIT) return { type: "exit", data: state.dungeon.exit };
-        if (tile === TILES.BOSS && state.dungeon.floor === 10) return { type: "boss_tile", data: state.dungeon.bossTile };
-        const dc = state.dungeon.chests.find((c) => c.x === wx && c.y === wy && !c.opened);
-        if (dc) return { type: "chest", data: dc };
+        if (tile === TILES.STAIRS) return { type: "stairs", data: state.dungeon.stairs, label: "Go deeper" };
+        if (tile === TILES.EXIT) return { type: "exit", data: state.dungeon.exit, label: "Leave dungeon" };
+        if (tile === TILES.BOSS && state.dungeon.floor === 10) {
+          return { type: "boss_tile", data: state.dungeon.bossTile, label: "Face the Guardian" };
+        }
+      }
+      if (tile === TILES.BOSS && !state.dungeon?.active) {
+        const s = state.structures.get(tileKey(wx, wy)) || state.structures.get(tileKey(wx - 1, wy));
+        if (s && !s.done) return { type: s.type, data: s, label: "Challenge" };
       }
     }
     return null;
@@ -1169,7 +1263,7 @@ const QUESTIONS = {
     if (!target) return;
     if (target.type === "quest") startQuest(target.data);
     else if (target.type === "boss") startBoss(target.data);
-    else if (target.type === "dungeon_entrance") enterDungeon(target.data);
+    else if (target.type === "dungeon_entrance") openDungeonPortal(target.data);
     else if (target.type === "chest") openChest(target.data);
     else if (target.type === "stairs") nextDungeonFloor();
     else if (target.type === "exit") leaveDungeon();
@@ -1305,8 +1399,21 @@ const QUESTIONS = {
     if (state.hitCd > 0) state.hitCd -= dt;
     if (state.hurtCd > 0) state.hurtCd -= dt;
     updateMonsters(dt);
+
+    // Auto-open chest when standing on it
+    const standing = findChestAt(Math.floor(state.player.x), Math.floor(state.player.y));
+    if (standing && !standing.opened && !state.paused) {
+      openChest(standing);
+    }
+
     state.interactTarget = findInteractable();
-    $("interact-prompt").classList.toggle("hidden", !state.interactTarget);
+    const prompt = $("interact-prompt");
+    if (state.interactTarget) {
+      prompt.classList.remove("hidden");
+      prompt.innerHTML = `${state.interactTarget.label || "Interact"} — press <kbd>E</kbd> / Tap`;
+    } else {
+      prompt.classList.add("hidden");
+    }
   }
 
 
@@ -1319,13 +1426,34 @@ const QUESTIONS = {
     const c = (wx + wy) & 1;
     const shade = (base, alt) => (c ? base : alt);
     switch (tile) {
-      case TILES.GRASS:
-        pxRect(px, py, ts, ts, shade("#3f6a38", "#356032"));
-        pxRect(px + 1, py + ts * 0.25, 2, 4, "#5a8a42");
-        pxRect(px + ts * 0.35, py + ts * 0.15, 2, 3, "#6a9a4a");
-        pxRect(px + ts * 0.65, py + ts * 0.5, 2, 4, "#4a7838");
-        pxRect(px + ts * 0.2, py + ts * 0.7, 3, 2, "#2a5028");
+      case TILES.GRASS: {
+        pxRect(px, py, ts, ts, shade("#3a6234", "#315a2e"));
+        // soil speckles
+        pxRect(px + 1, py + ts - 3, 2, 2, "#4a3a28");
+        pxRect(px + ts * 0.7, py + ts - 4, 2, 2, "#3a2a1c");
+        // layered blades with light
+        pxRect(px + 2, py + ts * 0.35, 2, 5, "#4a8038");
+        pxRect(px + 2, py + ts * 0.3, 1, 2, "#7ab858");
+        pxRect(px + ts * 0.35, py + ts * 0.2, 2, 6, "#5a9040");
+        pxRect(px + ts * 0.35, py + ts * 0.15, 1, 2, "#8fd060");
+        pxRect(px + ts * 0.62, py + ts * 0.4, 2, 5, "#3f7032");
+        pxRect(px + ts * 0.78, py + ts * 0.28, 2, 4, "#6aa848");
+        pxRect(px + ts * 0.2, py + ts * 0.55, 3, 2, "#2a5020");
+        // soft highlight
+        pxRect(px + ts * 0.1, py + 2, ts * 0.35, 1, "rgba(180,220,120,0.25)");
         break;
+      }
+      case TILES.WATER: {
+        pxRect(px, py, ts, ts, "#16384c");
+        const t = state.animT * 2.5 + wx * 0.6 + wy * 0.35;
+        const wave = Math.sin(t);
+        pxRect(px, py, ts, ts * 0.35, "#1e4a60");
+        pxRect(px + 1, py + ts * (0.28 + wave * 0.04), ts - 2, 2, wave > 0 ? "#6aa8c0" : "#3a7088");
+        pxRect(px + 3, py + ts * (0.52 - wave * 0.03), ts - 6, 1, "#9ad0e0");
+        pxRect(px + ts * 0.55, py + ts * 0.15, 3, 2, "rgba(200,240,255,0.35)");
+        pxRect(px + 2, py + ts * 0.75, ts - 4, 2, "#0e2838");
+        break;
+      }
       case TILES.DIRT:
         pxRect(px, py, ts, ts, shade("#6b523c", "#5c4634"));
         pxRect(px + 2, py + 3, 3, 2, "#4a3828");
@@ -1357,14 +1485,6 @@ const QUESTIONS = {
         pxRect(px + 3, py + 3, 2, ts - 6, "#3a3028");
         pxRect(px + ts * 0.6, py + 4, 2, ts - 8, "#4a4030");
         break;
-      case TILES.WATER: {
-        pxRect(px, py, ts, ts, "#1e4a60");
-        const wave = Math.sin(state.animT * 3 + wx * 0.7 + wy * 0.4) > 0;
-        pxRect(px + 1, py + ts * 0.3, ts - 2, 2, wave ? "#5a90a8" : "#3a7088");
-        pxRect(px + 3, py + ts * 0.55, ts - 6, 1, "#7ab0c0");
-        pxRect(px + ts * 0.5, py + ts * 0.15, 4, 2, "#2a6078");
-        break;
-      }
       case TILES.SAND:
         pxRect(px, py, ts, ts, shade("#d4b87a", "#c4a86a"));
         pxRect(px + 3, py + 5, 3, 1, "#e8cc90");
@@ -1462,11 +1582,24 @@ const QUESTIONS = {
       }
       case TILES.CHEST: {
         const bob = Math.sin(state.animT * 3 + wx) * 1;
-        pxRect(px, py, ts, ts, "#3a3028");
-        pxRect(px + 2, py + 4 + bob, ts - 4, ts - 6, "#8a6030");
-        pxRect(px + 2, py + 2 + bob, ts - 4, 4, "#a07038");
-        pxRect(px + ts * 0.42, py + 5 + bob, 3, 3, "#f0c96a");
-        pxRect(px + 3, py + 3 + bob, ts - 6, 2, "#6a4820");
+        // ground shadow
+        pxRect(px + 2, py + ts - 3, ts - 4, 2, "#1a1410");
+        // body
+        pxRect(px + 2, py + 5 + bob, ts - 4, ts - 8, "#6b4420");
+        pxRect(px + 3, py + 6 + bob, ts - 6, ts - 10, "#8a5a28");
+        // wood grain
+        pxRect(px + 4, py + 8 + bob, ts - 8, 1, "#5a3818");
+        pxRect(px + 4, py + 11 + bob, ts - 8, 1, "#a07038");
+        // lid
+        pxRect(px + 2, py + 2 + bob, ts - 4, 5, "#a07038");
+        pxRect(px + 3, py + 3 + bob, ts - 6, 2, "#c09048");
+        // metal bands
+        pxRect(px + 2, py + 6 + bob, ts - 4, 2, "#c0a060");
+        pxRect(px + 2, py + ts - 6 + bob, ts - 4, 2, "#a08850");
+        // lock glow
+        const glow = 0.6 + Math.sin(state.animT * 5 + wx) * 0.4;
+        pxRect(px + ts * 0.4, py + 7 + bob, 4, 4, glow > 0.7 ? "#fff0a0" : "#f0c96a");
+        pxRect(px + ts * 0.45, py + 8 + bob, 2, 2, "#8a6020");
         break;
       }
       case TILES.STAIRS:
@@ -1759,7 +1892,7 @@ const QUESTIONS = {
     state.running = false;
     state.paused = false;
     state.dungeon = null;
-    ["settings-modal", "inventory-modal", "quest-modal", "boss-modal", "result-modal"].forEach(closeModal);
+    ["settings-modal", "inventory-modal", "quest-modal", "boss-modal", "result-modal", "dungeon-modal"].forEach(closeModal);
     $("game-screen").classList.remove("active");
     $("start-screen").classList.add("active");
     $("combat-hint").classList.add("hidden");
@@ -1860,6 +1993,9 @@ const QUESTIONS = {
   canvas.addEventListener("click", handleCanvasClick);
   canvas.addEventListener("contextmenu", (e) => e.preventDefault());
   window.addEventListener("resize", () => { applyMobileVisibility(); if (state.running) resizeCanvas(); });
+
+  $("btn-portal-enter").addEventListener("click", confirmEnterPortal);
+  $("btn-portal-cancel").addEventListener("click", cancelPortal);
 
   applyMobileVisibility();
   requestAnimationFrame(frame);
