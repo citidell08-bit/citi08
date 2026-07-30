@@ -678,18 +678,188 @@ select {
   min-width: 120px;
 }
 
+.field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.book-hint {
+  margin: -0.35rem 0 0;
+  color: var(--ash-dim);
+  font-size: 1rem;
+  line-height: 1.25;
+}
+
+.book-tag {
+  margin: -0.5rem 0 0.85rem;
+  padding: 0.4rem 0.55rem;
+  background: rgba(14, 12, 10, 0.55);
+  border-left: 3px solid var(--sand-dim);
+  color: var(--sand);
+  font-size: 1.05rem;
+  line-height: 1.25;
+}
+
+.hud-study {
+  font-size: 0.9rem;
+  color: var(--sand);
+  max-width: 46vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.equip-strip {
+  position: absolute;
+  top: calc(var(--hud-h) + 8px);
+  left: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  z-index: 4;
+  max-width: min(200px, 42vw);
+}
+
+.equip-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: rgba(26, 22, 18, 0.92);
+  border: 2px solid var(--sand-dim);
+  padding: 0.3rem 0.5rem;
+  box-shadow: 3px 3px 0 var(--shadow);
+  font-size: 1rem;
+  color: var(--gold-bright);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.equip-chip .slot-ico {
+  flex-shrink: 0;
+  font-size: 0.85rem;
+}
+
+.minimap {
+  height: auto;
+  width: 120px;
+}
+
+.minimap-legend {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.35rem;
+  padding: 0.25rem 0.35rem;
+  background: rgba(14, 12, 10, 0.92);
+  border-top: 1px solid var(--sand-dim);
+  font-size: 0.8rem;
+}
+
+.lg-village::before,
+.lg-dungeon::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 3px;
+  vertical-align: middle;
+}
+
+.lg-village::before {
+  background: #d4a060;
+  box-shadow: inset 0 0 0 1px #6b8f5a;
+}
+
+.lg-dungeon::before {
+  background: #8a2030;
+  box-shadow: inset 0 0 0 1px #e06a55;
+}
+
+.inv-panel {
+  width: min(560px, 100%);
+}
+
+.inv-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.equip-board h3,
+.bag-board h3 {
+  margin: 0 0 0.5rem;
+  font-family: var(--font-display);
+  font-size: 0.55rem;
+  color: var(--sand);
+}
+
+.equip-slots {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.55rem;
+}
+
+.equip-slot {
+  text-align: left;
+  background: var(--bg-deep);
+  border: 2px dashed var(--sand-dim);
+  border-radius: var(--radius);
+  padding: 0.7rem;
+  cursor: pointer;
+  color: inherit;
+  min-height: 72px;
+}
+
+.equip-slot.filled {
+  border-style: solid;
+  border-color: var(--moss);
+  background: #24301e;
+}
+
+.slot-label {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 0.4rem;
+  color: var(--sand);
+  margin-bottom: 0.35rem;
+}
+
+.slot-value {
+  font-size: 1.1rem;
+  color: var(--ash-dim);
+  line-height: 1.2;
+}
+
+.equip-slot.filled .slot-value {
+  color: var(--gold-bright);
+}
+
+.equip-stats {
+  margin: 0.65rem 0 0;
+  color: var(--ash-dim);
+  font-size: 1.05rem;
+}
+
+.equip-stats strong {
+  color: var(--moss-bright);
+}
+
 .inventory-list {
   list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
   gap: 0.45rem;
+  max-height: 240px;
+  overflow: auto;
 }
 
 .inventory-list li {
-  display: flex;
-  justify-content: space-between;
-  gap: 0.75rem;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.35rem 0.75rem;
+  align-items: center;
   padding: 0.55rem 0.7rem;
   background: var(--bg-deep);
   border: 1px solid var(--sand-dim);
@@ -698,11 +868,66 @@ select {
 
 .inventory-list .item-name {
   color: var(--gold-bright);
+  grid-column: 1;
 }
 
 .inventory-list .item-meta {
   color: var(--ash-dim);
-  font-size: 1rem;
+  font-size: 0.95rem;
+  grid-column: 1;
+}
+
+.inventory-list .item-actions {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+
+.btn-equip {
+  font-family: var(--font-display);
+  font-size: 0.4rem;
+  padding: 0.45rem 0.55rem;
+  border: 2px solid var(--moss);
+  background: #24301e;
+  color: var(--moss-bright);
+  cursor: pointer;
+  border-radius: var(--radius);
+}
+
+.btn-equip:hover {
+  background: #2e3e26;
+}
+
+.rarity-common { color: #a89880 !important; }
+.rarity-uncommon { color: #8fb87a !important; }
+.rarity-rare { color: #6aa0d4 !important; }
+.rarity-epic { color: #c080e0 !important; }
+.rarity-legendary { color: #f0c96a !important; }
+
+.rank-badge {
+  font-family: var(--font-display);
+  font-size: 0.42rem;
+  color: var(--moss-bright);
+  border: 1px solid var(--moss);
+  padding: 0.3rem 0.45rem;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .field-row {
+    grid-template-columns: 1fr;
+  }
+
+  .equip-strip {
+    max-width: 130px;
+  }
+
+  .equip-slots {
+    grid-template-columns: 1fr;
+  }
+
+  .hud-study {
+    display: none;
+  }
 }
 
 .muted {

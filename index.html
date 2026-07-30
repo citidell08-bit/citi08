@@ -17,7 +17,7 @@
       <div class="start-panel">
         <p class="brand">Ruin Scholar</p>
         <h1 class="tagline">Study the ruins. Survive the trials.</h1>
-        <p class="lede">An infinite pixel wilderness of villages, dungeons, and knowledge. Answer correctly to claim loot — fail, and wake at the gate.</p>
+        <p class="lede">An infinite pixel wilderness of villages, dungeons, and knowledge. Answer correctly to claim &amp; equip loot — fail, and wake at the gate.</p>
 
         <form id="start-form" class="start-form">
           <label class="field">
@@ -25,16 +25,40 @@
             <input type="text" id="player-name" maxlength="16" placeholder="Scholar" autocomplete="off" required />
           </label>
 
+          <div class="field-row">
+            <label class="field">
+              <span>Subject</span>
+              <select id="subject-select" required>
+                <option value="math">Mathematics</option>
+                <option value="science">Science</option>
+                <option value="history">History</option>
+                <option value="english">English &amp; Literature</option>
+                <option value="geography">Geography</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>Your grade</span>
+              <select id="grade-select" required>
+                <option value="3">Grade 3</option>
+                <option value="4">Grade 4</option>
+                <option value="5">Grade 5</option>
+                <option value="6">Grade 6</option>
+                <option value="7">Grade 7</option>
+                <option value="8" selected>Grade 8</option>
+                <option value="9">Grade 9</option>
+                <option value="10">Grade 10</option>
+                <option value="11">Grade 11</option>
+                <option value="12">Grade 12</option>
+              </select>
+            </label>
+          </div>
+
           <label class="field">
-            <span>Subject to master</span>
-            <select id="subject-select" required>
-              <option value="math">Mathematics</option>
-              <option value="science">Science</option>
-              <option value="history">History</option>
-              <option value="english">English &amp; Literature</option>
-              <option value="geography">Geography</option>
-            </select>
+            <span>Book / textbook you are using</span>
+            <select id="book-select" required></select>
           </label>
+          <p id="book-hint" class="book-hint">Questions will match this book’s topics and your grade.</p>
 
           <fieldset class="difficulty-field">
             <legend>Difficulty</legend>
@@ -43,28 +67,28 @@
                 <input type="radio" name="difficulty" value="easy" checked />
                 <span class="diff-card">
                   <strong>Easy</strong>
-                  <small>Gentle questions · forgiving bosses</small>
+                  <small>Gentle questions · basic loot</small>
                 </span>
               </label>
               <label class="diff-option">
                 <input type="radio" name="difficulty" value="medium" />
                 <span class="diff-card">
                   <strong>Medium</strong>
-                  <small>Solid challenge · fair loot</small>
+                  <small>Solid challenge · better gear</small>
                 </span>
               </label>
               <label class="diff-option">
                 <input type="radio" name="difficulty" value="hard" />
                 <span class="diff-card">
                   <strong>Hard</strong>
-                  <small>Tough trials · rich rewards</small>
+                  <small>Tough trials · rare armor</small>
                 </span>
               </label>
               <label class="diff-option raid">
                 <input type="radio" name="difficulty" value="raid" />
                 <span class="diff-card">
                   <strong>Raid</strong>
-                  <small>Brutal · elite loot only</small>
+                  <small>Brutal · legendary gear</small>
                 </span>
               </label>
             </div>
@@ -73,7 +97,7 @@
           <button type="submit" class="btn primary" id="btn-start">Enter the Ruins</button>
         </form>
 
-        <p class="hint-keys">Move: WASD / Arrows · Interact: E / Tap · Menu: Esc</p>
+        <p class="hint-keys">Move: WASD / Arrows · Interact: E / Tap · Inventory: I · Menu: Esc</p>
       </div>
     </section>
 
@@ -92,14 +116,19 @@
               <span class="hud-label">KP</span>
               <span id="hud-kp">0</span>
             </div>
-            <div class="hud-stat" title="Quests completed">
-              <span class="hud-label">QUESTS</span>
-              <span id="hud-quests">0</span>
+            <div class="hud-stat" title="Defense from armor">
+              <span class="hud-label">DEF</span>
+              <span id="hud-def">0</span>
+            </div>
+            <div class="hud-stat" title="Power from tools">
+              <span class="hud-label">PWR</span>
+              <span id="hud-pwr">0</span>
             </div>
           </div>
           <div class="hud-center">
             <span id="hud-coords">0, 0</span>
             <span id="hud-biome">Grassland Ruins</span>
+            <span id="hud-study" class="hud-study"></span>
           </div>
           <div class="hud-right">
             <button type="button" class="hud-btn" id="btn-inventory" title="Inventory (I)">Bag</button>
@@ -107,8 +136,19 @@
           </div>
         </div>
 
+        <div id="equip-strip" class="equip-strip" aria-label="Equipped gear">
+          <div class="equip-chip" data-slot="weapon"><span class="slot-ico">⚔</span><span id="eq-weapon">—</span></div>
+          <div class="equip-chip" data-slot="armor"><span class="slot-ico">🛡</span><span id="eq-armor">—</span></div>
+          <div class="equip-chip" data-slot="tool"><span class="slot-ico">⛏</span><span id="eq-tool">—</span></div>
+          <div class="equip-chip" data-slot="book"><span class="slot-ico">📖</span><span id="eq-book">—</span></div>
+        </div>
+
         <div id="minimap" class="minimap" aria-hidden="true">
           <canvas id="minimap-canvas" width="120" height="120"></canvas>
+          <div class="minimap-legend">
+            <span class="lg-village">Village</span>
+            <span class="lg-dungeon">Dungeon</span>
+          </div>
         </div>
 
         <div id="interact-prompt" class="interact-prompt hidden">
@@ -117,7 +157,6 @@
 
         <div id="toast" class="toast hidden" role="status"></div>
 
-        <!-- Mobile controls -->
         <div id="mobile-controls" class="mobile-controls" aria-label="Touch controls">
           <div class="dpad">
             <button type="button" data-dir="up" class="pad-btn">▲</button>
@@ -172,16 +211,41 @@
       </div>
     </div>
 
-    <!-- INVENTORY MODAL -->
+    <!-- INVENTORY / EQUIP MODAL -->
     <div id="inventory-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="inv-title">
-      <div class="modal-panel">
+      <div class="modal-panel inv-panel">
         <header class="modal-header">
-          <h2 id="inv-title">Inventory</h2>
+          <h2 id="inv-title">Gear &amp; Inventory</h2>
           <button type="button" class="modal-close" data-close="inventory-modal" aria-label="Close">×</button>
         </header>
-        <div class="modal-body">
-          <ul id="inventory-list" class="inventory-list"></ul>
-          <p id="inventory-empty" class="muted">Your satchel is empty. Complete quests to earn loot.</p>
+        <div class="modal-body inv-body">
+          <div class="equip-board">
+            <h3>Equipped</h3>
+            <div class="equip-slots">
+              <button type="button" class="equip-slot" data-unequip="weapon" id="slot-weapon" title="Unequip weapon">
+                <span class="slot-label">Weapon</span>
+                <span class="slot-value" id="slot-weapon-name">Empty</span>
+              </button>
+              <button type="button" class="equip-slot" data-unequip="armor" id="slot-armor" title="Unequip armor">
+                <span class="slot-label">Armor</span>
+                <span class="slot-value" id="slot-armor-name">Empty</span>
+              </button>
+              <button type="button" class="equip-slot" data-unequip="tool" id="slot-tool" title="Unequip tool">
+                <span class="slot-label">Tool</span>
+                <span class="slot-value" id="slot-tool-name">Empty</span>
+              </button>
+              <button type="button" class="equip-slot" data-unequip="book" id="slot-book" title="Unequip study book">
+                <span class="slot-label">Study Book</span>
+                <span class="slot-value" id="slot-book-name">Empty</span>
+              </button>
+            </div>
+            <p class="equip-stats">DEF <strong id="inv-def">0</strong> · PWR <strong id="inv-pwr">0</strong> · KNOW <strong id="inv-know">0</strong></p>
+          </div>
+          <div class="bag-board">
+            <h3>Satchel</h3>
+            <ul id="inventory-list" class="inventory-list"></ul>
+            <p id="inventory-empty" class="muted">Your satchel is empty. Complete quests &amp; dungeons for gear.</p>
+          </div>
         </div>
       </div>
     </div>
@@ -191,9 +255,11 @@
       <div class="modal-panel quest-panel">
         <header class="modal-header">
           <h2 id="quest-title">Village Trial</h2>
+          <span id="quest-rank" class="rank-badge">Rank C</span>
         </header>
         <div class="modal-body">
           <p id="quest-flavor" class="flavor"></p>
+          <p id="quest-book-tag" class="book-tag"></p>
           <div class="question-block">
             <p id="quest-question" class="question-text"></p>
             <div id="quest-choices" class="choices"></div>
@@ -218,6 +284,7 @@
             </div>
           </div>
           <p id="boss-flavor" class="flavor"></p>
+          <p id="boss-book-tag" class="book-tag"></p>
           <div class="question-block">
             <p id="boss-question" class="question-text"></p>
             <div id="boss-choices" class="choices"></div>
