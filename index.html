@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css?v=map3" />
 </head>
 <body>
   <div id="app">
@@ -144,7 +144,7 @@
             <span id="hud-study" class="hud-study"></span>
           </div>
           <div class="hud-right">
-            <button type="button" class="hud-btn" id="btn-map" title="Full map (M)">Map</button>
+            <button type="button" class="hud-btn hud-btn-map" id="btn-map" title="Full map (M)">MAP</button>
             <button type="button" class="hud-btn" id="btn-inventory" title="Inventory (I)">Bag</button>
             <button type="button" class="hud-btn" id="btn-settings" title="Settings (Esc)">⚙</button>
           </div>
@@ -158,14 +158,16 @@
 
         <div id="held-cursor" class="mc-held hidden" aria-hidden="true"></div>
 
-        <div id="minimap" class="minimap" aria-hidden="true" title="Press M for full map" role="button" tabindex="0">
+        <div id="minimap" class="minimap" aria-hidden="true" title="Click to open full map" role="button" tabindex="0">
           <canvas id="minimap-canvas" width="120" height="120"></canvas>
           <div class="minimap-legend">
             <span class="lg-village">Village</span>
             <span class="lg-dungeon">Dungeon</span>
           </div>
-          <div class="minimap-expand">Press M</div>
+          <div class="minimap-expand">CLICK · MAP</div>
         </div>
+
+        <button type="button" id="btn-map-fab" class="map-fab" title="Open map (M)">MAP</button>
 
         <div id="interact-prompt" class="interact-prompt hidden">
           Press <kbd>E</kbd> / Tap to interact
@@ -427,6 +429,28 @@
     </div>
   </div>
 
-  <script src="script.js"></script>
+  <script src="script.js?v=map3"></script>
+  <script>
+    // Fallback only — skips if main script already handled the key/button
+    (function () {
+      function isM(e) {
+        return e.code === "KeyM" || e.key === "m" || e.key === "M";
+      }
+      function toggle() {
+        if (window.__ruinMapBtnLock || window.__ruinMapHandled) return;
+        if (typeof window.toggleRuinMap === "function") window.toggleRuinMap();
+        else {
+          var modal = document.getElementById("map-modal");
+          if (modal) modal.classList.toggle("hidden");
+        }
+      }
+      document.addEventListener("keydown", function (e) {
+        if (!isM(e) || e.repeat) return;
+        if (window.__ruinMapHandled) return;
+        e.preventDefault();
+        toggle();
+      });
+    })();
+  </script>
 </body>
 </html>

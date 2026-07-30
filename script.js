@@ -3407,7 +3407,9 @@ const QUESTIONS = {
       if (modalIsOpen("quest-modal") || modalIsOpen("boss-modal") || modalIsOpen("result-modal")) return;
       e.preventDefault();
       e.stopPropagation();
+      window.__ruinMapHandled = true;
       toggleFullMap();
+      setTimeout(function () { window.__ruinMapHandled = false; }, 0);
       return;
     }
 
@@ -3482,7 +3484,15 @@ const QUESTIONS = {
 
   $("btn-settings").addEventListener("click", () => { openModal("settings-modal"); state.paused = true; });
   $("btn-inventory").addEventListener("click", () => { updateInventoryUI(); openModal("inventory-modal"); state.paused = true; });
-  if ($("btn-map")) $("btn-map").addEventListener("click", () => toggleFullMap());
+  function onMapButton(ev) {
+    if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+    if (window.__ruinMapBtnLock) return;
+    window.__ruinMapBtnLock = true;
+    toggleFullMap();
+    setTimeout(function () { window.__ruinMapBtnLock = false; }, 50);
+  }
+  if ($("btn-map")) $("btn-map").addEventListener("click", onMapButton);
+  if ($("btn-map-fab")) $("btn-map-fab").addEventListener("click", onMapButton);
   $("btn-resume").addEventListener("click", () => { closeModal("settings-modal"); state.paused = false; });
   $("btn-quit").addEventListener("click", quitToMenu);
 
@@ -3507,9 +3517,9 @@ const QUESTIONS = {
   // Minimap click / keyboard → full map (M also works)
   const mini = $("minimap");
   if (mini) {
-    mini.addEventListener("click", () => { if (state.running) openFullMap(); });
+    mini.addEventListener("click", (ev) => { onMapButton(ev); });
     mini.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); if (state.running) openFullMap(); }
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onMapButton(e); }
     });
   }
 
@@ -3615,5 +3625,11 @@ const QUESTIONS = {
   });
 
   applyMobileVisibility();
+
+  // Public API for HTML fallback + MAP buttons
+  window.toggleRuinMap = toggleFullMap;
+  window.openRuinMap = openFullMap;
+  window.closeRuinMap = closeFullMap;
+
   requestAnimationFrame(frame);
 })();
