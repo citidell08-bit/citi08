@@ -149,13 +149,13 @@
           </div>
         </div>
 
-        <div id="equip-strip" class="equip-strip" aria-label="Equipped gear">
-          <div class="equip-chip" data-slot="weapon"><span class="slot-ico">⚔</span><span id="eq-weapon">—</span></div>
-          <div class="equip-chip" data-slot="bow"><span class="slot-ico">🏹</span><span id="eq-bow">—</span></div>
-          <div class="equip-chip" data-slot="armor"><span class="slot-ico">🛡</span><span id="eq-armor">—</span></div>
-          <div class="equip-chip" data-slot="tool"><span class="slot-ico">⛏</span><span id="eq-tool">—</span></div>
-          <div class="equip-chip" data-slot="book"><span class="slot-ico">📖</span><span id="eq-book">—</span></div>
+        <div id="equip-strip" class="equip-strip hidden" aria-hidden="true"></div>
+
+        <div id="hotbar" class="mc-hotbar" aria-label="Hotbar">
+          <div id="hotbar-slots" class="mc-hotbar-row"></div>
         </div>
+
+        <div id="held-cursor" class="mc-held hidden" aria-hidden="true"></div>
 
         <div id="minimap" class="minimap" aria-hidden="true">
           <canvas id="minimap-canvas" width="120" height="120"></canvas>
@@ -235,62 +235,65 @@
       </div>
     </div>
 
-    <!-- INVENTORY / EQUIP MODAL -->
+    <!-- INVENTORY / EQUIP MODAL — Minecraft-style -->
     <div id="inventory-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="inv-title">
-      <div class="modal-panel inv-panel">
+      <div class="modal-panel inv-panel mc-inv-panel">
         <header class="modal-header">
-          <h2 id="inv-title">Gear &amp; Inventory</h2>
+          <h2 id="inv-title">Inventory</h2>
           <button type="button" class="modal-close" data-close="inventory-modal" aria-label="Close">×</button>
         </header>
-        <div class="modal-body inv-body">
-          <p id="inv-select-hint" class="inv-select-hint muted">Click a bag item, then click an empty slot to equip it. Click a filled slot to unequip.</p>
-          <div class="equip-board">
-            <h3>Item Slots</h3>
-            <div class="equip-doll" aria-label="Equipment slots">
-              <div class="doll-col">
-                <button type="button" class="item-slot" data-slot="weapon" id="slot-weapon" title="Weapon slot">
-                  <span class="slot-ico-lg">⚔</span>
-                  <span class="slot-label">Sword</span>
-                  <span class="slot-value" id="slot-weapon-name">Empty</span>
-                </button>
-                <button type="button" class="item-slot" data-slot="bow" id="slot-bow" title="Bow slot">
-                  <span class="slot-ico-lg">🏹</span>
-                  <span class="slot-label">Bow</span>
-                  <span class="slot-value" id="slot-bow-name">Empty</span>
-                </button>
-                <button type="button" class="item-slot" data-slot="book" id="slot-book" title="Study book slot">
-                  <span class="slot-ico-lg">📖</span>
-                  <span class="slot-label">Book</span>
-                  <span class="slot-value" id="slot-book-name">Empty</span>
-                </button>
-              </div>
-              <div class="doll-figure" aria-hidden="true">
-                <div class="doll-head"></div>
-                <div class="doll-body"></div>
-                <div class="doll-legs"></div>
-              </div>
-              <div class="doll-col">
-                <button type="button" class="item-slot" data-slot="armor" id="slot-armor" title="Armor slot">
-                  <span class="slot-ico-lg">🛡</span>
-                  <span class="slot-label">Armor</span>
-                  <span class="slot-value" id="slot-armor-name">Empty</span>
-                </button>
-                <button type="button" class="item-slot" data-slot="tool" id="slot-tool" title="Pickaxe / tool slot">
-                  <span class="slot-ico-lg">⛏</span>
-                  <span class="slot-label">Pickaxe</span>
-                  <span class="slot-value" id="slot-tool-name">Empty</span>
-                </button>
-              </div>
+        <div class="modal-body inv-body mc-inv-body">
+          <p id="inv-select-hint" class="inv-select-hint muted">Click to pick up · click again to place · 1–9 hotbar · armor slots on the left</p>
+          <div class="mc-inv-top">
+            <div class="mc-armor-col" aria-label="Equipment">
+              <button type="button" class="mc-slot mc-equip" data-equip="weapon" id="slot-weapon" title="Sword">
+                <span class="mc-ghost">⚔</span>
+                <span class="mc-stack" id="slot-weapon-icon"></span>
+              </button>
+              <button type="button" class="mc-slot mc-equip" data-equip="bow" id="slot-bow" title="Bow">
+                <span class="mc-ghost">🏹</span>
+                <span class="mc-stack" id="slot-bow-icon"></span>
+              </button>
+              <button type="button" class="mc-slot mc-equip" data-equip="armor" id="slot-armor" title="Armor">
+                <span class="mc-ghost">🛡</span>
+                <span class="mc-stack" id="slot-armor-icon"></span>
+              </button>
+              <button type="button" class="mc-slot mc-equip" data-equip="tool" id="slot-tool" title="Pickaxe">
+                <span class="mc-ghost">⛏</span>
+                <span class="mc-stack" id="slot-tool-icon"></span>
+              </button>
+              <button type="button" class="mc-slot mc-equip" data-equip="book" id="slot-book" title="Book">
+                <span class="mc-ghost">📖</span>
+                <span class="mc-stack" id="slot-book-icon"></span>
+              </button>
             </div>
-            <p class="equip-stats">DEF <strong id="inv-def">0</strong> · PWR <strong id="inv-pwr">0</strong> · KNOW <strong id="inv-know">0</strong></p>
+            <div class="mc-player-preview" aria-hidden="true">
+              <div class="doll-head"></div>
+              <div class="doll-body"></div>
+              <div class="doll-legs"></div>
+              <p class="equip-stats">DEF <strong id="inv-def">0</strong> · PWR <strong id="inv-pwr">0</strong> · KNOW <strong id="inv-know">0</strong></p>
+            </div>
+            <div class="mc-craft-note">
+              <p class="muted">Hand = hotbar (1–9)</p>
+              <p class="muted">Potions: place on hotbar, press <kbd>H</kbd> or right-click slot</p>
+              <span id="eq-weapon" class="hidden">—</span>
+              <span id="eq-bow" class="hidden">—</span>
+              <span id="eq-armor" class="hidden">—</span>
+              <span id="eq-tool" class="hidden">—</span>
+              <span id="eq-book" class="hidden">—</span>
+              <span id="slot-weapon-name" class="hidden">Empty</span>
+              <span id="slot-bow-name" class="hidden">Empty</span>
+              <span id="slot-armor-name" class="hidden">Empty</span>
+              <span id="slot-tool-name" class="hidden">Empty</span>
+              <span id="slot-book-name" class="hidden">Empty</span>
+            </div>
           </div>
-          <div class="bag-board">
-            <h3>Satchel</h3>
-            <p class="muted inv-help">Select gear → put in matching slot · Potions: Use · Hotkey <kbd>H</kbd> heal</p>
-            <div id="inventory-grid" class="inventory-grid"></div>
-            <ul id="inventory-list" class="inventory-list hidden" aria-hidden="true"></ul>
-            <p id="inventory-empty" class="muted">Your satchel is empty. Complete quests &amp; dungeons for gear.</p>
-          </div>
+          <div class="mc-inv-label">Inventory</div>
+          <div id="inventory-grid" class="mc-bag-grid" aria-label="Inventory slots"></div>
+          <div class="mc-inv-label">Hotbar</div>
+          <div id="inv-hotbar-grid" class="mc-hotbar-row mc-inv-hotbar" aria-label="Hotbar slots"></div>
+          <p id="inventory-empty" class="muted hidden">Empty — loot chests &amp; quests for gear.</p>
+          <ul id="inventory-list" class="inventory-list hidden" aria-hidden="true"></ul>
         </div>
       </div>
     </div>

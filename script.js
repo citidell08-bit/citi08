@@ -262,8 +262,11 @@ const QUESTIONS = {
     bubbleCd: 0,
     drownCd: 0,
     inventory: [],
+    slots: Array(36).fill(null), // 0-8 hotbar, 9-35 bag (Minecraft-style)
     equipped: { weapon: null, armor: null, tool: null, book: null, bow: null },
     selectedItem: null,
+    heldItem: null,
+    hotbarSel: 0,
     spawn: { x: 8.5, y: 8.5 },
     checkpoint: { x: 8.5, y: 8.5 },
     overworldReturn: { x: 8.5, y: 8.5 },
@@ -978,6 +981,26 @@ const QUESTIONS = {
     }
   }
 
+  const HOTBAR_SIZE = 9;
+  const BAG_SIZE = 27;
+  const INV_SIZE = 36; // hotbar + bag
+
+  function getHandItem() {
+    return state.slots[state.hotbarSel] || null;
+  }
+
+  function getActiveGear(slot) {
+    if (state.equipped[slot]) return state.equipped[slot];
+    const hand = getHandItem();
+    if (hand && hand.slot === slot && hand.type !== "consumable" && hand.type !== "material") return hand;
+    return null;
+  }
+
+  function isMineTool(it) {
+    if (!it) return false;
+    return !!(it.mine || /pick|hammer|spade|lens/i.test(it.key || "") || /pick/i.test(it.name || ""));
+  }
+
   function gearStats() {
     let def = 0, pwr = 0, know = 0;
     for (const slot of Object.keys(state.equipped)) {
@@ -987,8 +1010,161 @@ const QUESTIONS = {
       pwr += it.pwr || 0;
       know += it.know || 0;
     }
+    // Hotbar hand contributes if that gear isn't already in an equip slot
+    const hand = getHandItem();
+    if (hand && hand.slot && hand.type !== "consumable" && hand.type !== "material") {
+      const eq = state.equipped[hand.slot];
+      if (!eq || eq.uid !== hand.uid) {
+        def += hand.def || 0;
+        pwr += hand.pwr || 0;
+        know += hand.know || 0;
+      }
+    }
     if ((state.tempPwrT || 0) > 0) pwr += state.tempPwr || 0;
     return { def, pwr, know };
+  }
+
+
+  function syncInventoryMirror() {
+    state.inventory = state.slots.filter(Boolean);
+  }
+
+  function addItem(item) {
+    if (!item) return false;
+    for (let i = 0; i < INV_SIZE; i++) {
+      if (!state.slots[i]) {
+        state.slots[i] = item;
+        syncInventoryMirror();
+        updateHotbarUI();
+        return true;
+      }
+    }
+    showToast("Inventory full!", true);
+    return false;
+  }
+
+  function removeItemByUid(uid) {
+    for (let i = 0; i < INV_SIZE; i++) {
+      if (state.slots[i] && state.slots[i].uid === uid) {
+        const it = state.slots[i];
+        state.slots[i] = null;
+        syncInventoryMirror();
+        return it;
+      }
+    }
+    return null;
+  }
+
+  function findItemByUid(uid) {
+    for (const it of state.slots) if (it && it.uid === uid) return it;
+    for (const k of Object.keys(state.equipped)) {
+      if (state.equipped[k] && state.equipped[k].uid === uid) return state.equipped[k];
+    }
+    return null;
+  }
+
+  function renderSlotButton(el, item, { selected = false, ghost = "" } = {}) {
+    if (!el) return;
+    el.classList.toggle("filled", !!item);
+    el.classList.toggle("selected", selected);
+    el.classList.toggle("empty", !item);
+    ["common", "uncommon", "rare", "epic", "legendary"].forEach((r) => el.classList.remove(`rarity-${r}`));
+    let stack = el.querySelector(".mc-stack");
+    if (!stack) {
+      stack = document.createElement("span");
+      stack.className = "mc-stack";
+      el.appendChild(stack);
+    }
+    if (item) {
+      stack.innerHTML = `<span class="mc-ico">${item.type === "material" ? "🪨" : itemIcon(item)}</span>`;
+      el.title = item.name + (item.rarity ? ` (${item.rarity})` : "");
+      el.classList.add(`rarity-${item.rarity || "common"}`);
+    } else {
+      stack.innerHTML = "";
+      el.title = ghost || "Empty";
+    }
+  }
+
+  function updateHotbarUI() {
+    const row = $("hotbar-slots");
+    if (!row) return;
+    row.innerHTML = "";
+    for (let i = 0; i < HOTBAR_SIZE; i++) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "mc-slot" + (state.hotbarSel === i ? " active" : "");
+      btn.setAttribute("data-hotbar", String(i));
+      const item = state.slots[i];
+      btn.innerHTML = `<span class="mc-key">${i + 1}</span><span class="mc-stack"></span>`;
+      renderSlotButton(btn, item);
+      if (state.hotbarSel === i) btn.classList.add("active");
+      btn.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        if (!$("inventory-modal").classList.contains("hidden")) {
+          clickInvSlot(i);
+          return;
+        }
+        state.hotbarSel = i;
+        updateHotbarUI();
+        const it = state.slots[i];
+        if (it) showToast(`Hand: ${it.name}`);
+      });
+      btn.addEventListener("contextmenu", (ev) => {
+        ev.preventDefault();
+        const it = state.slots[i];
+        if (it && it.type === "consumable") useItem(it.uid);
+      });
+      row.appendChild(btn);
+    }
+    updateHeldCursor();
+  }
+
+  function updateHeldCursor() {
+    const cur = $("held-cursor");
+    if (!cur) return;
+    if (!state.heldItem) {
+      cur.classList.add("hidden");
+      cur.innerHTML = "";
+      return;
+    }
+    cur.classList.remove("hidden");
+    cur.innerHTML = `<span class="mc-ico">${state.heldItem.type === "material" ? "🪨" : itemIcon(state.heldItem)}</span>`;
+  }
+
+  function clickInvSlot(index) {
+    const inSlot = state.slots[index];
+    if (state.heldItem) {
+      // place / swap
+      state.slots[index] = state.heldItem;
+      state.heldItem = inSlot || null;
+    } else if (inSlot) {
+      state.heldItem = inSlot;
+      state.slots[index] = null;
+    }
+    syncInventoryMirror();
+    updateInventoryUI();
+    updateHotbarUI();
+  }
+
+  function clickEquipSlot(slot) {
+    const equipped = state.equipped[slot];
+    if (state.heldItem) {
+      if (state.heldItem.type === "consumable" || state.heldItem.type === "material" || state.heldItem.slot !== slot) {
+        showToast(`That goes in a ${state.heldItem.slot || "bag"} slot.`);
+        return;
+      }
+      state.equipped[slot] = state.heldItem;
+      state.heldItem = equipped || null;
+      showToast(`Equipped ${state.equipped[slot].name}`);
+    } else if (equipped) {
+      state.heldItem = equipped;
+      state.equipped[slot] = null;
+      showToast(`Unequipped ${state.heldItem.name}`);
+    }
+    syncInventoryMirror();
+    updateInventoryUI();
+    updateHotbarUI();
+    recalcHp();
   }
 
   function grantLoot({ count = 1, rank = 0, boss = false, preferPotion = false } = {}) {
@@ -1006,7 +1182,7 @@ const QUESTIONS = {
         if (!options.length) options = POTION_TABLE.filter((l) => l.rarity === "common");
         const base = options[Math.floor(Math.random() * options.length)] || POTION_TABLE[0];
         const item = { ...base, uid: uid(), fromRank: rank, slot: null };
-        state.inventory.push(item);
+        addItem(item);
         gained.push(item);
         continue;
       }
@@ -1016,17 +1192,17 @@ const QUESTIONS = {
       if (!options.length) options = LOOT_TABLE.filter((l) => l.rarity === "common");
       const base = options[Math.floor(Math.random() * options.length)] || LOOT_TABLE[0];
       const item = { ...base, uid: uid(), fromRank: rank };
-      state.inventory.push(item);
+      addItem(item);
       gained.push(item);
     }
     updateInventoryUI();
+    updateHotbarUI();
     return gained;
   }
 
   function useItem(itemUid) {
-    const idx = state.inventory.findIndex((i) => i.uid === itemUid);
-    if (idx < 0) return;
-    const item = state.inventory[idx];
+    const item = findItemByUid(itemUid);
+    if (!item) return;
     if (item.type !== "consumable") {
       showToast("That item must be equipped, not used.");
       return;
@@ -1055,109 +1231,91 @@ const QUESTIONS = {
       state.breath = state.maxBreath;
       updateBreathUI();
     }
-    state.inventory.splice(idx, 1);
+    removeItemByUid(itemUid);
+    if (state.heldItem && state.heldItem.uid === itemUid) state.heldItem = null;
     recalcHp();
     updateInventoryUI();
+    updateHotbarUI();
     updateHUD();
   }
 
   function useBestHeal() {
     if (!state.running || state.paused) return;
-    const potions = state.inventory
-      .filter((i) => i.type === "consumable" && i.effect === "heal")
-      .sort((a, b) => (a.amount || 0) - (b.amount || 0));
-    if (!potions.length) {
-      showToast("No healing potions! Loot chests or press I.", true);
-      return;
-    }
-    // Prefer smallest potion that fills the missing HP
     const missing = state.maxHp - state.hp;
     if (missing <= 0) {
       showToast("Already at full HP.");
       return;
     }
-    const fit = potions.find((p) => (p.amount || 0) >= missing) || potions[potions.length - 1];
+    // Prefer selected hotbar potion (Minecraft hand), then any heal potion
+    const hand = getHandItem();
+    if (hand && hand.type === "consumable" && hand.effect === "heal") {
+      useItem(hand.uid);
+      return;
+    }
+    const all = [];
+    for (let i = 0; i < INV_SIZE; i++) {
+      const it = state.slots[i];
+      if (it && it.type === "consumable" && it.effect === "heal") all.push(it);
+    }
+    all.sort((a, b) => (a.amount || 0) - (b.amount || 0));
+    if (!all.length) {
+      showToast("No healing potions! Loot chests.", true);
+      return;
+    }
+    const fit = all.find((p) => (p.amount || 0) >= missing) || all[all.length - 1];
     useItem(fit.uid);
   }
 
   function clearInventoryAndGear() {
+    state.slots = Array(INV_SIZE).fill(null);
     state.inventory = [];
+    state.heldItem = null;
     state.equipped = { weapon: null, armor: null, tool: null, book: null, bow: null };
     state.selectedItem = null;
     updateInventoryUI();
+    updateHotbarUI();
     updateEquipUI();
     recalcHp();
   }
 
   function equipItem(itemUid) {
-    const idx = state.inventory.findIndex((i) => i.uid === itemUid);
-    if (idx < 0) return;
-    const item = state.inventory[idx];
+    const item = findItemByUid(itemUid);
+    if (!item) return;
     if (item.type === "consumable" || item.type === "material" || !item.slot) {
-      showToast(item.type === "material" ? "Materials can't be equipped." : "Potions are used, not equipped. Press Use or H.");
-      state.selectedItem = null;
-      updateInventoryUI();
+      showToast(item.type === "material" ? "Materials can't be equipped." : "Potions are used, not equipped.");
       return;
     }
-    const slot = item.slot;
-    const prev = state.equipped[slot];
-    state.inventory.splice(idx, 1);
-    if (prev) state.inventory.push(prev);
-    state.equipped[slot] = item;
-    state.selectedItem = null;
+    // Move from bag/hotbar into equip
+    removeItemByUid(itemUid);
+    const prev = state.equipped[item.slot];
+    state.equipped[item.slot] = item;
+    if (prev) addItem(prev);
+    state.heldItem = null;
     updateInventoryUI();
+    updateHotbarUI();
     updateEquipUI();
     recalcHp();
-    showToast(`Equipped ${item.name} → ${slot}`);
+    showToast(`Equipped ${item.name} → ${item.slot}`);
   }
 
   function tryPlaceInSlot(slot) {
-    const selected = state.selectedItem
-      ? state.inventory.find((i) => i.uid === state.selectedItem)
-      : null;
-    if (selected) {
-      if (selected.type === "consumable" || !selected.slot) {
-        showToast("That item can't go in a gear slot.");
-        return;
-      }
-      if (selected.slot !== slot) {
-        showToast(`That goes in the ${selected.slot} slot.`);
-        return;
-      }
-      equipItem(selected.uid);
-      return;
-    }
-    // No selection — unequip if slot filled
-    if (state.equipped[slot]) unequipSlot(slot);
+    clickEquipSlot(slot);
   }
 
   function selectBagItem(itemUid) {
-    const item = state.inventory.find((i) => i.uid === itemUid);
+    // legacy no-op — Minecraft click handles selection via heldItem
+    const item = findItemByUid(itemUid);
     if (!item) return;
-    if (item.type === "consumable") {
-      state.selectedItem = itemUid;
-      updateInventoryUI();
-      showToast("Potion selected — press Use, or H to heal.");
-      return;
-    }
-    if (state.selectedItem === itemUid) {
-      state.selectedItem = null;
-      updateInventoryUI();
-      return;
-    }
-    state.selectedItem = itemUid;
-    updateInventoryUI();
-    const hint = $("inv-select-hint");
-    if (hint) hint.textContent = `Selected ${item.name} — click the ${item.slot} slot to equip.`;
+    if (item.type === "consumable") useItem(item.uid);
   }
 
   function unequipSlot(slot) {
     const item = state.equipped[slot];
     if (!item) return;
     state.equipped[slot] = null;
-    state.inventory.push(item);
-    state.selectedItem = null;
+    addItem(item);
     updateInventoryUI();
+    updateHotbarUI();
     updateEquipUI();
     recalcHp();
     showToast(`Unequipped ${item.name}`);
@@ -1173,38 +1331,29 @@ const QUESTIONS = {
     if (item.type === "consumable") {
       if (item.effect === "breath") return "🫧";
       if (item.effect === "might") return "💪";
-      return "⚗";
+      return "🧪";
     }
+    if (item.type === "material") return "🪨";
     return { weapon: "⚔", armor: "🛡", tool: "⛏", book: "📖", bow: "🏹" }[item.slot] || "•";
   }
 
   function updateEquipUI() {
     const e = state.equipped;
-    const set = (chipId, slotId, item) => {
-      $(chipId).textContent = shortName(item && item.name);
-      $(slotId).textContent = item ? item.name : "Empty";
-      const btn = $(slotId.replace("-name", ""));
+    ["weapon", "bow", "armor", "tool", "book"].forEach((slot) => {
+      const btn = $(`slot-${slot}`);
+      const item = e[slot];
       if (btn) {
-        btn.classList.toggle("filled", !!item);
-        btn.classList.toggle("slot-target", !!(state.selectedItem && !item));
+        renderSlotButton(btn, item, { ghost: { weapon: "⚔", bow: "🏹", armor: "🛡", tool: "⛏", book: "📖" }[slot] });
+        btn.classList.toggle("slot-pulse", !!(state.heldItem && state.heldItem.slot === slot && !item));
       }
-    };
-    set("eq-weapon", "slot-weapon-name", e.weapon);
-    set("eq-armor", "slot-armor-name", e.armor);
-    set("eq-tool", "slot-tool-name", e.tool);
-    set("eq-book", "slot-book-name", e.book);
-    if ($("eq-bow") && $("slot-bow-name")) set("eq-bow", "slot-bow-name", e.bow);
-    // Highlight matching empty slot when an item is selected
-    const sel = state.selectedItem && state.inventory.find((i) => i.uid === state.selectedItem);
-    ["weapon", "armor", "tool", "book", "bow"].forEach((slot) => {
-      const el = $(`slot-${slot}`);
-      if (!el) return;
-      const match = !!(sel && sel.slot === slot && !e[slot]);
-      el.classList.toggle("slot-pulse", match);
+      const chip = $(`eq-${slot}`);
+      if (chip) chip.textContent = shortName(item && item.name);
+      const nameEl = $(`slot-${slot}-name`);
+      if (nameEl) nameEl.textContent = item ? item.name : "Empty";
     });
     const s = gearStats();
-    $("hud-def").textContent = String(s.def);
-    $("hud-pwr").textContent = String(s.pwr);
+    if ($("hud-def")) $("hud-def").textContent = String(s.def);
+    if ($("hud-pwr")) $("hud-pwr").textContent = String(s.pwr);
     if ($("inv-def")) {
       $("inv-def").textContent = String(s.def);
       $("inv-pwr").textContent = String(s.pwr);
@@ -1214,54 +1363,61 @@ const QUESTIONS = {
   }
 
   function updateInventoryUI() {
+    syncInventoryMirror();
     const grid = $("inventory-grid");
+    const hot = $("inv-hotbar-grid");
     const empty = $("inventory-empty");
     if (!grid) return;
     grid.innerHTML = "";
-    if (!state.inventory.length) {
-      empty.classList.remove("hidden");
-      updateEquipUI();
-      return;
-    }
-    empty.classList.add("hidden");
-    state.inventory.forEach((item) => {
-      const cell = document.createElement("button");
-      cell.type = "button";
-      cell.className = `bag-cell rarity-${item.rarity}` + (state.selectedItem === item.uid ? " selected" : "");
-      cell.setAttribute("data-uid", item.uid);
-      const isPotion = item.type === "consumable";
-      const isMat = item.type === "material";
-      const meta = isPotion
-        ? (item.effect === "heal" ? `+${item.amount} HP` : item.effect === "breath" ? "+breath" : item.effect === "might" ? `+${item.amount} ATK` : "use")
-        : isMat ? "material · mined"
-        : `${item.slot} · PWR ${item.pwr || 0}`;
-      cell.innerHTML = `
-        <span class="bag-ico">${isMat ? "🪨" : itemIcon(item)}</span>
-        <span class="bag-name">${item.name}</span>
-        <span class="bag-meta">${meta}</span>
-        ${isPotion ? `<span class="bag-use" data-use="${item.uid}">Use</span>` : isMat ? `<span class="bag-tip">loot</span>` : `<span class="bag-tip">→ ${item.slot}</span>`}`;
-      cell.addEventListener("click", (ev) => {
-        if (ev.target.closest("[data-use]")) {
-          useItem(item.uid);
-          return;
-        }
-        if (isPotion) {
-          useItem(item.uid);
-          return;
-        }
-        if (isMat) {
-          showToast("Stone chunks are materials from mining.");
-          return;
-        }
-        selectBagItem(item.uid);
+    if (hot) hot.innerHTML = "";
+
+    // Bag slots 9..35
+    for (let i = HOTBAR_SIZE; i < INV_SIZE; i++) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "mc-slot";
+      btn.innerHTML = `<span class="mc-stack"></span>`;
+      renderSlotButton(btn, state.slots[i]);
+      const idx = i;
+      btn.addEventListener("click", (ev) => { ev.preventDefault(); clickInvSlot(idx); });
+      btn.addEventListener("contextmenu", (ev) => {
+        ev.preventDefault();
+        const it = state.slots[idx];
+        if (it && it.type === "consumable") useItem(it.uid);
+        else if (it && it.slot && !state.heldItem) equipItem(it.uid);
       });
-      grid.appendChild(cell);
-    });
+      grid.appendChild(btn);
+    }
+
+    // Hotbar row inside inventory modal
+    if (hot) {
+      for (let i = 0; i < HOTBAR_SIZE; i++) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "mc-slot" + (state.hotbarSel === i ? " active" : "");
+        btn.innerHTML = `<span class="mc-key">${i + 1}</span><span class="mc-stack"></span>`;
+        renderSlotButton(btn, state.slots[i]);
+        const idx = i;
+        btn.addEventListener("click", (ev) => { ev.preventDefault(); clickInvSlot(idx); });
+        btn.addEventListener("contextmenu", (ev) => {
+          ev.preventDefault();
+          const it = state.slots[idx];
+          if (it && it.type === "consumable") useItem(it.uid);
+        });
+        hot.appendChild(btn);
+      }
+    }
+
+    if (empty) empty.classList.toggle("hidden", state.inventory.length > 0 || !!state.heldItem);
     const hint = $("inv-select-hint");
-    if (hint && !state.selectedItem) {
-      hint.textContent = "Click a bag item, then click an empty slot to equip it. Click a filled slot to unequip.";
+    if (hint) {
+      hint.textContent = state.heldItem
+        ? `Holding ${state.heldItem.name} — click a slot to place`
+        : "Click to pick up · click to place · right-click potion to use · right-click gear to equip";
     }
     updateEquipUI();
+    updateHotbarUI();
+    updateHeldCursor();
   }
 
   function updateHUD() {
@@ -1606,9 +1762,9 @@ const QUESTIONS = {
         if (s && !s.done) return { type: s.type, data: s, label: "Challenge" };
       }
     }
-    // Mineable stone with pickaxe equipped
-    const pick = state.equipped.tool;
-    if (pick && (pick.mine || /pick/i.test(pick.name) || /hammer|spade|pick-lens/i.test(pick.key || ""))) {
+    // Mineable stone with pickaxe in hand or tool slot
+    const pick = getActiveGear("tool");
+    if (isMineTool(pick)) {
       for (const [dx, dy] of near) {
         const wx = px + dx, wy = py + dy;
         const tile = getTile(wx, wy);
@@ -1643,7 +1799,7 @@ const QUESTIONS = {
   const FIST_RANGE = 0.85;
 
   function meleeRange() {
-    return state.equipped.weapon ? MELEE_RANGE : FIST_RANGE;
+    return getActiveGear("weapon") ? MELEE_RANGE : FIST_RANGE;
   }
 
   function damageMonster(monster, dmg) {
@@ -1666,7 +1822,7 @@ const QUESTIONS = {
 
   function performMeleeSwing() {
     if (state.hitCd > 0 || state.paused) return false;
-    const hasWeapon = !!state.equipped.weapon;
+    const hasWeapon = !!getActiveGear("weapon");
     const range = meleeRange();
     const base = hasWeapon ? (5 + gearStats().pwr) : 2;
     state.hitCd = hasWeapon ? 0.38 : 0.32;
@@ -1694,7 +1850,7 @@ const QUESTIONS = {
   }
 
   function shootBow(tx, ty) {
-    const bow = state.equipped.bow;
+    const bow = getActiveGear("bow");
     if (!bow || state.hitCd > 0 || state.paused) return false;
     const dx = tx - state.player.x, dy = ty - state.player.y;
     const dist = Math.hypot(dx, dy) || 1;
@@ -1718,10 +1874,10 @@ const QUESTIONS = {
   }
 
   function startMining(wx, wy) {
-    const pick = state.equipped.tool;
-    if (!pick) { showToast("Equip a pickaxe in the Tool slot!", true); return; }
-    const minePow = pick.mine || (/pick|hammer|spade|lens/i.test(pick.key || pick.name || "") ? 1 : 0);
-    if (!minePow) { showToast("That tool can't mine stone.", true); return; }
+    const pick = getActiveGear("tool");
+    if (!pick) { showToast("Hold a pickaxe on the hotbar (1–9) or equip Tool!", true); return; }
+    if (!isMineTool(pick)) { showToast("That tool can't mine stone.", true); return; }
+    const minePow = pick.mine || 1;
     const tile = getTile(wx, wy);
     if (![TILES.STONE, TILES.COBBLE, TILES.RUIN].includes(tile)) return;
     if (state.mineTarget && state.mineTarget.wx === wx && state.mineTarget.wy === wy) return;
@@ -1735,8 +1891,8 @@ const QUESTIONS = {
       if (state.mineAnim > 0) state.mineAnim = Math.max(0, state.mineAnim - dt);
       return;
     }
-    const pick = state.equipped.tool;
-    if (!pick) { state.mineTarget = null; return; }
+    const pick = getActiveGear("tool");
+    if (!isMineTool(pick)) { state.mineTarget = null; return; }
     const { wx, wy } = state.mineTarget;
     if (Math.hypot(state.player.x - wx - 0.5, state.player.y - wy - 0.5) > 2.2) {
       state.mineTarget = null;
@@ -1755,8 +1911,9 @@ const QUESTIONS = {
       // Keep as material-ish: just inventory junk that heals tiny? Better as non-consumable material
       const mat = { key: "stone_chunk", name: "Stone Chunk", slot: "tool", rarity: "common", pwr: 0, def: 0, know: 0, uid: uid(), material: true };
       // Actually put as simple bag item without equip — use consumable false material
-      state.inventory.push({ key: "stone_chunk", name: "Stone Chunk", type: "material", rarity: "common", uid: uid(), slot: null });
+      addItem({ key: "stone_chunk", name: "Stone Chunk", type: "material", rarity: "common", uid: uid(), slot: null });
       updateInventoryUI();
+      updateHotbarUI();
       showToast("Mined stone! +Stone Chunk");
       state.mineTarget = null;
       state.mineAnim = 0;
@@ -1812,27 +1969,33 @@ const QUESTIONS = {
     // Face click
     state.player.facing = Math.atan2(wy - state.player.y, wx - state.player.x);
 
-    // Mining click on stone
+    // Mining click on stone (pick in hand or tool slot)
     const ttile = getTile(Math.floor(wx), Math.floor(wy));
-    if (state.equipped.tool && (state.equipped.tool.mine || /pick|hammer|spade|lens/i.test(state.equipped.tool.key || ""))
-      && [TILES.STONE, TILES.COBBLE, TILES.RUIN].includes(ttile) && dist < 2.4) {
+    const handPick = getActiveGear("tool");
+    if (isMineTool(handPick) && [TILES.STONE, TILES.COBBLE, TILES.RUIN].includes(ttile) && dist < 2.4) {
       startMining(Math.floor(wx), Math.floor(wy));
       return;
     }
 
-    // Bow shot if bow equipped and click is beyond melee
-    if (state.equipped.bow && dist > meleeRange() + 0.15) {
+    // Bow shot if bow in hand/equip and click is beyond melee
+    if (getActiveGear("bow") && dist > meleeRange() + 0.15) {
       if (shootBow(wx, wy)) return;
     }
 
-    // Melee swing (radius attack) — dungeon combat or practice swing
-    if (state.dungeon?.active || state.equipped.weapon) {
+    // Melee: weapon in hand, or fists in dungeon / empty hand
+    if (getActiveGear("weapon") || state.dungeon?.active) {
       performMeleeSwing();
       return;
     }
 
     // Interact only via E/tap on prompt — canvas click near interactable still works
-    if (state.interactTarget && dist < 2.2) tryInteract();
+    if (state.interactTarget && dist < 2.2) {
+      tryInteract();
+      return;
+    }
+
+    // Empty-hand practice swing
+    performMeleeSwing();
   }
 
   function playerHurt(dmg) {
@@ -2485,10 +2648,10 @@ const QUESTIONS = {
 
   function drawPlayer(ppx, ppy, ps) {
     const armor = state.equipped.armor;
-    const weapon = state.equipped.weapon;
-    const tool = state.equipped.tool;
-    const book = state.equipped.book;
-    const bow = state.equipped.bow;
+    const weapon = getActiveGear("weapon");
+    const tool = getActiveGear("tool");
+    const book = state.equipped.book || getActiveGear("book");
+    const bow = getActiveGear("bow");
     const body = armor
       ? (armor.rarity === "legendary" ? "#f0c050" : armor.rarity === "epic" ? "#c060ff" : armor.rarity === "rare" ? "#50a0ff" : armor.rarity === "uncommon" ? "#50d060" : "#a09070")
       : "#40c050";
@@ -2860,6 +3023,9 @@ const QUESTIONS = {
     state.drownCd = 0;
     state.maxHp = 100;
     state.inventory = [];
+    state.slots = Array(36).fill(null);
+    state.heldItem = null;
+    state.hotbarSel = 0;
     state.equipped = { weapon: null, armor: null, tool: null, book: null, bow: null };
     state.chunks.clear();
     state.structures.clear();
@@ -2891,14 +3057,15 @@ const QUESTIONS = {
     // Only a couple emergency heals in the satchel
     const heal = POTION_TABLE.find((p) => p.key === "heal_small");
     if (heal) {
-      state.inventory.push({ ...heal, uid: uid(), slot: null });
-      state.inventory.push({ ...heal, uid: uid(), slot: null });
+      addItem({ ...heal, uid: uid(), slot: null });
+      addItem({ ...heal, uid: uid(), slot: null });
     }
 
     ensureChunk(0, 0);
     $("start-screen").classList.remove("active");
     $("game-screen").classList.add("active");
     updateInventoryUI();
+    updateHotbarUI();
     updateDungeonUI();
     recalcHp();
     updateHUD();
@@ -2907,7 +3074,7 @@ const QUESTIONS = {
     requestAnimationFrame(() => {
       resizeCanvas();
       draw();
-      showToast(`Grade ${state.grade} · ${state.bookTitle}. Unequipped — grind gear! I = bag · E = chests · H = heal.`);
+      showToast(`Grade ${state.grade} · ${state.bookTitle}. Minecraft slots · 1-9 hotbar · I inventory · grind gear!`);
     });
   }
 
@@ -2956,10 +3123,20 @@ const QUESTIONS = {
       e.preventDefault();
       useBestHeal();
     }
+    if (/^[1-9]$/.test(e.key) && state.running) {
+      state.hotbarSel = parseInt(e.key, 10) - 1;
+      updateHotbarUI();
+      const it = state.slots[state.hotbarSel];
+      if (it) showToast(`Hand: ${it.name}`);
+    }
     if (e.key === "i" || e.key === "I") {
       if (!state.running) return;
-      if (!$("inventory-modal").classList.contains("hidden")) closeModal("inventory-modal");
-      else { updateInventoryUI(); openModal("inventory-modal"); }
+      if (!$("inventory-modal").classList.contains("hidden")) {
+        // Put held item back if closing
+        if (state.heldItem) { addItem(state.heldItem); state.heldItem = null; }
+        closeModal("inventory-modal");
+        updateHotbarUI();
+      } else { updateInventoryUI(); openModal("inventory-modal"); }
     }
     if (e.key === "Escape") {
       if (!$("dungeon-modal").classList.contains("hidden")) { cancelPortal(); return; }
@@ -2983,13 +3160,30 @@ const QUESTIONS = {
 
   document.querySelectorAll("[data-close]").forEach((btn) => {
     btn.addEventListener("click", () => {
-      closeModal(btn.getAttribute("data-close"));
-      if (btn.getAttribute("data-close") === "settings-modal") state.paused = false;
+      const id = btn.getAttribute("data-close");
+      if (id === "inventory-modal" && state.heldItem) {
+        addItem(state.heldItem);
+        state.heldItem = null;
+        updateHotbarUI();
+      }
+      closeModal(id);
+      if (id === "settings-modal") state.paused = false;
     });
   });
 
-  document.querySelectorAll(".item-slot[data-slot]").forEach((btn) => {
-    btn.addEventListener("click", () => tryPlaceInSlot(btn.getAttribute("data-slot")));
+  document.querySelectorAll(".mc-equip[data-equip]").forEach((btn) => {
+    btn.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      clickEquipSlot(btn.getAttribute("data-equip"));
+    });
+  });
+
+  // Follow cursor with held item
+  window.addEventListener("mousemove", (e) => {
+    const cur = $("held-cursor");
+    if (!cur || cur.classList.contains("hidden")) return;
+    cur.style.left = `${e.clientX + 8}px`;
+    cur.style.top = `${e.clientY + 8}px`;
   });
 
   const bindRange = (id, key, labelId, fmt) => {
