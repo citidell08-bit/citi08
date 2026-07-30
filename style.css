@@ -1027,6 +1027,26 @@ select {
   background: #2e3e26;
 }
 
+.btn-equip.btn-use {
+  background: linear-gradient(180deg, #3a6a48, #2a4834);
+  border-color: #6ab080;
+  color: #d8ffe8;
+}
+
+.btn-equip.btn-use:hover {
+  filter: brightness(1.12);
+}
+
+.inv-help {
+  margin: 0 0 0.55rem;
+  font-size: 0.92rem;
+}
+
+.heal-btn {
+  background: linear-gradient(180deg, #5a3040, #3a1828) !important;
+  border-color: #c07080 !important;
+}
+
 .rarity-common { color: #a89880 !important; }
 .rarity-uncommon { color: #8fb87a !important; }
 .rarity-rare { color: #6aa0d4 !important; }

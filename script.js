@@ -57,6 +57,17 @@
     { key: "codex_eternity", name: "Codex of Eternity", slot: "book", rarity: "legendary", pwr: 4, def: 2, know: 16 },
   ];
 
+  const POTION_TABLE = [
+    { key: "heal_small", name: "Minor Healing Potion", type: "consumable", effect: "heal", amount: 25, rarity: "common" },
+    { key: "heal_med", name: "Healing Potion", type: "consumable", effect: "heal", amount: 50, rarity: "uncommon" },
+    { key: "heal_big", name: "Greater Healing Potion", type: "consumable", effect: "heal", amount: 80, rarity: "rare" },
+    { key: "breath_vial", name: "Breath Vial", type: "consumable", effect: "breath", amount: 100, rarity: "uncommon" },
+    { key: "might_draught", name: "Might Draught", type: "consumable", effect: "might", amount: 4, rarity: "rare" },
+    { key: "elixir", name: "Scholar's Elixir", type: "consumable", effect: "heal", amount: 40, rarity: "epic", alsoBreath: true },
+  ];
+
+  const GATE_RANKS = ["E", "D", "C", "B", "A", "S"];
+
 const BOOKS = {
     math: [
       { id: "math_basics", title: "Math Basics Workbook", grades: [3, 4, 5], topics: "addition, subtraction, place value, shapes" },
@@ -209,16 +220,16 @@ const QUESTIONS = {
   };
 
   const FLOOR_THEMES = [
-    { name: "Rat Warren", monster: "rat", hp: 14, dmg: 6, spd: 1.6, color: "#8a6040", body: "#6a4830", eye: "#1a1008" },
-    { name: "Ossuary", monster: "skeleton", hp: 22, dmg: 8, spd: 1.4, color: "#d8d0c0", body: "#c0b8a8", eye: "#40c0ff" },
-    { name: "Spider Nest", monster: "spider", hp: 18, dmg: 7, spd: 2.0, color: "#3a2830", body: "#2a1820", eye: "#ff4040" },
-    { name: "Slime Pits", monster: "slime", hp: 26, dmg: 5, spd: 1.2, color: "#40c060", body: "#30a048", eye: "#102010" },
-    { name: "Bat Caverns", monster: "bat", hp: 16, dmg: 9, spd: 2.4, color: "#4a3858", body: "#3a2848", eye: "#f0c040" },
-    { name: "Cultist Sanctum", monster: "cultist", hp: 30, dmg: 10, spd: 1.5, color: "#6a2848", body: "#4a1838", eye: "#e060a0" },
-    { name: "Knight's Hall", monster: "knight", hp: 38, dmg: 12, spd: 1.3, color: "#708090", body: "#506070", eye: "#f0e0a0" },
-    { name: "Demon Forge", monster: "demon", hp: 44, dmg: 14, spd: 1.7, color: "#a03020", body: "#801810", eye: "#ff8040" },
-    { name: "Shadow Vault", monster: "shadow", hp: 36, dmg: 16, spd: 2.1, color: "#282030", body: "#181020", eye: "#a060ff" },
-    { name: "Guardian Throne", monster: "guardian", hp: 60, dmg: 18, spd: 1.2, color: "#c0a040", body: "#a08030", eye: "#ffffff" },
+    { name: "Floor 1 · Rat Warren", monster: "rat", hp: 14, dmg: 6, spd: 1.6, color: "#8a6040", body: "#6a4830", eye: "#1a1008" },
+    { name: "Floor 2 · Ossuary", monster: "skeleton", hp: 22, dmg: 8, spd: 1.4, color: "#d8d0c0", body: "#c0b8a8", eye: "#40c0ff" },
+    { name: "Floor 3 · Spider Nest", monster: "spider", hp: 18, dmg: 7, spd: 2.0, color: "#3a2830", body: "#2a1820", eye: "#ff4040" },
+    { name: "Floor 4 · Slime Pits", monster: "slime", hp: 26, dmg: 5, spd: 1.2, color: "#40c060", body: "#30a048", eye: "#102010" },
+    { name: "Floor 5 · Bat Caverns", monster: "bat", hp: 16, dmg: 9, spd: 2.4, color: "#4a3858", body: "#3a2848", eye: "#f0c040" },
+    { name: "Floor 6 · Cultist Sanctum", monster: "cultist", hp: 30, dmg: 10, spd: 1.5, color: "#6a2848", body: "#4a1838", eye: "#e060a0" },
+    { name: "Floor 7 · Knight's Hall", monster: "knight", hp: 38, dmg: 12, spd: 1.3, color: "#708090", body: "#506070", eye: "#f0e0a0" },
+    { name: "Floor 8 · Demon Forge", monster: "demon", hp: 44, dmg: 14, spd: 1.7, color: "#a03020", body: "#801810", eye: "#ff8040" },
+    { name: "Floor 9 · Shadow Vault", monster: "shadow", hp: 36, dmg: 16, spd: 2.1, color: "#282030", body: "#181020", eye: "#a060ff" },
+    { name: "Floor 10 · Monarch Throne", monster: "guardian", hp: 60, dmg: 18, spd: 1.2, color: "#c0a040", body: "#a08030", eye: "#ffffff" },
   ];
 
   const state = {
@@ -432,7 +443,13 @@ const QUESTIONS = {
     return 0;
   }
 
-  function rankLabel(r) { return ["C", "B", "A", "S"][Math.max(0, Math.min(3, r))] || "C"; }
+  function rankLabel(r) { return ["C", "B", "A", "S"][Math.max(0, Math.min(3, r | 0))] || "C"; }
+
+  function gateRankLabel(structureRank, dungeonDiff) {
+    const bump = { easy: 0, medium: 1, hard: 2, raid: 3 }[dungeonDiff] || 0;
+    const idx = Math.max(0, Math.min(5, (structureRank | 0) + bump));
+    return GATE_RANKS[idx];
+  }
 
   function randomQuestName(wx, wy) {
     const names = ["Village Elder", "Wandering Monk", "Ruined Scholar", "Moss Oracle", "Stone Scribe", "Lantern Keeper", "Archive Ghost", "Trial Pedestal"];
@@ -727,11 +744,22 @@ const QUESTIONS = {
   function openDungeonPortal(structure) {
     state.paused = true;
     state.pendingDungeon = structure;
-    $("dungeon-portal-title").textContent = "Dungeon Portal";
-    $("dungeon-portal-name").textContent = `⚔ ${structure.name} · Rank ${rankLabel(structure.rank || 0)} · 10 floors`;
+    const previewRank = gateRankLabel(structure.rank || 0, $("portal-diff-value").value || state.difficulty || "easy");
+    $("dungeon-portal-title").textContent = `${previewRank}-Rank Gate`;
+    $("dungeon-portal-name").textContent = `⚔ ${structure.name} · ${previewRank}-Rank Gate · 10 Floors`;
     $("dungeon-portal-flavor").textContent =
-      `A swirling portal tears open into ${structure.name}. Tap a difficulty below, then Enter Portal.`;
+      `A magical gate tears open — Solo-Leveling style. Pick gate difficulty (scales monster damage), then enter Floor 1 of 10.`;
     setPortalDifficulty(state.difficulty || "easy");
+    // live-update title when picking difficulty
+    document.querySelectorAll(".diff-pick").forEach((btn) => {
+      btn.onclick = (e) => {
+        e.preventDefault();
+        setPortalDifficulty(btn.getAttribute("data-diff"));
+        const gr = gateRankLabel(structure.rank || 0, btn.getAttribute("data-diff"));
+        $("dungeon-portal-title").textContent = `${gr}-Rank Gate`;
+        $("dungeon-portal-name").textContent = `⚔ ${structure.name} · ${gr}-Rank Gate · 10 Floors`;
+      };
+    });
     openModal("dungeon-modal");
   }
 
@@ -752,7 +780,8 @@ const QUESTIONS = {
   }
 
   function dungeonDiffMult(diff) {
-    return { easy: 0.75, medium: 1, hard: 1.35, raid: 1.8 }[diff] || 1;
+    // Solo-Leveling style: higher gate difficulty = much deadlier mobs
+    return { easy: 0.7, medium: 1.15, hard: 1.7, raid: 2.4 }[diff] || 1;
   }
 
   function enterDungeon(structure, dungeonDiff = "medium") {
@@ -762,12 +791,14 @@ const QUESTIONS = {
     const mult = dungeonDiffMult(diffKey);
     const baseRank = structure.rank || 0;
     const rank = Math.min(3, baseRank + ({ easy: 0, medium: 0, hard: 1, raid: 2 }[diffKey] || 0));
+    const gateRank = gateRankLabel(baseRank, diffKey);
     const gen = generateDungeonFloor(floor, rank, structure.name, mult);
     state.dungeon = {
       active: true,
       floor,
       name: structure.name,
       rank,
+      gateRank,
       dungeonDiff: diffKey,
       monsterMult: mult,
       structure,
@@ -787,7 +818,7 @@ const QUESTIONS = {
     recalcHp();
     state.hp = state.maxHp;
     updateDungeonUI();
-    showToast(`Portal crossed → ${structure.name} [${DIFFICULTY[diffKey].label}] · Floor 1: ${gen.theme.name}`);
+    showToast(`${gateRank}-Rank Gate entered [${DIFFICULTY[diffKey].label}] · ${gen.theme.name}`);
   }
 
   function leaveDungeon() {
@@ -835,9 +866,14 @@ const QUESTIONS = {
     const inD = !!(state.dungeon && state.dungeon.active);
     $("hud-floor-wrap").classList.toggle("hidden", !inD);
     $("combat-hint").classList.toggle("hidden", !inD);
-    if (inD) $("hud-floor").textContent = `${state.dungeon.floor}/10`;
-    if (inD) $("hud-biome").textContent = `${state.dungeon.name} · ${FLOOR_THEMES[state.dungeon.floor - 1].name}`;
-    else $("hud-biome").textContent = BIOME_NAMES[biomeAt(Math.floor(state.player.x), Math.floor(state.player.y))] || "Grassland Ruins";
+    if (inD) {
+      const gr = state.dungeon.gateRank || "E";
+      $("hud-floor").textContent = `${state.dungeon.floor}/10`;
+      $("hud-biome").textContent = `${gr}-Rank · ${state.dungeon.name} · ${FLOOR_THEMES[state.dungeon.floor - 1].name}`;
+      $("combat-hint").textContent = `${gr}-Rank Gate · Floor ${state.dungeon.floor}/10 · LMB attack · E chests/stairs · H heal`;
+    } else {
+      $("hud-biome").textContent = BIOME_NAMES[biomeAt(Math.floor(state.player.x), Math.floor(state.player.y))] || "Grassland Ruins";
+    }
   }
 
   function gearStats() {
@@ -849,16 +885,29 @@ const QUESTIONS = {
       pwr += it.pwr || 0;
       know += it.know || 0;
     }
+    if ((state.tempPwrT || 0) > 0) pwr += state.tempPwr || 0;
     return { def, pwr, know };
   }
 
-  function grantLoot({ count = 1, rank = 0, boss = false } = {}) {
+  function grantLoot({ count = 1, rank = 0, boss = false, preferPotion = false } = {}) {
     const diff = DIFFICULTY[state.difficulty];
     const gained = [];
     const n = Math.max(1, count | 0);
     const floor = Math.min(4, Math.max(0, (diff.lootFloor | 0) + (rank | 0) + (boss ? 1 : 0)));
     const ceil = Math.min(4, Math.max(floor, (diff.lootCeil | 0) + (boss ? 1 : 0)));
     for (let i = 0; i < n; i++) {
+      const wantPotion = preferPotion || Math.random() < (0.28 + (boss ? 0.15 : 0));
+      if (wantPotion) {
+        const rarityIdx = Math.min(4, floor + Math.floor(Math.random() * (ceil - floor + 1)));
+        const rarity = RARITY_ORDER[Math.min(rarityIdx, 3)] || "common";
+        let options = POTION_TABLE.filter((l) => l.rarity === rarity);
+        if (!options.length) options = POTION_TABLE.filter((l) => l.rarity === "common");
+        const base = options[Math.floor(Math.random() * options.length)] || POTION_TABLE[0];
+        const item = { ...base, uid: uid(), fromRank: rank, slot: null };
+        state.inventory.push(item);
+        gained.push(item);
+        continue;
+      }
       const rarityIdx = Math.min(4, floor + Math.floor(Math.random() * (ceil - floor + 1)));
       const rarity = RARITY_ORDER[rarityIdx] || "common";
       let options = LOOT_TABLE.filter((l) => l.rarity === rarity);
@@ -870,6 +919,63 @@ const QUESTIONS = {
     }
     updateInventoryUI();
     return gained;
+  }
+
+  function useItem(itemUid) {
+    const idx = state.inventory.findIndex((i) => i.uid === itemUid);
+    if (idx < 0) return;
+    const item = state.inventory[idx];
+    if (item.type !== "consumable") {
+      showToast("That item must be equipped, not used.");
+      return;
+    }
+    if (item.effect === "heal") {
+      if (state.hp >= state.maxHp && !item.alsoBreath) {
+        showToast("Already at full HP.");
+        return;
+      }
+      const before = state.hp;
+      state.hp = Math.min(state.maxHp, state.hp + (item.amount || 25));
+      showToast(`Healed +${Math.ceil(state.hp - before)} HP`);
+      spawnParticles(state.player.x, state.player.y, 10, "spark");
+    } else if (item.effect === "breath") {
+      state.breath = state.maxBreath;
+      updateBreathUI();
+      showToast("Breath fully restored!");
+      spawnParticles(state.player.x, state.player.y, 8, "bubble");
+    } else if (item.effect === "might") {
+      state.tempPwr = (state.tempPwr || 0) + (item.amount || 4);
+      state.tempPwrT = Math.max(state.tempPwrT || 0, 18);
+      showToast(`Might +${item.amount || 4} ATK for a while!`);
+      spawnParticles(state.player.x, state.player.y, 12, "spark");
+    }
+    if (item.alsoBreath) {
+      state.breath = state.maxBreath;
+      updateBreathUI();
+    }
+    state.inventory.splice(idx, 1);
+    recalcHp();
+    updateInventoryUI();
+    updateHUD();
+  }
+
+  function useBestHeal() {
+    if (!state.running || state.paused) return;
+    const potions = state.inventory
+      .filter((i) => i.type === "consumable" && i.effect === "heal")
+      .sort((a, b) => (a.amount || 0) - (b.amount || 0));
+    if (!potions.length) {
+      showToast("No healing potions! Loot chests or press I.", true);
+      return;
+    }
+    // Prefer smallest potion that fills the missing HP
+    const missing = state.maxHp - state.hp;
+    if (missing <= 0) {
+      showToast("Already at full HP.");
+      return;
+    }
+    const fit = potions.find((p) => (p.amount || 0) >= missing) || potions[potions.length - 1];
+    useItem(fit.uid);
   }
 
   function clearInventoryAndGear() {
@@ -884,6 +990,10 @@ const QUESTIONS = {
     const idx = state.inventory.findIndex((i) => i.uid === itemUid);
     if (idx < 0) return;
     const item = state.inventory[idx];
+    if (item.type === "consumable" || !item.slot) {
+      showToast("Potions are used, not equipped. Press Use or H.");
+      return;
+    }
     const slot = item.slot;
     const prev = state.equipped[slot];
     state.inventory.splice(idx, 1);
@@ -946,11 +1056,29 @@ const QUESTIONS = {
     empty.classList.add("hidden");
     state.inventory.forEach((item) => {
       const li = document.createElement("li");
-      li.innerHTML = `<span class="item-name rarity-${item.rarity}">${item.name}</span><span class="item-meta">${item.slot} · ${item.rarity} · DEF ${item.def} PWR ${item.pwr} KNOW ${item.know}</span><span class="item-actions"><button type="button" class="btn-equip" data-uid="${item.uid}">Equip</button></span>`;
+      const isPotion = item.type === "consumable";
+      const meta = isPotion
+        ? `potion · ${item.rarity} · ${
+            item.effect === "heal" ? `+${item.amount} HP`
+            : item.effect === "breath" ? "+breath"
+            : item.effect === "might" ? `+${item.amount} ATK`
+            : "use"
+          }`
+        : `${item.slot} · ${item.rarity} · DEF ${item.def || 0} PWR ${item.pwr || 0} KNOW ${item.know || 0}`;
+      const action = isPotion
+        ? `<button type="button" class="btn-equip btn-use" data-use="${item.uid}">Use</button>`
+        : `<button type="button" class="btn-equip" data-uid="${item.uid}">Equip</button>`;
+      li.innerHTML = `
+        <span class="item-name rarity-${item.rarity}">${isPotion ? "⚗ " : ""}${item.name}</span>
+        <span class="item-meta">${meta}</span>
+        <span class="item-actions">${action}</span>`;
       list.appendChild(li);
     });
-    list.querySelectorAll(".btn-equip").forEach((btn) => {
+    list.querySelectorAll(".btn-equip[data-uid]").forEach((btn) => {
       btn.addEventListener("click", () => equipItem(btn.getAttribute("data-uid")));
+    });
+    list.querySelectorAll(".btn-use").forEach((btn) => {
+      btn.addEventListener("click", () => useItem(btn.getAttribute("data-use")));
     });
     updateEquipUI();
   }
@@ -1213,7 +1341,14 @@ const QUESTIONS = {
       ({ easy: 0, medium: 1, hard: 2, raid: 3 }[state.dungeon?.dungeonDiff] || 0)
     );
     const count = Math.max(1, 1 + (rank > 0 ? 1 : 0) + (state.dungeon?.active ? 1 : 0));
-    const loot = grantLoot({ count, rank, boss: !!state.dungeon?.active && rank >= 2 });
+    const loot = [];
+    // Dungeon chests always include at least one potion/heal
+    if (state.dungeon?.active) {
+      loot.push(...grantLoot({ count: 1, rank, preferPotion: true }));
+      if (count > 1) loot.push(...grantLoot({ count: count - 1, rank, boss: rank >= 2 }));
+    } else {
+      loot.push(...grantLoot({ count, rank, boss: false }));
+    }
     const cx = chest.wx != null ? chest.wx : chest.x;
     const cy = chest.wy != null ? chest.wy : chest.y;
     if (cx != null && cy != null) setTile(cx, cy, state.dungeon?.active ? TILES.FLOOR : TILES.PATH);
@@ -1221,7 +1356,7 @@ const QUESTIONS = {
     updateHUD();
     const names = loot.map((l) => l.name).join(", ");
     showToast(`Opened chest! +${names}`);
-    showResult("Chest Loot!", `You found: ${names}. Open Inventory (I) to equip.`);
+    showResult("Chest Loot!", `You found: ${names}. Press I to Equip gear or Use potions (H = quick heal).`);
   }
 
   function findInteractable() {
@@ -1513,6 +1648,14 @@ const QUESTIONS = {
     }
     if (state.hitCd > 0) state.hitCd -= dt;
     if (state.hurtCd > 0) state.hurtCd -= dt;
+    if ((state.tempPwrT || 0) > 0) {
+      state.tempPwrT -= dt;
+      if (state.tempPwrT <= 0) {
+        state.tempPwrT = 0;
+        state.tempPwr = 0;
+        showToast("Might buff faded.");
+      }
+    }
     updateMonsters(dt);
 
     // Auto-open chest when standing on it
@@ -1870,59 +2013,139 @@ const QUESTIONS = {
   }
 
   function drawRoof(px, py, ts, wx, wy) {
-    // Realistic thatch / terracotta roof overlay
-    pxRect(px, py, ts, ts, "rgba(20,10,6,0.2)");
-    for (let i = 0; i < Math.ceil(ts / 2); i++) {
-      const y = py + ts / 2 - i;
-      const x = px + i;
-      const w = ts - i * 2;
-      pxRect(x, y, w, 2, i % 2 ? "#a05030" : "#8a3c24");
-      if (i % 3 === 0) pxRect(x + 1, y, w - 2, 1, "#c07048");
+    // Layered clay-tile roof: eaves, staggered shingles, ridge, chimney, moss
+    const seed = n01(wx, wy, 2);
+    const shade = n01(wx + 3, wy + 1, 5);
+    pxRect(px, py, ts, ts, "rgba(12,6,2,0.32)");
+    // deep eave / underside
+    pxRect(px + 1, py + ts * 0.58, ts - 2, ts * 0.32, "#3a2014");
+    pxRect(px + 2, py + ts * 0.72, ts - 4, 2, "#2a140c");
+    // staggered shingle rows (triangle silhouette)
+    const rows = Math.max(5, Math.ceil(ts / 2.2));
+    for (let row = 0; row < rows; row++) {
+      const t = row / rows;
+      const y = py + ts * 0.08 + row * 2.1;
+      const inset = Math.floor(t * t * (ts * 0.42));
+      const x = px + inset;
+      const w = ts - inset * 2;
+      if (w < 4) continue;
+      const dark = shade > 0.5 ? "#6a3018" : "#7a3820";
+      const mid = shade > 0.5 ? "#8a4428" : "#9a4a2a";
+      const lit = shade > 0.5 ? "#b06038" : "#c06840";
+      pxRect(x, y, w, 3, row % 2 ? mid : dark);
+      // overlapping scalloped tiles
+      const offset = (row % 2) * 1.5;
+      for (let tix = -1; tix < w + 2; tix += 3) {
+        const sx = x + offset + tix;
+        if (sx < x || sx + 3 > x + w) continue;
+        pxRect(sx, y, 3, 2, lit);
+        pxDot(sx + 1, y, "#e09060");
+        pxRect(sx + 1, y + 1, 1, 1, "#5a2810");
+      }
+      if (seed > 0.6 && row % 5 === 2) pxRect(x + w * 0.35, y, 3, 2, "#4a7840");
+      if (seed > 0.8 && row % 6 === 1) pxRect(x + w * 0.7, y, 2, 2, "#3a6838");
     }
-    pxRect(px + ts * 0.15, py + ts * 0.12, ts * 0.7, 2, "#d09060");
-    pxRect(px + 2, py + ts - 3, ts - 4, 2, "#4a2818");
-    // ridge shadow
-    pxRect(px + ts * 0.4, py + 3, 2, ts * 0.35, "rgba(0,0,0,0.25)");
+    // ridge cap
+    pxRect(px + ts * 0.32, py + 1, ts * 0.36, 4, "#4a2818");
+    pxRect(px + ts * 0.35, py, ts * 0.3, 2, "#d09868");
+    pxRect(px + ts * 0.42, py + 2, 2, ts * 0.2, "rgba(0,0,0,0.25)");
+    // chimney with mortar lines
+    if (seed > 0.48) {
+      const cx = px + ts * 0.6;
+      const cy = py + ts * 0.06;
+      pxRect(cx, cy, 5, ts * 0.3, "#6a5040");
+      pxRect(cx + 1, cy + 2, 3, 1, "#4a3830");
+      pxRect(cx + 1, cy + 5, 3, 1, "#4a3830");
+      pxRect(cx - 1, cy - 1, 7, 2, "#8a6848");
+      if (seed > 0.7) pxRect(cx + 1, cy - 3, 2, 3, "rgba(180,180,180,0.35)");
+    }
+    // sun wash + eave drip
+    pxRect(px + ts * 0.12, py + ts * 0.18, 2, ts * 0.3, "rgba(255,210,150,0.22)");
+    pxRect(px + 2, py + ts - 2, ts - 4, 2, "rgba(0,0,0,0.4)");
   }
 
   function drawPlayer(ppx, ppy, ps) {
     const armor = state.equipped.armor;
     const weapon = state.equipped.weapon;
+    const tool = state.equipped.tool;
+    const book = state.equipped.book;
     const body = armor
-      ? (armor.rarity === "legendary" ? "#d4a84b" : armor.rarity === "epic" ? "#a060c0" : armor.rarity === "rare" ? "#6a90c0" : "#6b8f5a")
+      ? (armor.rarity === "legendary" ? "#d4a84b" : armor.rarity === "epic" ? "#a060c0" : armor.rarity === "rare" ? "#6a90c0" : armor.rarity === "uncommon" ? "#6b8f5a" : "#7a6a50")
       : "#5a8a48";
     const swim = state.swimming;
     const bob = swim ? Math.sin(state.animT * 6) * 1.5 : 0;
     const sub = swim ? ps * 0.28 : 0;
+    const face = state.player.facing || 0;
+    const lookX = Math.cos(face) * 2;
+    const lookY = Math.sin(face) * 1;
+    const right = Math.cos(face) >= 0 ? 1 : -1;
 
-    // ground / water contact shadow
-    if (swim) {
-      pxRect(ppx - ps * 0.4, ppy + ps * 0.25 + bob, ps * 0.8, 4, "rgba(20,60,90,0.45)");
-    } else {
-      pxRect(ppx - ps * 0.35, ppy + ps * 0.4, ps * 0.7, 3, "rgba(0,0,0,0.35)");
-    }
+    if (swim) pxRect(ppx - ps * 0.4, ppy + ps * 0.25 + bob, ps * 0.8, 4, "rgba(20,60,90,0.45)");
+    else pxRect(ppx - ps * 0.35, ppy + ps * 0.4, ps * 0.7, 3, "rgba(0,0,0,0.35)");
 
     if (!swim) {
       pxRect(ppx - ps * 0.28, ppy + ps * 0.15, ps * 0.22, ps * 0.35, "#3a2a1c");
       pxRect(ppx + ps * 0.06, ppy + ps * 0.15, ps * 0.22, ps * 0.35, "#3a2a1c");
     }
 
-    // torso
+    // torso / armor
     pxRect(ppx - ps / 2 + 1, ppy - ps * 0.1 + 2 + bob - sub, ps, ps * 0.45, "#0a0808");
     pxRect(ppx - ps / 2, ppy - ps * 0.12 + bob - sub, ps, ps * 0.48, body);
-    pxRect(ppx - ps * 0.35, ppy - ps * 0.05 + bob - sub, ps * 0.7, 2, "rgba(255,255,255,0.15)");
+    if (armor) {
+      pxRect(ppx - ps * 0.4, ppy - ps * 0.05 + bob - sub, ps * 0.8, 2, "rgba(255,255,255,0.22)");
+      pxRect(ppx - ps * 0.15, ppy + ps * 0.05 + bob - sub, 3, 3, "#f0d080");
+    }
     // head
     pxRect(ppx - ps * 0.28, ppy - ps * 0.48 + bob - sub, ps * 0.56, ps * 0.4, "#c4a574");
     pxRect(ppx - ps * 0.2, ppy - ps * 0.52 + bob - sub, ps * 0.4, ps * 0.18, "#6a4a30");
-    const lookX = Math.cos(state.player.facing) * 2;
-    const lookY = Math.sin(state.player.facing) * 1;
     pxRect(ppx - 3 + lookX, ppy - ps * 0.28 + lookY + bob - sub, 2, 2, "#1a1210");
     pxRect(ppx + 1 + lookX, ppy - ps * 0.28 + lookY + bob - sub, 2, 2, "#1a1210");
-    if (weapon && !swim) {
-      pxRect(ppx + ps / 2 - 1 + lookX, ppy - 4 + lookY, 3, ps * 0.7, "#d0d0d8");
-      pxRect(ppx + ps / 2 - 2 + lookX, ppy - 6 + lookY, 5, 3, "#f0c96a");
+
+    // BOOK on back / left hand
+    if (book && !swim) {
+      const bx = ppx - right * (ps * 0.55);
+      const by = ppy - ps * 0.05 + bob;
+      pxRect(bx - 2, by, 6, 8, "#5a3020");
+      pxRect(bx - 1, by + 1, 4, 6, "#c07040");
+      pxRect(bx, by + 2, 2, 4, "#f0d080");
     }
-    // water overlay when swimming
+
+    // TOOL (pick/hammer/compass) in off-hand
+    if (tool && !swim) {
+      const tx = ppx - right * (ps * 0.48) + lookX;
+      const ty = ppy + bob - sub;
+      pxRect(tx, ty, 2, ps * 0.45, "#6a5030");
+      pxRect(tx - 2, ty - 2, 6, 4, tool.rarity === "legendary" ? "#f0c96a" : "#a0a8b0");
+      pxRect(tx - 1, ty - 3, 4, 2, "#d0d8e0");
+    }
+
+    // SWORD / weapon — always visible when equipped; swings on attack
+    if (weapon && !swim) {
+      const swing = state.hitCd > 0 ? (0.25 - state.hitCd) / 0.25 : 0;
+      const swingOff = right * swing * ps * 0.55;
+      const swingUp = -swing * ps * 0.35;
+      const wx = ppx + right * (ps * 0.42) + lookX + swingOff;
+      const wy = ppy - ps * 0.25 + lookY + bob - sub + swingUp;
+      // blade
+      pxRect(wx, wy, 3, ps * 0.85, weapon.rarity === "legendary" ? "#e8f0ff" : "#c8d0d8");
+      pxRect(wx + 1, wy + 2, 1, ps * 0.7, "#ffffff");
+      // tip
+      pxRect(wx, wy - 2, 3, 2, "#f0f4ff");
+      // guard
+      pxRect(wx - 2, wy + ps * 0.55, 7, 3, weapon.rarity === "epic" || weapon.rarity === "legendary" ? "#f0c96a" : "#a08040");
+      // grip
+      pxRect(wx, wy + ps * 0.58, 3, ps * 0.22, "#5a3a20");
+      // pommel glow by rarity
+      const glow = weapon.rarity === "legendary" ? "#fff0a0" : weapon.rarity === "epic" ? "#c080e0" : "#d4a84b";
+      pxRect(wx, wy + ps * 0.78, 3, 3, glow);
+      if (swing > 0.05) {
+        pxRect(wx + right * 4, wy + ps * 0.2, 6, 2, "rgba(255,255,255,0.35)");
+      }
+    } else if (!weapon && !swim) {
+      // fists when bare-handed so gear absence is clear
+      pxRect(ppx + right * (ps * 0.38), ppy + bob, 3, 3, "#c4a574");
+    }
+
     if (swim) {
       pxRect(ppx - ps * 0.55, ppy + ps * 0.05 + bob, ps * 1.1, ps * 0.55, "rgba(30,100,140,0.45)");
       pxRect(ppx - ps * 0.45, ppy + ps * 0.08 + bob, ps * 0.9, 2, "rgba(180,230,255,0.35)");
@@ -2160,8 +2383,26 @@ const QUESTIONS = {
     state.hitCd = 0;
     state.hurtCd = 0;
 
-    const starter = LOOT_TABLE.find((l) => l.key === "primer");
-    if (starter) state.inventory.push({ ...starter, uid: "starter-book" });
+    state.tempPwr = 0;
+    state.tempPwrT = 0;
+
+    const give = (table, key, uidTag) => {
+      const base = table.find((l) => l.key === key);
+      if (!base) return null;
+      const item = { ...base, uid: `${uidTag}-${uid()}` };
+      state.inventory.push(item);
+      return item;
+    };
+    const blade = give(LOOT_TABLE, "wood_blade", "starter-blade");
+    give(LOOT_TABLE, "slate_chalk", "starter-tool");
+    give(LOOT_TABLE, "primer", "starter-book");
+    give(POTION_TABLE, "heal_small", "starter-heal");
+    give(POTION_TABLE, "heal_small", "starter-heal2");
+    give(POTION_TABLE, "heal_med", "starter-heal3");
+    if (blade) {
+      state.equipped.weapon = blade;
+      state.inventory = state.inventory.filter((i) => i.uid !== blade.uid);
+    }
 
     ensureChunk(0, 0);
     $("start-screen").classList.remove("active");
@@ -2175,7 +2416,7 @@ const QUESTIONS = {
     requestAnimationFrame(() => {
       resizeCanvas();
       draw();
-      showToast(`Grade ${state.grade} · ${state.bookTitle}. Gold roofs = villages, red = dungeons.`);
+      showToast(`Grade ${state.grade} · ${state.bookTitle}. Blade equipped · I = bag · H = heal.`);
     });
   }
 
@@ -2218,6 +2459,12 @@ const QUESTIONS = {
   window.addEventListener("keydown", (e) => {
     state.keys[e.key] = true;
     if (e.key === "e" || e.key === "E") { e.preventDefault(); tryInteract(); }
+    if (e.key === "h" || e.key === "H") {
+      if (!state.running) return;
+      if (!$("quest-modal").classList.contains("hidden") || !$("boss-modal").classList.contains("hidden")) return;
+      e.preventDefault();
+      useBestHeal();
+    }
     if (e.key === "i" || e.key === "I") {
       if (!state.running) return;
       if (!$("inventory-modal").classList.contains("hidden")) closeModal("inventory-modal");
@@ -2282,6 +2529,7 @@ const QUESTIONS = {
     btn.addEventListener("pointercancel", off);
   });
   $("btn-interact").addEventListener("click", (e) => { e.preventDefault(); tryInteract(); });
+  $("btn-heal").addEventListener("click", (e) => { e.preventDefault(); useBestHeal(); });
   canvas.addEventListener("click", handleCanvasClick);
   canvas.addEventListener("contextmenu", (e) => e.preventDefault());
   window.addEventListener("resize", () => { applyMobileVisibility(); if (state.running) resizeCanvas(); });

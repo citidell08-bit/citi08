@@ -98,7 +98,7 @@
           <button type="submit" class="btn primary" id="btn-start">Enter the Ruins</button>
         </form>
 
-        <p class="hint-keys">Move: WASD · Interact: E · Attack: LMB · Inventory: I · Esc: Menu</p>
+        <p class="hint-keys">Move: WASD · Interact: E · Attack: LMB · Inventory: I · Heal: H · Esc: Menu</p>
       </div>
     </section>
 
@@ -189,6 +189,7 @@
             <button type="button" data-dir="down" class="pad-btn">▼</button>
           </div>
           <button type="button" id="btn-interact" class="action-btn">E</button>
+          <button type="button" id="btn-heal" class="action-btn heal-btn" title="Use heal potion">H</button>
         </div>
       </div>
     </section>
@@ -265,6 +266,7 @@
           </div>
           <div class="bag-board">
             <h3>Satchel</h3>
+            <p class="muted inv-help">Equip weapons/armor/tools/books · Use potions · Hotkey <kbd>H</kbd> quick-heal</p>
             <ul id="inventory-list" class="inventory-list"></ul>
             <p id="inventory-empty" class="muted">Your satchel is empty. Complete quests &amp; dungeons for gear.</p>
           </div>
@@ -326,31 +328,31 @@
           <div class="portal-art" aria-hidden="true">
             <div class="portal-ring"></div>
           </div>
-          <p id="dungeon-portal-flavor" class="flavor">A swirling gate hums with ancient power. Choose how deep the trial will cut.</p>
+          <p id="dungeon-portal-flavor" class="flavor">A ranked Gate opens — Solo Leveling style. Harder ranks mean deadlier floors.</p>
           <p id="dungeon-portal-name" class="book-tag"></p>
           <fieldset class="difficulty-field portal-diff">
-            <legend>Dungeon difficulty</legend>
-            <div id="portal-diff-grid" class="diff-grid" role="radiogroup" aria-label="Dungeon difficulty">
+            <legend>Gate rank difficulty</legend>
+            <div id="portal-diff-grid" class="diff-grid" role="radiogroup" aria-label="Gate difficulty">
               <button type="button" class="diff-pick selected" data-diff="easy">
-                <strong>Easy</strong>
-                <small>Weaker foes · basic chest loot</small>
+                <strong>E-Rank</strong>
+                <small>Weaker mobs · starter loot</small>
               </button>
               <button type="button" class="diff-pick" data-diff="medium">
-                <strong>Medium</strong>
+                <strong>C-Rank</strong>
                 <small>Fair monsters · solid loot</small>
               </button>
               <button type="button" class="diff-pick" data-diff="hard">
-                <strong>Hard</strong>
+                <strong>B-Rank</strong>
                 <small>Tough packs · rare gear</small>
               </button>
               <button type="button" class="diff-pick raid" data-diff="raid">
-                <strong>Raid</strong>
+                <strong>S-Rank</strong>
                 <small>Brutal · legendary chests</small>
               </button>
             </div>
             <input type="hidden" id="portal-diff-value" value="easy" />
           </fieldset>
-          <p class="portal-note">10 floors await. Clear rooms, open chests, climb deeper — Floor 10 holds the Guardian.</p>
+          <p class="portal-note">10 floors · mob damage scales with gate difficulty · Floor 10 = Monarch / study boss · chests drop potions</p>
           <div class="settings-actions">
             <button type="button" class="btn ghost" id="btn-portal-cancel">Step Away</button>
             <button type="button" class="btn primary" id="btn-portal-enter">Enter Portal</button>
