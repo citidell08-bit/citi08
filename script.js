@@ -996,9 +996,38 @@ const QUESTIONS = {
     return null;
   }
 
+  // Hotbar hand wins for combat: holding a sword never shoots, holding a bow never swings far
+  function getCombatWeapon() {
+    const hand = getHandItem();
+    if (hand) {
+      if (hand.slot === "weapon") return hand;
+      if (hand.slot === "bow" || hand.slot === "tool" || hand.type === "consumable" || hand.type === "material") return null;
+    }
+    return state.equipped.weapon || null;
+  }
+
+  function getCombatBow() {
+    const hand = getHandItem();
+    if (hand) {
+      if (hand.slot === "bow") return hand;
+      if (hand.slot === "weapon" || hand.slot === "tool" || hand.type === "consumable" || hand.type === "material") return null;
+    }
+    return state.equipped.bow || null;
+  }
+
   function isMineTool(it) {
     if (!it) return false;
     return !!(it.mine || /pick|hammer|spade|lens/i.test(it.key || "") || /pick/i.test(it.name || ""));
+  }
+
+  function getCombatPick() {
+    const hand = getHandItem();
+    if (hand) {
+      if (isMineTool(hand)) return hand;
+      if (hand.slot === "weapon" || hand.slot === "bow" || hand.type === "consumable" || hand.type === "material") return null;
+    }
+    const tool = state.equipped.tool;
+    return isMineTool(tool) ? tool : null;
   }
 
   function gearStats() {
@@ -1763,8 +1792,8 @@ const QUESTIONS = {
       }
     }
     // Mineable stone with pickaxe in hand or tool slot
-    const pick = getActiveGear("tool");
-    if (isMineTool(pick)) {
+    const pick = getCombatPick();
+    if (pick) {
       for (const [dx, dy] of near) {
         const wx = px + dx, wy = py + dy;
         const tile = getTile(wx, wy);
@@ -1795,11 +1824,13 @@ const QUESTIONS = {
     }
   }
 
-  const MELEE_RANGE = 1.45;
-  const FIST_RANGE = 0.85;
+  // Close-range only — Minecraft-ish reach (~1 tile), not bow distance
+  const MELEE_RANGE = 1.05;
+  const FIST_RANGE = 0.7;
+  const MELEE_ARC = 1.15; // ~66° each side of facing (~132° cone)
 
   function meleeRange() {
-    return getActiveGear("weapon") ? MELEE_RANGE : FIST_RANGE;
+    return getCombatWeapon() ? MELEE_RANGE : FIST_RANGE;
   }
 
   function damageMonster(monster, dmg) {
@@ -1822,35 +1853,33 @@ const QUESTIONS = {
 
   function performMeleeSwing() {
     if (state.hitCd > 0 || state.paused) return false;
-    const hasWeapon = !!getActiveGear("weapon");
+    const weapon = getCombatWeapon();
+    const hasWeapon = !!weapon;
     const range = meleeRange();
-    const base = hasWeapon ? (5 + gearStats().pwr) : 2;
+    const base = hasWeapon ? (5 + (weapon.pwr || 0) + Math.floor(gearStats().pwr * 0.25)) : 2;
     state.hitCd = hasWeapon ? 0.38 : 0.32;
-    state.attackAnim = 0.35;
+    state.attackAnim = 0.28;
     state.attackArc = range;
-    // Face toward nearest monster in range if any
     let hitAny = false;
     if (state.dungeon?.active) {
       for (const m of state.dungeon.monsters) {
         const dist = Math.hypot(m.x - state.player.x, m.y - state.player.y);
-        if (dist <= range) {
-          // Prefer hits in facing cone (~200 deg) but allow full circle for fairness
-          const ang = Math.atan2(m.y - state.player.y, m.x - state.player.x);
-          let diff = Math.abs(((ang - state.player.facing + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
-          if (diff < 2.1 || dist < 0.7) {
-            damageMonster(m, base);
-            hitAny = true;
-          }
-        }
+        if (dist > range) continue;
+        const ang = Math.atan2(m.y - state.player.y, m.x - state.player.x);
+        let diff = Math.abs(((ang - state.player.facing + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+        // Must face the target — only point-blank ignores cone
+        if (diff > MELEE_ARC / 2 && dist > 0.55) continue;
+        damageMonster(m, base);
+        hitAny = true;
       }
     }
-    spawnParticles(state.player.x + Math.cos(state.player.facing) * 0.6, state.player.y + Math.sin(state.player.facing) * 0.6, 5, "spark");
-    if (!hitAny && state.dungeon?.active) showToast(hasWeapon ? "Swing missed — get in range!" : "Fists miss — get closer!");
+    spawnParticles(state.player.x + Math.cos(state.player.facing) * 0.45, state.player.y + Math.sin(state.player.facing) * 0.45, 5, "spark");
+    if (!hitAny && state.dungeon?.active) showToast(hasWeapon ? "Swing missed — step closer!" : "Fists miss — get closer!");
     return true;
   }
 
   function shootBow(tx, ty) {
-    const bow = getActiveGear("bow");
+    const bow = getCombatBow();
     if (!bow || state.hitCd > 0 || state.paused) return false;
     const dx = tx - state.player.x, dy = ty - state.player.y;
     const dist = Math.hypot(dx, dy) || 1;
@@ -1874,9 +1903,8 @@ const QUESTIONS = {
   }
 
   function startMining(wx, wy) {
-    const pick = getActiveGear("tool");
+    const pick = getCombatPick();
     if (!pick) { showToast("Hold a pickaxe on the hotbar (1–9) or equip Tool!", true); return; }
-    if (!isMineTool(pick)) { showToast("That tool can't mine stone.", true); return; }
     const minePow = pick.mine || 1;
     const tile = getTile(wx, wy);
     if (![TILES.STONE, TILES.COBBLE, TILES.RUIN].includes(tile)) return;
@@ -1891,8 +1919,8 @@ const QUESTIONS = {
       if (state.mineAnim > 0) state.mineAnim = Math.max(0, state.mineAnim - dt);
       return;
     }
-    const pick = getActiveGear("tool");
-    if (!isMineTool(pick)) { state.mineTarget = null; return; }
+    const pick = getCombatPick();
+    if (!pick) { state.mineTarget = null; return; }
     const { wx, wy } = state.mineTarget;
     if (Math.hypot(state.player.x - wx - 0.5, state.player.y - wy - 0.5) > 2.2) {
       state.mineTarget = null;
@@ -1971,19 +1999,19 @@ const QUESTIONS = {
 
     // Mining click on stone (pick in hand or tool slot)
     const ttile = getTile(Math.floor(wx), Math.floor(wy));
-    const handPick = getActiveGear("tool");
-    if (isMineTool(handPick) && [TILES.STONE, TILES.COBBLE, TILES.RUIN].includes(ttile) && dist < 2.4) {
+    const handPick = getCombatPick();
+    if (handPick && [TILES.STONE, TILES.COBBLE, TILES.RUIN].includes(ttile) && dist < 2.4) {
       startMining(Math.floor(wx), Math.floor(wy));
       return;
     }
 
-    // Bow shot if bow in hand/equip and click is beyond melee
-    if (getActiveGear("bow") && dist > meleeRange() + 0.15) {
+    // Bow only when actually using a bow (hotbar hand wins) and click is beyond melee
+    if (getCombatBow() && !getCombatWeapon() && dist > meleeRange() + 0.2) {
       if (shootBow(wx, wy)) return;
     }
 
-    // Melee: weapon in hand, or fists in dungeon / empty hand
-    if (getActiveGear("weapon") || state.dungeon?.active) {
+    // Melee: sword/fists — short range only (never bow distance)
+    if (getCombatWeapon() || state.dungeon?.active || !getCombatBow()) {
       performMeleeSwing();
       return;
     }
@@ -2648,10 +2676,10 @@ const QUESTIONS = {
 
   function drawPlayer(ppx, ppy, ps) {
     const armor = state.equipped.armor;
-    const weapon = getActiveGear("weapon");
-    const tool = getActiveGear("tool");
+    const weapon = getCombatWeapon();
+    const tool = getCombatPick() || (getHandItem() && getHandItem().slot === "tool" ? getHandItem() : state.equipped.tool);
     const book = state.equipped.book || getActiveGear("book");
-    const bow = getActiveGear("bow");
+    const bow = getCombatBow();
     const body = armor
       ? (armor.rarity === "legendary" ? "#f0c050" : armor.rarity === "epic" ? "#c060ff" : armor.rarity === "rare" ? "#50a0ff" : armor.rarity === "uncommon" ? "#50d060" : "#a09070")
       : "#40c050";
@@ -2856,19 +2884,20 @@ const QUESTIONS = {
       pxRect(mpx + 2, mpy - 4, (tileSize - 4) * pct, 3, "#ffe060");
     }
 
-    // Melee attack radius visual
+    // Melee attack arc visual (matches short hit cone)
     if (state.attackAnim > 0 && state.attackArc > 0) {
       const rad = state.attackArc * tileSize;
+      const half = MELEE_ARC / 2;
       const alpha = Math.min(0.35, state.attackAnim * 1.2);
       ctx.strokeStyle = `rgba(255,240,120,${alpha})`;
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.arc(w / 2, h / 2, rad, state.player.facing - 1.1, state.player.facing + 1.1);
+      ctx.arc(w / 2, h / 2, rad, state.player.facing - half, state.player.facing + half);
       ctx.stroke();
       ctx.fillStyle = `rgba(255,220,80,${alpha * 0.25})`;
       ctx.beginPath();
       ctx.moveTo(w / 2, h / 2);
-      ctx.arc(w / 2, h / 2, rad, state.player.facing - 1.1, state.player.facing + 1.1);
+      ctx.arc(w / 2, h / 2, rad, state.player.facing - half, state.player.facing + half);
       ctx.closePath();
       ctx.fill();
     }
