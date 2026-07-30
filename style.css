@@ -73,6 +73,7 @@ select {
   justify-content: center;
   padding: 1.5rem;
   overflow: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .start-backdrop {
@@ -684,11 +685,83 @@ select {
   gap: 0.75rem;
 }
 
+.book-field {
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.book-field legend {
+  font-family: var(--font-display);
+  font-size: 0.55rem;
+  color: var(--sand);
+  letter-spacing: 0.04em;
+  margin-bottom: 0.45rem;
+}
+
+.book-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  max-height: 180px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.book-option {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.65rem 0.75rem;
+  background: var(--bg-deep);
+  border: 2px solid var(--sand-dim);
+  border-radius: var(--radius);
+  color: var(--ash);
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+
+.book-option:hover,
+.book-option:focus-visible {
+  border-color: var(--sand);
+  outline: none;
+}
+
+.book-option.selected {
+  border-color: var(--moss-bright);
+  background: #24301e;
+}
+
+.book-option strong {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 0.48rem;
+  line-height: 1.45;
+  color: var(--gold-bright);
+  margin-bottom: 0.25rem;
+}
+
+.book-option small {
+  display: block;
+  color: var(--ash-dim);
+  font-size: 0.95rem;
+  line-height: 1.25;
+}
+
 .book-hint {
   margin: -0.35rem 0 0;
   color: var(--ash-dim);
   font-size: 1rem;
   line-height: 1.25;
+}
+
+#start-screen {
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.start-panel {
+  overflow: visible;
 }
 
 .book-tag {

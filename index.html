@@ -54,11 +54,12 @@
             </label>
           </div>
 
-          <label class="field">
-            <span>Book / textbook you are using</span>
-            <select id="book-select" required></select>
-          </label>
-          <p id="book-hint" class="book-hint">Questions will match this book’s topics and your grade.</p>
+          <fieldset class="book-field">
+            <legend>Book / textbook you are using</legend>
+            <input type="hidden" id="book-select" name="book" value="" />
+            <div id="book-list" class="book-list" role="radiogroup" aria-label="Textbook"></div>
+          </fieldset>
+          <p id="book-hint" class="book-hint">Pick your subject and grade, then tap a book below.</p>
 
           <fieldset class="difficulty-field">
             <legend>Difficulty</legend>

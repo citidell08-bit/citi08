@@ -248,39 +248,70 @@
 
   // ——— Books UI ———
   function booksFor(subject, grade) {
-    return (BOOKS[subject] || []).filter((b) => b.grades.includes(grade));
+    const g = Number(grade);
+    const list = (BOOKS[subject] || []).filter((b) => b.grades.some((x) => Number(x) === g));
+    if (list.length) return list;
+    // Fallback: nearest books by grade distance
+    const all = BOOKS[subject] || [];
+    if (!all.length) {
+      return [{ id: "generic", title: "General Study Guide", grades: [g], topics: "grade-level review topics" }];
+    }
+    return [...all]
+      .sort((a, b) => {
+        const da = Math.min(...a.grades.map((x) => Math.abs(Number(x) - g)));
+        const db = Math.min(...b.grades.map((x) => Math.abs(Number(x) - g)));
+        return da - db;
+      })
+      .slice(0, 3);
+  }
+
+  function selectedBook() {
+    const subject = $("subject-select").value;
+    const grade = parseInt($("grade-select").value, 10);
+    const id = $("book-select").value;
+    return booksFor(subject, grade).find((b) => b.id === id) || booksFor(subject, grade)[0] || null;
+  }
+
+  function selectBook(bookId) {
+    const subject = $("subject-select").value;
+    const grade = parseInt($("grade-select").value, 10);
+    const list = booksFor(subject, grade);
+    const book = list.find((b) => b.id === bookId) || list[0];
+    if (!book) return;
+    $("book-select").value = book.id;
+    $("book-list").querySelectorAll(".book-option").forEach((btn) => {
+      const on = btn.getAttribute("data-book-id") === book.id;
+      btn.classList.toggle("selected", on);
+      btn.setAttribute("aria-checked", on ? "true" : "false");
+    });
+    $("book-hint").textContent = `Selected: ${book.title}. Topics: ${book.topics}. Grade ${grade}.`;
   }
 
   function refreshBookSelect() {
     const subject = $("subject-select").value;
     const grade = parseInt($("grade-select").value, 10);
-    const sel = $("book-select");
     const list = booksFor(subject, grade);
-    sel.innerHTML = "";
-    if (!list.length) {
-      const opt = document.createElement("option");
-      opt.value = "generic";
-      opt.textContent = "General Study Guide";
-      sel.appendChild(opt);
-      $("book-hint").textContent = "No specific textbook listed — using general grade-level topics.";
-      return;
-    }
-    list.forEach((b, i) => {
-      const opt = document.createElement("option");
-      opt.value = b.id;
-      opt.textContent = b.title;
-      if (i === 0) opt.selected = true;
-      sel.appendChild(opt);
-    });
-    const first = list[0];
-    $("book-hint").textContent = `Topics: ${first.topics}. Matched to Grade ${grade}.`;
-  }
+    const box = $("book-list");
+    const prev = $("book-select").value;
+    box.innerHTML = "";
 
-  function onBookChange() {
-    const subject = $("subject-select").value;
-    const grade = parseInt($("grade-select").value, 10);
-    const book = booksFor(subject, grade).find((b) => b.id === $("book-select").value);
-    if (book) $("book-hint").textContent = `Topics: ${book.topics}. Matched to Grade ${grade}.`;
+    list.forEach((b) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "book-option";
+      btn.setAttribute("role", "radio");
+      btn.setAttribute("data-book-id", b.id);
+      btn.innerHTML = `<strong>${b.title}</strong><small>Grades ${b.grades.join(", ")} · ${b.topics}</small>`;
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        selectBook(b.id);
+      });
+      box.appendChild(btn);
+    });
+
+    const keep = list.some((b) => b.id === prev) ? prev : list[0].id;
+    selectBook(keep);
   }
 
   // ——— RNG / world ———
@@ -1248,7 +1279,6 @@
   // ——— Events ———
   $("subject-select").addEventListener("change", refreshBookSelect);
   $("grade-select").addEventListener("change", refreshBookSelect);
-  $("book-select").addEventListener("change", onBookChange);
   refreshBookSelect();
 
   $("start-form").addEventListener("submit", (e) => {
@@ -1256,9 +1286,13 @@
     const name = $("player-name").value.trim() || "Scholar";
     const subject = $("subject-select").value;
     const grade = parseInt($("grade-select").value, 10);
-    const bookId = $("book-select").value;
-    const book = booksFor(subject, grade).find((b) => b.id === bookId);
-    const bookTitle = book ? book.title : "General Study Guide";
+    const book = selectedBook();
+    if (!book) {
+      showToast("Please select a textbook.", true);
+      return;
+    }
+    const bookId = book.id;
+    const bookTitle = book.title;
     const difficulty = (document.querySelector('input[name="difficulty"]:checked') || {}).value || "easy";
     startGame({ name, subject, grade, bookId, bookTitle, difficulty });
   });
