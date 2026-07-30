@@ -98,7 +98,7 @@
           <button type="submit" class="btn primary" id="btn-start">Enter the Ruins</button>
         </form>
 
-        <p class="hint-keys">Move: WASD / Arrows · Interact: E / Tap · Inventory: I · Menu: Esc</p>
+        <p class="hint-keys">Move: WASD · Interact: E · Attack: LMB · Inventory: I · Esc: Menu</p>
       </div>
     </section>
 
@@ -124,6 +124,14 @@
             <div class="hud-stat" title="Power from tools">
               <span class="hud-label">PWR</span>
               <span id="hud-pwr">0</span>
+            </div>
+            <div class="hud-stat hidden" id="hud-floor-wrap" title="Dungeon floor">
+              <span class="hud-label">FLOOR</span>
+              <span id="hud-floor">1/10</span>
+            </div>
+            <div class="hud-stat" title="Health">
+              <span class="hud-label">HP</span>
+              <span id="hud-hp">100</span>
             </div>
           </div>
           <div class="hud-center">
@@ -155,6 +163,8 @@
         <div id="interact-prompt" class="interact-prompt hidden">
           Press <kbd>E</kbd> / Tap to interact
         </div>
+
+        <div id="combat-hint" class="combat-hint hidden">LMB / Tap monsters to attack · Find chests &amp; stairs</div>
 
         <div id="toast" class="toast hidden" role="status"></div>
 
