@@ -339,6 +339,10 @@ select {
   cursor: crosshair;
 }
 
+#map-modal {
+  z-index: 40;
+}
+
 .hud {
   position: absolute;
   top: 0;

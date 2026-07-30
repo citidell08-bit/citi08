@@ -302,7 +302,7 @@ const QUESTIONS = {
   const miniCanvas = $("minimap-canvas");
   const miniCtx = miniCanvas.getContext("2d", { alpha: false });
   const fullMapCanvas = $("fullmap-canvas");
-  const fullMapCtx = fullMapCanvas.getContext("2d", { alpha: false });
+  const fullMapCtx = fullMapCanvas ? fullMapCanvas.getContext("2d", { alpha: false }) : null;
   ctx.imageSmoothingEnabled = false;
   miniCtx.imageSmoothingEnabled = false;
   if (fullMapCtx) fullMapCtx.imageSmoothingEnabled = false;
@@ -3049,43 +3049,76 @@ const QUESTIONS = {
     return [61, 92, 50];
   }
 
+  function modalEl(id) {
+    return document.getElementById(id);
+  }
+
+  function modalIsOpen(id) {
+    const el = modalEl(id);
+    return !!(el && !el.classList.contains("hidden"));
+  }
+
   function isMapOpen() {
-    return !$("map-modal").classList.contains("hidden");
+    return modalIsOpen("map-modal");
+  }
+
+  function isMapKey(e) {
+    return e.code === "KeyM" || e.key === "m" || e.key === "M";
   }
 
   function openFullMap() {
-    if (!state.running) return;
-    // Close inventory if open (don't leave held item floating)
-    if (!$("inventory-modal").classList.contains("hidden")) {
-      if (state.heldItem) { addItem(state.heldItem); state.heldItem = null; updateHotbarUI(); }
-      closeModal("inventory-modal");
+    if (!state.running) {
+      showToast("Start a run first, then press M for the map.", true);
+      return;
     }
-    if (!$("settings-modal").classList.contains("hidden")) {
-      closeModal("settings-modal");
+    const mapModal = modalEl("map-modal");
+    if (!mapModal) {
+      showToast("Map UI missing — hard-refresh the page.", true);
+      return;
     }
-    mapView.panX = 0;
-    mapView.panY = 0;
-    openModal("map-modal");
-    state.paused = true;
-    $("map-title").textContent = state.dungeon?.active ? `${state.dungeon.name} Map` : "World Map";
-    drawFullMap();
+    try {
+      // Close other overlays first
+      if (modalIsOpen("inventory-modal")) {
+        if (state.heldItem) { addItem(state.heldItem); state.heldItem = null; updateHotbarUI(); }
+        closeModal("inventory-modal");
+      }
+      if (modalIsOpen("settings-modal")) closeModal("settings-modal");
+
+      mapView.panX = 0;
+      mapView.panY = 0;
+      mapModal.classList.remove("hidden");
+      state.paused = true;
+      const title = modalEl("map-title");
+      if (title) title.textContent = state.dungeon?.active ? `${state.dungeon.name} Map` : "World Map";
+      showToast("Map · M to close");
+      // Defer draw so the modal paints immediately
+      requestAnimationFrame(() => {
+        try { drawFullMap(); }
+        catch (err) {
+          console.error("drawFullMap", err);
+          showToast("Map failed to draw — try again.", true);
+        }
+      });
+    } catch (err) {
+      console.error("openFullMap", err);
+      showToast("Could not open map.", true);
+    }
   }
 
   function closeFullMap() {
-    if (!isMapOpen()) return;
-    closeModal("map-modal");
-    if ($("settings-modal").classList.contains("hidden")
-      && $("inventory-modal").classList.contains("hidden")
-      && $("quest-modal").classList.contains("hidden")
-      && $("boss-modal").classList.contains("hidden")
-      && $("result-modal").classList.contains("hidden")
-      && $("dungeon-modal").classList.contains("hidden")) {
+    const mapModal = modalEl("map-modal");
+    if (mapModal) mapModal.classList.add("hidden");
+    if (!modalIsOpen("settings-modal")
+      && !modalIsOpen("inventory-modal")
+      && !modalIsOpen("quest-modal")
+      && !modalIsOpen("boss-modal")
+      && !modalIsOpen("result-modal")
+      && !modalIsOpen("dungeon-modal")) {
       state.paused = false;
     }
   }
 
   function toggleFullMap() {
-    if (!state.running) return;
     if (isMapOpen()) closeFullMap();
     else openFullMap();
   }
@@ -3142,20 +3175,19 @@ const QUESTIONS = {
           // Fog for never-loaded chunks so opening the map doesn't generate the whole world
           const { cx, cy } = worldToChunk(wx, wy);
           if (!state.chunks.has(chunkKey(cx, cy))) {
-            // Soft fog — sample base biome tone without placing structures
             const biome = biomeAt(wx, wy);
             let c = [28, 36, 24];
             if (biome === "desert") c = [50, 44, 30];
             else if (biome === "swamp") c = [22, 32, 28];
             else if (biome === "mountain") c = [40, 40, 42];
             else if (biome === "forest") c = [20, 34, 22];
-            // water-ish from baseTile without ensureChunk
-            const bt = baseTile(wx, wy);
-            if (bt === TILES.WATER) c = [14, 40, 58];
-            data[(y * s + x) * 4] = c[0];
-            data[(y * s + x) * 4 + 1] = c[1];
-            data[(y * s + x) * 4 + 2] = c[2];
-            data[(y * s + x) * 4 + 3] = 255;
+            // Cheap water hint (skip heavy baseTile per pixel)
+            if ((x + y) % 3 === 0) {
+              const bt = baseTile(wx, wy);
+              if (bt === TILES.WATER) c = [14, 40, 58];
+            }
+            const i = (y * s + x) * 4;
+            data[i] = c[0]; data[i + 1] = c[1]; data[i + 2] = c[2]; data[i + 3] = 255;
             continue;
           }
           tile = getOverworldTile(wx, wy);
@@ -3305,6 +3337,8 @@ const QUESTIONS = {
     ensureChunk(0, 0);
     $("start-screen").classList.remove("active");
     $("game-screen").classList.add("active");
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    if (canvas && canvas.focus) try { canvas.focus({ preventScroll: true }); } catch (_) { canvas.focus(); }
     updateInventoryUI();
     updateHotbarUI();
     updateDungeonUI();
@@ -3355,47 +3389,76 @@ const QUESTIONS = {
     startGame({ name, subject, grade, bookId: book.id, bookTitle: book.title, difficulty });
   });
 
-  window.addEventListener("keydown", (e) => {
+  function handleGameKeyDown(e) {
+    // Always track movement keys (code + key for layout safety)
+    if (e.code === "ArrowUp" || e.key === "ArrowUp" || e.code === "KeyW" || e.key === "w" || e.key === "W") state.keys.ArrowUp = state.keys.w = state.keys.W = true;
+    if (e.code === "ArrowDown" || e.key === "ArrowDown" || e.code === "KeyS" || e.key === "s" || e.key === "S") state.keys.ArrowDown = state.keys.s = state.keys.S = true;
+    if (e.code === "ArrowLeft" || e.key === "ArrowLeft" || e.code === "KeyA" || e.key === "a" || e.key === "A") state.keys.ArrowLeft = state.keys.a = state.keys.A = true;
+    if (e.code === "ArrowRight" || e.key === "ArrowRight" || e.code === "KeyD" || e.key === "d" || e.key === "D") state.keys.ArrowRight = state.keys.d = state.keys.D = true;
     state.keys[e.key] = true;
-    if (e.key === "e" || e.key === "E") { e.preventDefault(); tryInteract(); }
-    if (e.key === "h" || e.key === "H") {
+
+    // Don't steal typing from visible form fields on the start screen
+    const tag = (e.target && e.target.tagName) || "";
+    const typing = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || (e.target && e.target.isContentEditable);
+    if (typing && !state.running) return;
+
+    // M = full map (highest priority among gameplay keys)
+    if (isMapKey(e)) {
+      if (modalIsOpen("quest-modal") || modalIsOpen("boss-modal") || modalIsOpen("result-modal")) return;
+      e.preventDefault();
+      e.stopPropagation();
+      toggleFullMap();
+      return;
+    }
+
+    if (e.code === "KeyE" || e.key === "e" || e.key === "E") {
+      if (!state.running || state.paused) return;
+      e.preventDefault();
+      tryInteract();
+      return;
+    }
+    if (e.code === "KeyH" || e.key === "h" || e.key === "H") {
       if (!state.running) return;
-      if (!$("quest-modal").classList.contains("hidden") || !$("boss-modal").classList.contains("hidden")) return;
+      if (modalIsOpen("quest-modal") || modalIsOpen("boss-modal")) return;
       e.preventDefault();
       useBestHeal();
+      return;
     }
-    if (/^[1-9]$/.test(e.key) && state.running) {
+    if (/^[1-9]$/.test(e.key) && state.running && !state.paused) {
       state.hotbarSel = parseInt(e.key, 10) - 1;
       updateHotbarUI();
       const it = state.slots[state.hotbarSel];
       if (it) showToast(`Hand: ${it.name}`);
+      return;
     }
-    if (e.key === "m" || e.key === "M") {
+    if (e.code === "KeyI" || e.key === "i" || e.key === "I") {
       if (!state.running) return;
-      if (!$("quest-modal").classList.contains("hidden") || !$("boss-modal").classList.contains("hidden") || !$("result-modal").classList.contains("hidden")) return;
       e.preventDefault();
-      toggleFullMap();
-    }
-    if (e.key === "i" || e.key === "I") {
-      if (!state.running) return;
-      if (!$("inventory-modal").classList.contains("hidden")) {
-        // Put held item back if closing
+      if (modalIsOpen("inventory-modal")) {
         if (state.heldItem) { addItem(state.heldItem); state.heldItem = null; }
         closeModal("inventory-modal");
+        state.paused = false;
         updateHotbarUI();
-      } else { updateInventoryUI(); openModal("inventory-modal"); }
+      } else {
+        if (isMapOpen()) closeFullMap();
+        updateInventoryUI();
+        openModal("inventory-modal");
+        state.paused = true;
+      }
+      return;
     }
     if (e.key === "Escape") {
-      if (!$("dungeon-modal").classList.contains("hidden")) { cancelPortal(); return; }
-      if (!$("quest-modal").classList.contains("hidden") || !$("boss-modal").classList.contains("hidden") || !$("result-modal").classList.contains("hidden")) return;
+      if (modalIsOpen("dungeon-modal")) { cancelPortal(); return; }
+      if (modalIsOpen("quest-modal") || modalIsOpen("boss-modal") || modalIsOpen("result-modal")) return;
       if (!state.running) return;
       if (isMapOpen()) { closeFullMap(); return; }
-      if (!$("inventory-modal").classList.contains("hidden")) {
+      if (modalIsOpen("inventory-modal")) {
         if (state.heldItem) { addItem(state.heldItem); state.heldItem = null; updateHotbarUI(); }
         closeModal("inventory-modal");
+        state.paused = false;
         return;
       }
-      if (!$("settings-modal").classList.contains("hidden")) {
+      if (modalIsOpen("settings-modal")) {
         closeModal("settings-modal");
         state.paused = false;
       } else {
@@ -3403,8 +3466,19 @@ const QUESTIONS = {
         state.paused = true;
       }
     }
-  });
-  window.addEventListener("keyup", (e) => { state.keys[e.key] = false; });
+  }
+
+  function handleGameKeyUp(e) {
+    if (e.code === "ArrowUp" || e.key === "ArrowUp" || e.code === "KeyW" || e.key === "w" || e.key === "W") state.keys.ArrowUp = state.keys.w = state.keys.W = false;
+    if (e.code === "ArrowDown" || e.key === "ArrowDown" || e.code === "KeyS" || e.key === "s" || e.key === "S") state.keys.ArrowDown = state.keys.s = state.keys.S = false;
+    if (e.code === "ArrowLeft" || e.key === "ArrowLeft" || e.code === "KeyA" || e.key === "a" || e.key === "A") state.keys.ArrowLeft = state.keys.a = state.keys.A = false;
+    if (e.code === "ArrowRight" || e.key === "ArrowRight" || e.code === "KeyD" || e.key === "d" || e.key === "D") state.keys.ArrowRight = state.keys.d = state.keys.D = false;
+    state.keys[e.key] = false;
+  }
+
+  // Capture phase so M works even if focus is on canvas / buttons
+  window.addEventListener("keydown", handleGameKeyDown, true);
+  window.addEventListener("keyup", handleGameKeyUp, true);
 
   $("btn-settings").addEventListener("click", () => { openModal("settings-modal"); state.paused = true; });
   $("btn-inventory").addEventListener("click", () => { updateInventoryUI(); openModal("inventory-modal"); state.paused = true; });
