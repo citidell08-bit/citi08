@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Ruin Scholar — Gamified Study Companion</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- START SCREEN -->
+    <section id="start-screen" class="screen active" aria-label="Start menu">
+      <div class="start-backdrop" aria-hidden="true"></div>
+      <div class="start-panel">
+        <p class="brand">Ruin Scholar</p>
+        <h1 class="tagline">Study the ruins. Survive the trials.</h1>
+        <p class="lede">An infinite pixel wilderness of villages, dungeons, and knowledge. Answer correctly to claim loot — fail, and wake at the gate.</p>
+
+        <form id="start-form" class="start-form">
+          <label class="field">
+            <span>Your name</span>
+            <input type="text" id="player-name" maxlength="16" placeholder="Scholar" autocomplete="off" required />
+          </label>
+
+          <label class="field">
+            <span>Subject to master</span>
+            <select id="subject-select" required>
+              <option value="math">Mathematics</option>
+              <option value="science">Science</option>
+              <option value="history">History</option>
+              <option value="english">English &amp; Literature</option>
+              <option value="geography">Geography</option>
+            </select>
+          </label>
+
+          <fieldset class="difficulty-field">
+            <legend>Difficulty</legend>
+            <div class="diff-grid" role="radiogroup" aria-label="Difficulty">
+              <label class="diff-option">
+                <input type="radio" name="difficulty" value="easy" checked />
+                <span class="diff-card">
+                  <strong>Easy</strong>
+                  <small>Gentle questions · forgiving bosses</small>
+                </span>
+              </label>
+              <label class="diff-option">
+                <input type="radio" name="difficulty" value="medium" />
+                <span class="diff-card">
+                  <strong>Medium</strong>
+                  <small>Solid challenge · fair loot</small>
+                </span>
+              </label>
+              <label class="diff-option">
+                <input type="radio" name="difficulty" value="hard" />
+                <span class="diff-card">
+                  <strong>Hard</strong>
+                  <small>Tough trials · rich rewards</small>
+                </span>
+              </label>
+              <label class="diff-option raid">
+                <input type="radio" name="difficulty" value="raid" />
+                <span class="diff-card">
+                  <strong>Raid</strong>
+                  <small>Brutal · elite loot only</small>
+                </span>
+              </label>
+            </div>
+          </fieldset>
+
+          <button type="submit" class="btn primary" id="btn-start">Enter the Ruins</button>
+        </form>
+
+        <p class="hint-keys">Move: WASD / Arrows · Interact: E / Tap · Menu: Esc</p>
+      </div>
+    </section>
+
+    <!-- GAME SCREEN -->
+    <section id="game-screen" class="screen" aria-label="Game">
+      <div id="game-wrap">
+        <canvas id="game-canvas" width="960" height="540" aria-label="Game world"></canvas>
+
+        <div id="hud" class="hud">
+          <div class="hud-left">
+            <div class="hud-stat" title="Level">
+              <span class="hud-label">LVL</span>
+              <span id="hud-level">1</span>
+            </div>
+            <div class="hud-stat" title="Knowledge points">
+              <span class="hud-label">KP</span>
+              <span id="hud-kp">0</span>
+            </div>
+            <div class="hud-stat" title="Quests completed">
+              <span class="hud-label">QUESTS</span>
+              <span id="hud-quests">0</span>
+            </div>
+          </div>
+          <div class="hud-center">
+            <span id="hud-coords">0, 0</span>
+            <span id="hud-biome">Grassland Ruins</span>
+          </div>
+          <div class="hud-right">
+            <button type="button" class="hud-btn" id="btn-inventory" title="Inventory (I)">Bag</button>
+            <button type="button" class="hud-btn" id="btn-settings" title="Settings (Esc)">⚙</button>
+          </div>
+        </div>
+
+        <div id="minimap" class="minimap" aria-hidden="true">
+          <canvas id="minimap-canvas" width="120" height="120"></canvas>
+        </div>
+
+        <div id="interact-prompt" class="interact-prompt hidden">
+          Press <kbd>E</kbd> / Tap to interact
+        </div>
+
+        <div id="toast" class="toast hidden" role="status"></div>
+
+        <!-- Mobile controls -->
+        <div id="mobile-controls" class="mobile-controls" aria-label="Touch controls">
+          <div class="dpad">
+            <button type="button" data-dir="up" class="pad-btn">▲</button>
+            <div class="dpad-mid">
+              <button type="button" data-dir="left" class="pad-btn">◀</button>
+              <button type="button" data-dir="right" class="pad-btn">▶</button>
+            </div>
+            <button type="button" data-dir="down" class="pad-btn">▼</button>
+          </div>
+          <button type="button" id="btn-interact" class="action-btn">E</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- SETTINGS MODAL -->
+    <div id="settings-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+      <div class="modal-panel">
+        <header class="modal-header">
+          <h2 id="settings-title">Settings</h2>
+          <button type="button" class="modal-close" data-close="settings-modal" aria-label="Close">×</button>
+        </header>
+        <div class="modal-body settings-body">
+          <label class="slider-field">
+            <span>Field of view <em id="fov-value">11</em></span>
+            <input type="range" id="setting-fov" min="7" max="17" step="2" value="11" />
+          </label>
+          <label class="slider-field">
+            <span>Render distance <em id="render-value">6</em> chunks</span>
+            <input type="range" id="setting-render" min="3" max="10" step="1" value="6" />
+          </label>
+          <label class="slider-field">
+            <span>Move speed <em id="speed-value">1.0</em>×</span>
+            <input type="range" id="setting-speed" min="0.6" max="1.6" step="0.1" value="1" />
+          </label>
+          <label class="toggle-field">
+            <input type="checkbox" id="setting-minimap" checked />
+            <span>Show minimap</span>
+          </label>
+          <label class="toggle-field">
+            <input type="checkbox" id="setting-particles" checked />
+            <span>Particle effects</span>
+          </label>
+          <label class="toggle-field">
+            <input type="checkbox" id="setting-mobile" />
+            <span>Force on-screen controls</span>
+          </label>
+          <div class="settings-actions">
+            <button type="button" class="btn ghost" id="btn-resume">Resume</button>
+            <button type="button" class="btn danger" id="btn-quit">Quit to Menu</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- INVENTORY MODAL -->
+    <div id="inventory-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="inv-title">
+      <div class="modal-panel">
+        <header class="modal-header">
+          <h2 id="inv-title">Inventory</h2>
+          <button type="button" class="modal-close" data-close="inventory-modal" aria-label="Close">×</button>
+        </header>
+        <div class="modal-body">
+          <ul id="inventory-list" class="inventory-list"></ul>
+          <p id="inventory-empty" class="muted">Your satchel is empty. Complete quests to earn loot.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- QUEST MODAL -->
+    <div id="quest-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="quest-title">
+      <div class="modal-panel quest-panel">
+        <header class="modal-header">
+          <h2 id="quest-title">Village Trial</h2>
+        </header>
+        <div class="modal-body">
+          <p id="quest-flavor" class="flavor"></p>
+          <div class="question-block">
+            <p id="quest-question" class="question-text"></p>
+            <div id="quest-choices" class="choices"></div>
+          </div>
+          <p id="quest-feedback" class="feedback hidden"></p>
+        </div>
+      </div>
+    </div>
+
+    <!-- BOSS MODAL -->
+    <div id="boss-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="boss-title">
+      <div class="modal-panel boss-panel">
+        <header class="modal-header boss-header">
+          <h2 id="boss-title">Dungeon Guardian</h2>
+          <div id="boss-phase" class="boss-phase">Question 1 / 3</div>
+        </header>
+        <div class="modal-body">
+          <div class="boss-art" aria-hidden="true">
+            <div class="boss-silhouette"></div>
+            <div class="boss-hp">
+              <div id="boss-hp-bar" class="boss-hp-bar"></div>
+            </div>
+          </div>
+          <p id="boss-flavor" class="flavor"></p>
+          <div class="question-block">
+            <p id="boss-question" class="question-text"></p>
+            <div id="boss-choices" class="choices"></div>
+          </div>
+          <p id="boss-feedback" class="feedback hidden"></p>
+        </div>
+      </div>
+    </div>
+
+    <!-- RESULT OVERLAY -->
+    <div id="result-modal" class="modal hidden" role="dialog" aria-modal="true">
+      <div class="modal-panel result-panel">
+        <h2 id="result-title"></h2>
+        <p id="result-body"></p>
+        <button type="button" class="btn primary" id="btn-result-ok">Continue</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
