@@ -55,7 +55,7 @@ export function ensurePuter(): Promise<PuterGlobal> {
       script.addEventListener('load', onReady, { once: true })
       script.addEventListener(
         'error',
-        () => reject(new Error('Could not load ChatGPT (Puter.js)')),
+        () => reject(new Error('Could not load companion brain')),
         { once: true },
       )
 
@@ -146,5 +146,5 @@ export async function askPuterChatGpt(
     }
   }
 
-  throw lastError instanceof Error ? lastError : new Error(String(lastError ?? 'Puter ChatGPT failed'))
+  throw lastError instanceof Error ? lastError : new Error(String(lastError ?? 'Companion brain failed'))
 }

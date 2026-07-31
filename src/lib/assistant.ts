@@ -15,9 +15,9 @@ export interface ChatMessage {
   text: string
   goTo?: Tab
   goLabel?: string
-  /** Where the answer came from, e.g. ChatGPT */
+  /** Optional internal source tag — not shown to the player. */
   source?: string
-  /** In-flight status while waiting on ChatGPT */
+  /** In-flight status while Ember thinks */
   status?: string
 }
 
@@ -93,7 +93,7 @@ export function replyAsAssistant(raw: string, state: GameState): AssistantReply 
 
   if (!q || hasAny(q, ['hi', 'hello', 'hey', 'yo', 'sup', 'hola'])) {
     return {
-      text: `Hey! I'm ${name}, your Cyber Kith study buddy. Ask me about coins, quests, focus, cards, games, streaks, themes — or tap a quick tip below.`,
+      text: `Hey! I'm ${name}. Ask me anything — I know Cyber Kith inside out, and I've got study wisdom when you need it.`,
     }
   }
 

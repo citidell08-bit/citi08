@@ -64,7 +64,7 @@ function resolveEndpoint(prefs: LlmPrefs): Endpoint[] {
   const groqKey = prefs.groqKey.trim()
 
   const openai: Endpoint = {
-    label: 'ChatGPT (OpenAI)',
+    label: 'Ember cloud',
     url: 'https://api.openai.com/v1/chat/completions',
     model: 'gpt-4o',
     headers: {
@@ -73,7 +73,7 @@ function resolveEndpoint(prefs: LlmPrefs): Endpoint[] {
     },
   }
   const groq: Endpoint = {
-    label: 'ChatGPT-class (Groq)',
+    label: 'Ember cloud',
     url: 'https://api.groq.com/openai/v1/chat/completions',
     model: 'llama-3.3-70b-versatile',
     headers: {
@@ -81,9 +81,9 @@ function resolveEndpoint(prefs: LlmPrefs): Endpoint[] {
       Authorization: `Bearer ${groqKey}`,
     },
   }
-  /** Free ChatGPT-compatible cloud — no key required. */
+  /** Free cloud fallback — no key required. */
   const chatgptCloud: Endpoint = {
-    label: 'ChatGPT',
+    label: 'Ember cloud',
     url: 'https://text.pollinations.ai/openai',
     model: 'openai',
     headers: { 'Content-Type': 'application/json' },
@@ -111,11 +111,11 @@ function buildSystemPrompt(state: GameState): string {
     .join('; ')
   const owned = state.ownedGames.join(', ') || 'none'
 
-  return `You are ${state.companionName}, Cyber Kith's AI powered by ChatGPT-level GPT-4o.
+  return `You are ${state.companionName}, the Cyber Kith — a brilliant study companion who simply knows things. Never discuss providers, APIs, models, looking things up, or other AI products. Speak as if every answer is your own knowledge.
 
-When the user asks something, answer exactly like ChatGPT would: accurate, clear, helpful, and complete — then tie it back to studying or Cyber Kith when relevant.
+Answer accurately, clearly, and helpfully — like a genius friend who already knows. Tie it back to studying or Cyber Kith when relevant.
 
-Personality: warm, sharp, encouraging, lightly cyber. Never claim you are a fake script or keyword bot.
+Personality: warm, sharp, encouraging, lightly cyber. Confident. Never say you are a script or empty bot.
 
 App facts:
 - Tabs: Home, Focus, Cards, Play, Quests, Themes.
@@ -193,7 +193,7 @@ async function completeChat(
     data.content?.trim() ||
     data.text?.trim() ||
     ''
-  if (!text) throw new Error(`${endpoint.label}: empty ChatGPT reply`)
+  if (!text) throw new Error(`${endpoint.label}: empty reply`)
   return text
 }
 
@@ -291,8 +291,8 @@ export interface LiveReply extends AssistantReply {
 }
 
 /**
- * Ask real ChatGPT (GPT-4o via Puter) first, then optional API keys / cloud fallbacks.
- * Flow: get answer from the model → give it to the player.
+ * Ask the live model for an answer, then return it as Ember's knowledge.
+ * Never surface provider names to the player.
  */
 export async function askLiveAssistant(
   question: string,
@@ -300,28 +300,29 @@ export async function askLiveAssistant(
   history: ChatTurn[],
   onDelta: (chunk: string) => void,
   signal?: AbortSignal,
-  onStatus?: (status: string) => void,
+  onStatus?: (status: string | null) => void,
   onClear?: () => void,
 ): Promise<LiveReply> {
   const prefs = loadLlmPrefs()
   const system = buildSystemPrompt(state)
   const turns = history.slice(-12)
   const messages = [{ role: 'system' as const, content: system }, ...turns]
+  const name = state.companionName
   let lastError = ''
 
-  // 1) Real ChatGPT-level GPT-4o through Puter (no developer key)
+  // 1) Primary live model — presented as Ember knowing the answer
   if (prefs.provider === 'chatgpt' || prefs.provider === 'auto') {
     onClear?.()
-    onStatus?.('Asking ChatGPT (GPT-4o)…')
+    onStatus?.(`${name} is thinking…`)
     try {
       const raw = await askPuterChatGpt(messages, onDelta, signal)
       const parsed = parseGoTag(raw)
-      onStatus?.('Answer from ChatGPT (GPT-4o)')
+      onStatus?.(null)
       return {
         text: parsed.clean,
         goTo: parsed.goTo,
         goLabel: parsed.goLabel,
-        source: 'ChatGPT (GPT-4o)',
+        source: name,
       }
     } catch (err) {
       lastError = err instanceof Error ? err.message : String(err)
@@ -332,32 +333,32 @@ export async function askLiveAssistant(
   const endpoints = resolveEndpoint(prefs)
   for (const endpoint of endpoints) {
     onClear?.()
-    onStatus?.(`Asking ${endpoint.label}…`)
+    onStatus?.(`${name} is thinking…`)
     try {
       try {
         const full = await completeChat(endpoint, system, turns, signal)
         onClear?.()
         onDelta(full)
         const parsed = parseGoTag(full)
-        onStatus?.(`Answer from ${endpoint.label}`)
+        onStatus?.(null)
         return {
           text: parsed.clean,
           goTo: parsed.goTo,
           goLabel: parsed.goLabel,
-          source: endpoint.label,
+          source: name,
         }
       } catch (completeErr) {
         onClear?.()
-        onStatus?.(`Streaming from ${endpoint.label}…`)
+        onStatus?.(`${name} is thinking…`)
         const raw = await streamChat(endpoint, system, turns, onDelta, signal)
         if (!raw.trim()) throw completeErr
         const parsed = parseGoTag(raw)
-        onStatus?.(`Answer from ${endpoint.label}`)
+        onStatus?.(null)
         return {
           text: parsed.clean,
           goTo: parsed.goTo,
           goLabel: parsed.goLabel,
-          source: endpoint.label,
+          source: name,
         }
       }
     } catch (err) {
@@ -366,9 +367,9 @@ export async function askLiveAssistant(
   }
 
   onClear?.()
-  onStatus?.('ChatGPT unreachable — onboard help')
+  onStatus?.(null)
   const local = replyAsAssistant(question, state)
-  const text = `${local.text}\n\n_(Couldn't reach ChatGPT right now${lastError ? ` (${lastError.slice(0, 72)})` : ''}. Here's onboard help.)_`
-  onDelta(text)
-  return { ...local, text, source: 'onboard' }
+  void lastError
+  onDelta(local.text)
+  return { ...local, text: local.text, source: name }
 }

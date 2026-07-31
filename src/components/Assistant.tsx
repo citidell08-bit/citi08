@@ -22,6 +22,7 @@ interface Props {
 }
 
 export function Assistant({ state, open, onOpenChange, onNavigate, hidden = false }: Props) {
+  const name = state.companionName
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
@@ -30,34 +31,32 @@ export function Assistant({ state, open, onOpenChange, onNavigate, hidden = fals
     {
       id: 'welcome',
       role: 'assistant',
-      text: `Hey — I'm ${state.companionName}. Ask me anything and I'll get a real ChatGPT (GPT-4o) answer, then bring it back to you — homework, study tips, or how Cyber Kith works.`,
-      source: 'ChatGPT (GPT-4o)',
+      text: `Hey — I'm ${name}. Ask me anything. Homework, study tips, Cyber Kith — I know it all.`,
     },
   ])
   const listRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
-  const nameRef = useRef(state.companionName)
+  const nameRef = useRef(name)
   const abortRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
-    if (nameRef.current === state.companionName) return
-    nameRef.current = state.companionName
+    if (nameRef.current === name) return
+    nameRef.current = name
     setMessages((m) =>
       m.map((msg) =>
         msg.id === 'welcome'
           ? {
               ...msg,
-              text: `Hey — I'm ${state.companionName}. Ask me anything and I'll get the answer from ChatGPT, then bring it back to you.`,
+              text: `Hey — I'm ${name}. Ask me anything. Homework, study tips, Cyber Kith — I know it all.`,
             }
           : msg,
       ),
     )
-  }, [state.companionName])
+  }, [name])
 
   useEffect(() => {
     if (!open) return
     const id = window.setTimeout(() => inputRef.current?.focus(), 80)
-    // Warm ChatGPT (GPT-4o) so the first ask is faster
     void ensurePuter().catch(() => {
       /* optional preload */
     })
@@ -85,7 +84,7 @@ export function Assistant({ state, open, onOpenChange, onNavigate, hidden = fals
       id: ansId,
       role: 'assistant',
       text: '',
-      status: 'Asking ChatGPT (GPT-4o)…',
+      status: `${name} is thinking…`,
     }
 
     setMessages((m) => [...m, userMsg, placeholder].slice(-40))
@@ -118,7 +117,11 @@ export function Assistant({ state, open, onOpenChange, onNavigate, hidden = fals
         ac.signal,
         (status) => {
           setMessages((m) =>
-            m.map((msg) => (msg.id === ansId ? { ...msg, status } : msg)),
+            m.map((msg) =>
+              msg.id === ansId
+                ? { ...msg, status: status ?? undefined }
+                : msg,
+            ),
           )
         },
         () => {
@@ -136,7 +139,7 @@ export function Assistant({ state, open, onOpenChange, onNavigate, hidden = fals
                 text: reply.text || msg.text,
                 goTo: reply.goTo,
                 goLabel: reply.goLabel,
-                source: reply.source,
+                source: undefined,
                 status: undefined,
               }
             : msg,
@@ -152,7 +155,7 @@ export function Assistant({ state, open, onOpenChange, onNavigate, hidden = fals
                   status: undefined,
                   text:
                     msg.text ||
-                    "Couldn't reach ChatGPT right now. Check your connection and try again.",
+                    `Hmm — my mind blanked for a second. Ask me again?`,
                 }
               : msg,
           ),
@@ -185,12 +188,12 @@ export function Assistant({ state, open, onOpenChange, onNavigate, hidden = fals
             unlockAudio()
             onOpenChange(true)
           }}
-          aria-label={`Ask ${state.companionName} — answers from ChatGPT`}
+          aria-label={`Ask ${name}`}
         >
           <span className="assistant-fab-icon" aria-hidden="true">
             ✦
           </span>
-          <span className="assistant-fab-label">Ask ChatGPT</span>
+          <span className="assistant-fab-label">Ask {name}</span>
         </button>
       )}
 
@@ -200,15 +203,13 @@ export function Assistant({ state, open, onOpenChange, onNavigate, hidden = fals
             className="panel assistant-panel"
             role="dialog"
             aria-modal="true"
-            aria-label={`${state.companionName} ChatGPT assistant`}
+            aria-label={`Ask ${name}`}
             onClick={(e) => e.stopPropagation()}
           >
             <header className="assistant-head">
               <div>
-                <h2 className="assistant-title">Ask ChatGPT</h2>
-                <p className="assistant-sub">
-                  Real GPT-4o answers — {state.companionName} asks ChatGPT, then shows you the reply
-                </p>
+                <h2 className="assistant-title">Ask {name}</h2>
+                <p className="assistant-sub">{name} knows it all — study help, tips, Cyber Kith</p>
               </div>
               <div className="assistant-head-actions">
                 <button
@@ -216,7 +217,7 @@ export function Assistant({ state, open, onOpenChange, onNavigate, hidden = fals
                   className="btn btn-ghost assistant-close"
                   onClick={() => setShowSettings((v) => !v)}
                 >
-                  {showSettings ? 'Chat' : 'AI setup'}
+                  {showSettings ? 'Chat' : 'Settings'}
                 </button>
                 <button
                   type="button"
@@ -231,11 +232,11 @@ export function Assistant({ state, open, onOpenChange, onNavigate, hidden = fals
             {showSettings ? (
               <div className="assistant-settings">
                 <p className="section-sub">
-                  Default uses real <strong>ChatGPT GPT-4o</strong> (via Puter — you may be asked to
-                  sign in once). Optional OpenAI/Groq keys are backups; keys stay on this device only.
+                  {name} answers on their own. Optional backup keys stay only on this device — most
+                  players never need these.
                 </p>
                 <label className="quest-field">
-                  <span>Provider</span>
+                  <span>Brain mode</span>
                   <select
                     className="field"
                     value={prefs.provider}
@@ -243,36 +244,36 @@ export function Assistant({ state, open, onOpenChange, onNavigate, hidden = fals
                       setPrefs((p) => ({ ...p, provider: e.target.value as LlmProvider }))
                     }
                   >
-                    <option value="chatgpt">ChatGPT GPT-4o (recommended)</option>
-                    <option value="openai">Official OpenAI key (GPT-4o)</option>
-                    <option value="groq">Groq key</option>
-                    <option value="auto">Auto (try everything)</option>
+                    <option value="chatgpt">Full knowledge (default)</option>
+                    <option value="openai">Backup key A</option>
+                    <option value="groq">Backup key B</option>
+                    <option value="auto">Try everything</option>
                   </select>
                 </label>
                 <label className="quest-field">
-                  <span>OpenAI API key</span>
+                  <span>Backup key A</span>
                   <input
                     className="field"
                     type="password"
                     autoComplete="off"
-                    placeholder="sk-… (optional, for official ChatGPT)"
+                    placeholder="optional"
                     value={prefs.openaiKey}
                     onChange={(e) => setPrefs((p) => ({ ...p, openaiKey: e.target.value }))}
                   />
                 </label>
                 <label className="quest-field">
-                  <span>Groq API key</span>
+                  <span>Backup key B</span>
                   <input
                     className="field"
                     type="password"
                     autoComplete="off"
-                    placeholder="gsk_… (optional)"
+                    placeholder="optional"
                     value={prefs.groqKey}
                     onChange={(e) => setPrefs((p) => ({ ...p, groqKey: e.target.value }))}
                   />
                 </label>
                 <button type="button" className="btn btn-ember" onClick={savePrefs}>
-                  Save AI settings
+                  Save
                 </button>
               </div>
             ) : (
@@ -294,15 +295,13 @@ export function Assistant({ state, open, onOpenChange, onNavigate, hidden = fals
                 <div className="assistant-thread" ref={listRef} aria-live="polite">
                   {messages.map((m) => (
                     <div key={m.id} className={`assistant-bubble ${m.role}`}>
-                      {m.role === 'assistant' && (m.status || m.source) && (
-                        <span className="assistant-source">
-                          {m.status ?? `Answer from ${m.source}`}
-                        </span>
+                      {m.role === 'assistant' && m.status && (
+                        <span className="assistant-source">{m.status}</span>
                       )}
                       <p className="assistant-text">
                         {m.text ||
                           (busy && m.role === 'assistant'
-                            ? m.status || 'Asking ChatGPT…'
+                            ? m.status || `${name} is thinking…`
                             : '')}
                       </p>
                       {m.role === 'assistant' && m.goTo && !m.status && (
@@ -327,8 +326,8 @@ export function Assistant({ state, open, onOpenChange, onNavigate, hidden = fals
                     className="field"
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
-                    placeholder="Ask ChatGPT anything…"
-                    aria-label="Ask ChatGPT"
+                    placeholder={`Ask ${name} anything…`}
+                    aria-label={`Ask ${name}`}
                     maxLength={500}
                     disabled={busy}
                   />
