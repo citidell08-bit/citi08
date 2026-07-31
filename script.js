@@ -291,7 +291,7 @@ const QUESTIONS = {
     overworldReturn: { x: 8.5, y: 8.5 },
     player: { x: 8.5, y: 8.5, facing: 0 },
     keys: Object.create(null),
-    settings: { fov: 11, renderDist: 6, speed: 1, minimap: true, particles: true, sound: true, music: true, sfxVolume: 0.75, forceMobile: false },
+    settings: { fov: 11, renderDist: 6, speed: 1, minimap: true, particles: true, sound: true, music: true, sfxVolume: 1, forceMobile: false },
     floatTexts: [],
     drinkSfxCd: 0,
     chunks: new Map(),
@@ -340,7 +340,7 @@ const QUESTIONS = {
     let ac = null;
     let master = null;
     let ambBus = null;
-    let pendingVol = 0.75;
+    let pendingVol = 1;
     let ambMode = null; // "dungeon" | "forest" | "none"
     let ambMoving = false;
     let ambNodes = [];
@@ -348,13 +348,15 @@ const QUESTIONS = {
     let ambGains = {};
     let forestRustleGain = null;
     let lastSyncKey = "";
+    let resumePromise = null;
+    const htmlCache = Object.create(null);
 
     function applyMasterGain() {
       if (!master) return;
       const on = state.settings.sound !== false;
       const v = Math.max(0, Math.min(1, pendingVol));
-      // Keep SFX punchy over ambient beds
-      master.gain.value = on ? 0.9 * v : 0;
+      // Full punch — combat SFX must cut through
+      master.gain.value = on ? 1.0 * v : 0;
     }
 
     function ensure() {
@@ -367,11 +369,19 @@ const QUESTIONS = {
           applyMasterGain();
           master.connect(ac.destination);
           ambBus = ac.createGain();
-          ambBus.gain.value = 0.9;
+          ambBus.gain.value = 0.55; // keep ambience quieter than combat SFX
           ambBus.connect(master);
         }
         if (ac.state === "suspended") {
-          ac.resume().catch(() => {});
+          if (!resumePromise) {
+            resumePromise = ac.resume().then(() => {
+              resumePromise = null;
+              return ac;
+            }).catch(() => {
+              resumePromise = null;
+              return ac;
+            });
+          }
         }
         return ac;
       } catch (_) {
@@ -379,10 +389,17 @@ const QUESTIONS = {
       }
     }
 
-    function unlock() { ensure(); }
+    function unlock() {
+      const ctx = ensure();
+      if (!ctx) return Promise.resolve(null);
+      if (ctx.state === "suspended") {
+        return (resumePromise || ctx.resume().catch(() => ctx)).then(() => ctx);
+      }
+      return Promise.resolve(ctx);
+    }
 
     function enabled() {
-      return !!(state.settings.sound && (state.settings.sfxVolume ?? pendingVol) > 0.01);
+      return state.settings.sound !== false && (state.settings.sfxVolume ?? pendingVol) > 0.01;
     }
 
     function musicOn() {
@@ -412,10 +429,21 @@ const QUESTIONS = {
       if (!on) stopAmbience(true);
     }
 
-    function tone(freq, dur, type, gain, delay = 0, freqEnd = null, dest = null) {
-      try {
-        const ctx = ensure();
+    /** Run Web Audio graph only after context is running (fixes silent first clicks). */
+    function whenReady(fn) {
+      if (!enabled()) return;
+      unlock().then((ctx) => {
         if (!ctx || !enabled() || !master) return;
+        if (ctx.state === "suspended") {
+          ctx.resume().then(() => { try { fn(ctx); } catch (_) {} }).catch(() => {});
+          return;
+        }
+        try { fn(ctx); } catch (_) {}
+      });
+    }
+
+    function tone(freq, dur, type, gain, delay = 0, freqEnd = null, dest = null) {
+      whenReady((ctx) => {
         const t0 = ctx.currentTime + delay;
         const o = ctx.createOscillator();
         const g = ctx.createGain();
@@ -426,19 +454,17 @@ const QUESTIONS = {
         }
         const v = Math.max(0.0001, gain * level());
         g.gain.setValueAtTime(0.0001, t0);
-        g.gain.exponentialRampToValueAtTime(v, t0 + 0.012);
+        g.gain.exponentialRampToValueAtTime(v, t0 + 0.008);
         g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
         o.connect(g);
         g.connect(dest || master);
         o.start(t0);
         o.stop(t0 + dur + 0.03);
-      } catch (_) { /* never break gameplay for audio */ }
+      });
     }
 
     function noiseBurst(dur, gain, filterFreq = 1800, delay = 0, dest = null) {
-      try {
-        const ctx = ensure();
-        if (!ctx || !enabled() || !master) return;
+      whenReady((ctx) => {
         const n = Math.max(1, Math.floor(ctx.sampleRate * Math.max(0.01, dur)));
         const buf = ctx.createBuffer(1, n, ctx.sampleRate);
         const data = buf.getChannelData(0);
@@ -458,7 +484,81 @@ const QUESTIONS = {
         g.connect(dest || master);
         src.start(t0);
         src.stop(t0 + Math.max(0.01, dur) + 0.02);
-      } catch (_) { /* never break gameplay for audio */ }
+      });
+    }
+
+    /** Tiny WAV builder for HTMLAudio fallback (works even if AudioContext is blocked). */
+    function wavUriFromSamples(samples, sampleRate) {
+      const n = samples.length;
+      const buf = new ArrayBuffer(44 + n * 2);
+      const view = new DataView(buf);
+      const writeStr = (off, s) => { for (let i = 0; i < s.length; i++) view.setUint8(off + i, s.charCodeAt(i)); };
+      writeStr(0, "RIFF");
+      view.setUint32(4, 36 + n * 2, true);
+      writeStr(8, "WAVE");
+      writeStr(12, "fmt ");
+      view.setUint32(16, 16, true);
+      view.setUint16(20, 1, true);
+      view.setUint16(22, 1, true);
+      view.setUint32(24, sampleRate, true);
+      view.setUint32(28, sampleRate * 2, true);
+      view.setUint16(32, 2, true);
+      view.setUint16(34, 16, true);
+      writeStr(36, "data");
+      view.setUint32(40, n * 2, true);
+      let o = 44;
+      for (let i = 0; i < n; i++) {
+        const s = Math.max(-1, Math.min(1, samples[i]));
+        view.setInt16(o, (s * 32767) | 0, true);
+        o += 2;
+      }
+      const bytes = new Uint8Array(buf);
+      let bin = "";
+      for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+      return `data:audio/wav;base64,${btoa(bin)}`;
+    }
+
+    function buildSlashSamples() {
+      const sr = 22050;
+      const n = Math.floor(sr * 0.28);
+      const out = new Float32Array(n);
+      for (let i = 0; i < n; i++) {
+        const t = i / sr;
+        const env = Math.exp(-t * 9) * (1 - t / 0.28);
+        const whoosh = (Math.random() * 2 - 1) * Math.exp(-t * 14) * 0.55;
+        const shing = Math.sin(2 * Math.PI * (1800 - t * 4200) * t) * Math.exp(-t * 18) * 0.85;
+        const ring = Math.sin(2 * Math.PI * 2400 * t) * Math.exp(-t * 12) * 0.35;
+        out[i] = (whoosh + shing + ring) * env;
+      }
+      return wavUriFromSamples(out, sr);
+    }
+
+    function buildBowSamples() {
+      const sr = 22050;
+      const n = Math.floor(sr * 0.32);
+      const out = new Float32Array(n);
+      for (let i = 0; i < n; i++) {
+        const t = i / sr;
+        const pull = Math.sin(2 * Math.PI * 120 * t) * Math.exp(-t * 25) * 0.4;
+        const twang = Math.sin(2 * Math.PI * (520 + t * 200) * t) * Math.exp(-t * 10) * 0.9;
+        const twang2 = Math.sin(2 * Math.PI * 980 * t) * Math.exp(-t * 14) * 0.45;
+        const whoosh = (Math.random() * 2 - 1) * Math.exp(-Math.max(0, t - 0.04) * 16) * (t > 0.03 ? 0.5 : 0.1);
+        out[i] = pull + twang + twang2 + whoosh;
+      }
+      return wavUriFromSamples(out, sr);
+    }
+
+    function playHtml(kind, volScale = 1) {
+      if (!enabled()) return;
+      try {
+        if (!htmlCache[kind]) {
+          htmlCache[kind] = kind === "bow" ? buildBowSamples() : buildSlashSamples();
+        }
+        const a = new Audio(htmlCache[kind]);
+        a.volume = Math.max(0.05, Math.min(1, level() * volScale));
+        const p = a.play();
+        if (p && typeof p.catch === "function") p.catch(() => {});
+      } catch (_) { /* ignore */ }
     }
 
     function makeNoiseBuffer(seconds, color = "white") {
@@ -654,39 +754,45 @@ const QUESTIONS = {
     }
 
     function swordSlash() {
-      // Loud whoosh + metallic “SHING” — unmistakable on every swing
-      noiseBurst(0.14, 0.55, 1800);
-      noiseBurst(0.1, 0.35, 3200, 0.02);
-      tone(1400, 0.18, "sawtooth", 0.28, 0.01, 320);
-      tone(2200, 0.22, "triangle", 0.24, 0.02, 480);
-      tone(3400, 0.16, "sine", 0.18, 0.03, 800);
-      tone(4800, 0.12, "sine", 0.12, 0.04, 1200);
+      // HTMLAudio first (instant, gesture-safe) + Web Audio layer for richness
+      playHtml("slash", 1);
+      unlock();
+      noiseBurst(0.16, 0.85, 1600);
+      noiseBurst(0.12, 0.65, 3200, 0.015);
+      tone(1600, 0.2, "sawtooth", 0.55, 0.01, 280);
+      tone(2400, 0.24, "triangle", 0.45, 0.02, 420);
+      tone(3600, 0.18, "sine", 0.35, 0.03, 700);
+      tone(5200, 0.14, "sine", 0.22, 0.04, 1100);
     }
 
     function swordHit() {
-      noiseBurst(0.09, 0.55, 900);
-      tone(180, 0.12, "square", 0.28, 0, 60);
-      tone(900, 0.14, "triangle", 0.2, 0.01, 200);
+      playHtml("slash", 0.7);
+      noiseBurst(0.1, 0.8, 900);
+      tone(180, 0.14, "square", 0.45, 0, 55);
+      tone(900, 0.16, "triangle", 0.35, 0.01, 180);
     }
 
     function fist() {
-      noiseBurst(0.08, 0.4, 420);
-      tone(110, 0.1, "sine", 0.3, 0, 45);
+      // Still a clear swing whoosh so clicks are never silent
+      playHtml("slash", 0.55);
+      noiseBurst(0.1, 0.55, 500);
+      tone(120, 0.12, "sine", 0.4, 0, 40);
     }
 
     function bow() {
-      // Bowstring pull + sharp twang + arrow whoosh
-      tone(140, 0.08, "triangle", 0.22, 0, 90);
-      noiseBurst(0.1, 0.5, 2400, 0.02);
-      tone(520, 0.14, "sine", 0.32, 0.03, 180);
-      tone(980, 0.12, "triangle", 0.22, 0.06, 360);
-      noiseBurst(0.12, 0.35, 1400, 0.05);
+      playHtml("bow", 1);
+      unlock();
+      tone(130, 0.1, "triangle", 0.4, 0, 80);
+      noiseBurst(0.12, 0.75, 2200, 0.015);
+      tone(560, 0.16, "sine", 0.55, 0.03, 160);
+      tone(1100, 0.14, "triangle", 0.4, 0.06, 320);
+      noiseBurst(0.14, 0.55, 1200, 0.05);
     }
 
     function bowDry() {
-      // Soft misfire / out-of-range cue so bow still “makes sound”
-      tone(200, 0.08, "triangle", 0.16, 0, 120);
-      noiseBurst(0.06, 0.2, 1800);
+      playHtml("bow", 0.35);
+      tone(200, 0.09, "triangle", 0.28, 0, 110);
+      noiseBurst(0.07, 0.35, 1800);
     }
 
     function footstep(surface) {
@@ -3125,10 +3231,11 @@ const QUESTIONS = {
     state.hitCd = hasWeapon ? 0.38 : 0.32;
     state.attackAnim = 0.32;
     state.attackArc = range;
-    SFX.unlock();
-    // Always play a clear swing sound
-    if (hasWeapon) SFX.swordSlash();
-    else SFX.fist();
+    // ALWAYS play slash whoosh/shing on every swing (weapon or fists)
+    try {
+      if (hasWeapon) SFX.swordSlash();
+      else SFX.fist();
+    } catch (_) {}
     let hitAny = false;
     const mobs = iterCombatMobs();
     for (const m of mobs) {
@@ -3155,9 +3262,8 @@ const QUESTIONS = {
     if (state.drinkAnim > 0) { showToast("Drinking…"); return false; }
     if (isBlocking()) { showToast("Lower shield to shoot (release F / 🛡)"); return false; }
     if (!bow || state.paused) return false;
-    SFX.unlock();
     if (state.hitCd > 0) {
-      SFX.bowDry();
+      try { SFX.bowDry(); } catch (_) {}
       return false;
     }
     const dx = tx - state.player.x, dy = ty - state.player.y;
@@ -3166,7 +3272,7 @@ const QUESTIONS = {
     state.player.facing = Math.atan2(dy, dx);
     if (dist > range + 0.5) {
       showToast("Out of bow range — click farther / closer target!");
-      SFX.bowDry();
+      try { SFX.bowDry(); } catch (_) {}
       return false;
     }
     state.hitCd = 0.45;
@@ -3179,7 +3285,8 @@ const QUESTIONS = {
       kind: "arrow",
     });
     spawnParticles(state.player.x, state.player.y, 4, "spark");
-    SFX.bow();
+    // ALWAYS play bow twang on a successful shot
+    try { SFX.bow(); } catch (_) {}
     return true;
   }
 
@@ -3267,6 +3374,7 @@ const QUESTIONS = {
 
   function handleCanvasClick(e) {
     if (!state.running || state.paused) return;
+    try { SFX.unlock(); } catch (_) {}
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
