@@ -351,6 +351,8 @@ const QUESTIONS = {
   const MELEE_CHARGE_MAX = 0.7;  // hold time for full sword power
   const SPELL_CHARGE_MAX = 0.8;  // hold time for full spell power
   const QUAKE_CHARGE_MAX = 0.9;  // hold time for full Earthshatter
+  const ROCK_CHARGE_MAX = 0.75;  // hold time for meteor rock throw
+  const ROCK_STACK_MAX = 64;
 
 
   const $ = (id) => document.getElementById(id);
@@ -1899,11 +1901,11 @@ const QUESTIONS = {
       const gr = state.dungeon.gateRank || "E";
       $("hud-floor").textContent = `${state.dungeon.floor}/10`;
       $("hud-biome").textContent = `${gr}-Rank · ${state.dungeon.name} · ${FLOOR_THEMES[state.dungeon.floor - 1].name}`;
-      $("combat-hint").textContent = `${gr}-Rank · Fl.${state.dungeon.floor}/10 · Pick=V Earthshatter · Z/X/C · F/🛡 · E`;
+      $("combat-hint").textContent = `${gr}-Rank · Fl.${state.dungeon.floor}/10 · V quake · rocks throw · Z/X/C · F/🛡 · E`;
     } else {
       $("hud-biome").textContent = BIOME_NAMES[biomeAt(Math.floor(state.player.x), Math.floor(state.player.y))] || "Grassland Ruins";
       if ($("combat-hint")) {
-        $("combat-hint").textContent = "Pickaxe: HOLD attack/V = EARTHSHATTER · Z/X/C spells · F/🛡 BLOCK · E";
+        $("combat-hint").textContent = "Pick=V Earthshatter → rocks · hold rocks to throw/METEOR · Z/X/C · F/🛡 · E";
       }
     }
     updateBlockUI();
@@ -2057,8 +2059,104 @@ const QUESTIONS = {
     state.inventory = state.slots.filter(Boolean);
   }
 
+  function isRockItem(it) {
+    return !!(it && (it.key === "stone_chunk" || it.throwable === "rock"));
+  }
+
+  function makeStoneChunk(count = 1) {
+    return {
+      key: "stone_chunk",
+      name: "Ruin Rock",
+      type: "material",
+      rarity: "common",
+      uid: uid(),
+      slot: null,
+      count: Math.max(1, count | 0),
+      throwable: "rock",
+    };
+  }
+
+  /** Stack Ruin Rocks into existing piles (max 64), then fill empty slots. */
+  function addStoneChunks(n) {
+    let left = Math.max(0, Math.floor(Number(n) || 0));
+    if (left <= 0) return 0;
+    let added = 0;
+    for (let i = 0; i < INV_SIZE && left > 0; i++) {
+      const it = state.slots[i];
+      if (!isRockItem(it)) continue;
+      const have = it.count || 1;
+      if (have >= ROCK_STACK_MAX) continue;
+      const space = ROCK_STACK_MAX - have;
+      const take = Math.min(space, left);
+      it.count = have + take;
+      left -= take;
+      added += take;
+    }
+    while (left > 0) {
+      let placed = false;
+      for (let i = 0; i < INV_SIZE; i++) {
+        if (state.slots[i]) continue;
+        const take = Math.min(ROCK_STACK_MAX, left);
+        state.slots[i] = makeStoneChunk(take);
+        left -= take;
+        added += take;
+        placed = true;
+        break;
+      }
+      if (!placed) {
+        if (added === 0) showToast("Inventory full!", true);
+        else showToast("Inventory full — some rocks dropped!", true);
+        break;
+      }
+    }
+    if (added > 0) {
+      syncInventoryMirror();
+      updateHotbarUI();
+      updateInventoryUI();
+    }
+    return added;
+  }
+
+  function countRocks() {
+    let n = 0;
+    for (const it of state.slots) {
+      if (isRockItem(it)) n += it.count || 1;
+    }
+    return n;
+  }
+
+  /** Consume one rock from the hotbar hand (or any stack). Returns true if spent. */
+  function consumeOneRock(preferHand = true) {
+    const trySlot = (i) => {
+      const it = state.slots[i];
+      if (!isRockItem(it)) return false;
+      const have = it.count || 1;
+      if (have <= 1) state.slots[i] = null;
+      else it.count = have - 1;
+      return true;
+    };
+    if (preferHand && trySlot(state.hotbarSel)) {
+      syncInventoryMirror();
+      updateHotbarUI();
+      return true;
+    }
+    for (let i = 0; i < INV_SIZE; i++) {
+      if (trySlot(i)) {
+        syncInventoryMirror();
+        updateHotbarUI();
+        return true;
+      }
+    }
+    return false;
+  }
+
   function addItem(item) {
     if (!item) return false;
+    // Auto-stack rocks
+    if (isRockItem(item)) {
+      const n = item.count || 1;
+      return addStoneChunks(n) > 0;
+    }
     for (let i = 0; i < INV_SIZE; i++) {
       if (!state.slots[i]) {
         state.slots[i] = item;
@@ -2104,8 +2202,12 @@ const QUESTIONS = {
       el.appendChild(stack);
     }
     if (item) {
-      stack.innerHTML = `<span class="mc-ico">${item.type === "material" ? "🪨" : itemIcon(item)}</span>`;
-      el.title = item.name + (item.rarity ? ` (${item.rarity})` : "");
+      const cnt = item.count || 1;
+      const countHtml = cnt > 1 ? `<span class="mc-count">${cnt}</span>` : "";
+      stack.innerHTML = `<span class="mc-ico">${item.type === "material" || isRockItem(item) ? "🪨" : itemIcon(item)}</span>${countHtml}`;
+      let tip = item.name + (item.rarity ? ` (${item.rarity})` : "");
+      if (isRockItem(item)) tip += ` ×${cnt} · throw LMB/Space · hold = METEOR`;
+      el.title = tip;
       el.classList.add(`rarity-${item.rarity || "common"}`);
     } else {
       stack.innerHTML = "";
@@ -2160,12 +2262,30 @@ const QUESTIONS = {
       return;
     }
     cur.classList.remove("hidden");
-    cur.innerHTML = `<span class="mc-ico">${state.heldItem.type === "material" ? "🪨" : itemIcon(state.heldItem)}</span>`;
+    const cnt = state.heldItem.count || 1;
+    const countHtml = cnt > 1 ? `<span class="mc-count">${cnt}</span>` : "";
+    cur.innerHTML = `<span class="mc-ico">${state.heldItem.type === "material" || isRockItem(state.heldItem) ? "🪨" : itemIcon(state.heldItem)}</span>${countHtml}`;
   }
 
   function clickInvSlot(index) {
     const inSlot = state.slots[index];
     if (state.heldItem) {
+      // Merge rock stacks when placing onto rocks
+      if (isRockItem(state.heldItem) && isRockItem(inSlot)) {
+        const have = inSlot.count || 1;
+        const bring = state.heldItem.count || 1;
+        const space = ROCK_STACK_MAX - have;
+        if (space > 0) {
+          const take = Math.min(space, bring);
+          inSlot.count = have + take;
+          const left = bring - take;
+          state.heldItem = left > 0 ? { ...state.heldItem, count: left, uid: uid() } : null;
+          syncInventoryMirror();
+          updateInventoryUI();
+          updateHotbarUI();
+          return;
+        }
+      }
       // place / swap
       state.slots[index] = state.heldItem;
       state.heldItem = inSlot || null;
@@ -3312,12 +3432,17 @@ const QUESTIONS = {
     return !!(getCombatBow() && !getCombatWeapon());
   }
 
+  /** Hotbar hand is Ruin Rocks → throwable meteor ammo */
+  function wantsRockThrow() {
+    return isRockItem(getHandItem());
+  }
+
   /** Pickaxe in hand (or tool slot with no weapon/bow held) → Earthshatter attacks */
   function wantsPickAttack() {
-    if (wantsBowAttack()) return false;
+    if (wantsRockThrow() || wantsBowAttack()) return false;
     const hand = getHandItem();
     if (hand && isMineTool(hand)) return true;
-    if (hand && (hand.slot === "weapon" || hand.slot === "bow" || hand.slot === "book")) return false;
+    if (hand && (hand.slot === "weapon" || hand.slot === "bow" || hand.slot === "book" || isRockItem(hand))) return false;
     return !!getCombatPick() && !getCombatWeapon();
   }
 
@@ -3398,18 +3523,29 @@ const QUESTIONS = {
       }
       state.mineTarget = null;
     }
+    if (kind === "rock") {
+      if (!wantsRockThrow() && countRocks() <= 0) {
+        showToast("No Ruin Rocks to throw!", true);
+        return false;
+      }
+    }
     const aimX = tx ?? (state.player.x + Math.cos(state.player.facing || 0) * 3.5);
     const aimY = ty ?? (state.player.y + Math.sin(state.player.facing || 0) * 3.5);
+    const max =
+      kind === "bow" ? BOW_CHARGE_MAX
+        : kind === "pick" ? QUAKE_CHARGE_MAX
+          : kind === "rock" ? ROCK_CHARGE_MAX
+            : MELEE_CHARGE_MAX;
     state.attackCharge = {
       kind,
       t: 0,
-      max: kind === "bow" ? BOW_CHARGE_MAX : kind === "pick" ? QUAKE_CHARGE_MAX : MELEE_CHARGE_MAX,
+      max,
       tx: aimX,
       ty: aimY,
       fullPing: false,
       shown: false, // bar only after holding past tap window
     };
-    if (kind === "bow" || kind === "pick") {
+    if (kind === "bow" || kind === "pick" || kind === "rock") {
       state.player.facing = Math.atan2(aimY - state.player.y, aimX - state.player.x);
     }
     return true;
@@ -3461,14 +3597,18 @@ const QUESTIONS = {
       cancelAttackCharge();
       return;
     }
-    if (c.kind === "melee" && (wantsBowAttack() || wantsPickAttack())) {
+    if (c.kind === "rock" && !wantsRockThrow() && countRocks() <= 0) {
+      cancelAttackCharge();
+      return;
+    }
+    if (c.kind === "melee" && (wantsBowAttack() || wantsPickAttack() || wantsRockThrow())) {
       cancelAttackCharge();
       return;
     }
     if (state.mouseWorld) {
       c.tx = state.mouseWorld.x;
       c.ty = state.mouseWorld.y;
-      if (c.kind === "bow" || c.kind === "pick" || c.shown) {
+      if (c.kind === "bow" || c.kind === "pick" || c.kind === "rock" || c.shown) {
         state.player.facing = Math.atan2(c.ty - state.player.y, c.tx - state.player.x);
       }
     }
@@ -3482,6 +3622,9 @@ const QUESTIONS = {
         try { SFX.mine(); } catch (_) {}
         spawnParticles(state.player.x, state.player.y, 8, "dust");
         state.mineAnim = 0.3;
+      } else if (c.kind === "rock") {
+        try { SFX.mine(); } catch (_) {}
+        spawnParticles(state.player.x, state.player.y, 6, "dust");
       }
       // melee: silent wind-up — slash SFX plays on release
     }
@@ -3492,8 +3635,10 @@ const QUESTIONS = {
     if (!c.fullPing && c.t >= c.max) {
       c.fullPing = true;
       try { SFX.bowFull(); } catch (_) {}
-      spawnFloatText(state.player.x, state.player.y - 0.7, c.kind === "pick" ? "QUAKE" : "FULL", c.kind === "pick" ? "#e8a040" : "#ffe060");
-      spawnParticles(state.player.x, state.player.y, c.kind === "pick" ? 12 : 6, c.kind === "pick" ? "dust" : "spark");
+      const label = c.kind === "pick" ? "QUAKE" : c.kind === "rock" ? "METEOR" : "FULL";
+      const col = c.kind === "pick" || c.kind === "rock" ? "#e8a040" : "#ffe060";
+      spawnFloatText(state.player.x, state.player.y - 0.7, label, col);
+      spawnParticles(state.player.x, state.player.y, c.kind === "pick" || c.kind === "rock" ? 12 : 6, c.kind === "pick" || c.kind === "rock" ? "dust" : "spark");
     }
   }
 
@@ -3565,12 +3710,14 @@ const QUESTIONS = {
     if (!wasShown || held < CHARGE_TAP) {
       if (kind === "bow") return shootBow(tx, ty, 0);
       if (kind === "pick") return performPickQuake(0);
+      if (kind === "rock") return throwRock(tx, ty, 0);
       return performMeleeSwing(0);
     }
 
     const power = Math.max(0, Math.min(1, (held - CHARGE_TAP) / Math.max(0.01, max - CHARGE_TAP)));
     if (kind === "bow") return shootBow(tx, ty, power);
     if (kind === "pick") return performPickQuake(power);
+    if (kind === "rock") return throwRock(tx, ty, power);
     return performMeleeSwing(power);
   }
 
@@ -3659,6 +3806,123 @@ const QUESTIONS = {
   }
 
   /**
+   * Throw a Ruin Rock — intentionally overpowered ammo from mining / Earthshatter.
+   * Tap = heavy boulder · full charge = METEOR with huge splash.
+   */
+  function throwRock(tx, ty, power01 = 0) {
+    if (state.drinkAnim > 0) { showToast("Drinking…"); return false; }
+    if (isBlocking()) { showToast("Lower shield to throw rocks (release F / 🛡)"); return false; }
+    if (!state.running || state.paused) return false;
+    if (state.hitCd > 0) return false;
+    if (countRocks() <= 0) {
+      showToast("No Ruin Rocks — Earthshatter or mine stone!", true);
+      return false;
+    }
+    try { SFX.unlock(); } catch (_) {}
+    if (!consumeOneRock(true)) {
+      showToast("No Ruin Rocks left!", true);
+      return false;
+    }
+
+    const power = Math.max(0, Math.min(1, Number(power01) || 0));
+    const full = power >= 0.98;
+    const dx = tx - state.player.x;
+    const dy = ty - state.player.y;
+    const dist = Math.hypot(dx, dy) || 1;
+    state.player.facing = Math.atan2(dy, dx);
+    const stats = gearStats();
+    // Busted on purpose — rocks are the payoff for Earthshatter farming
+    const base = 42 + Math.floor(stats.pwr * 2.2) + Math.floor((state.tempPwr || 0) * 1.5);
+    const dmg = Math.max(12, Math.round(base * (1 + 1.4 * power)));
+    const splash = 1.15 + power * 1.85 + (full ? 0.55 : 0);
+    const spd = 9 + power * 5;
+    state.hitCd = full ? 0.32 : 0.22;
+    state.attackAnim = full ? 0.4 : 0.28;
+    state.attackArc = 0;
+    state.projectiles.push({
+      x: state.player.x + Math.cos(state.player.facing) * 0.4,
+      y: state.player.y + Math.sin(state.player.facing) * 0.4,
+      vx: (dx / dist) * spd,
+      vy: (dy / dist) * spd,
+      life: 1.15 + power * 0.55,
+      dmg,
+      kind: "rock",
+      splash,
+      pierce: full ? 2 : 1,
+      hitIds: {},
+      charged: full,
+      power,
+      spin: Math.random() * Math.PI * 2,
+    });
+    spawnParticles(state.player.x, state.player.y, full ? 14 : 8, "dust");
+    spawnFloatText(
+      state.player.x,
+      state.player.y - 0.55,
+      full ? "METEOR!" : "ROCK",
+      full ? "#ffe060" : "#c0a080"
+    );
+    try { SFX.mine(); } catch (_) {}
+    try { if (full) SFX.quake(0.85); else SFX.bow(0.55 + power * 0.4); } catch (_) {}
+    const left = countRocks();
+    showToast(full
+      ? `🪨 METEOR! (${dmg} dmg · splash) · ${left} rocks left`
+      : `🪨 Rock throw (${dmg} dmg) · ${left} left`);
+    updateInventoryUI();
+    return true;
+  }
+
+  function detonateRock(p, atX, atY) {
+    const power = Math.max(0, Math.min(1, p.power || 0));
+    const splash = p.splash || 1.2;
+    const dmg = p.dmg || 20;
+    spawnParticles(atX, atY, p.charged ? 28 : 16, "dust");
+    spawnParticles(atX, atY, p.charged ? 14 : 8, "spark");
+    if (p.charged) {
+      state.quakeShake = Math.max(state.quakeShake || 0, 0.28);
+      state.quakeRing = { t: 0.35, max: 0.35, r: splash };
+      try { SFX.quake(0.7 + power * 0.3); } catch (_) {}
+      spawnFloatText(atX, atY - 0.4, "BOOM", "#ffe060");
+    } else {
+      try { SFX.mine(); } catch (_) {}
+    }
+    // Crack soft stone near impact
+    const ix = Math.floor(atX);
+    const iy = Math.floor(atY);
+    const r = Math.ceil(splash * 0.65);
+    let mined = 0;
+    for (let wy = iy - r; wy <= iy + r; wy++) {
+      for (let wx = ix - r; wx <= ix + r; wx++) {
+        if (Math.hypot(wx + 0.5 - atX, wy + 0.5 - atY) > splash * 0.7) continue;
+        const tile = getTile(wx, wy);
+        if (tile === TILES.STONE || tile === TILES.COBBLE || tile === TILES.RUIN) {
+          setTile(wx, wy, TILES.DIRT);
+          mined++;
+          spawnParticles(wx + 0.5, wy + 0.5, 2, "dust");
+        }
+      }
+    }
+    if (mined > 0) {
+      const got = addStoneChunks(Math.min(4, 1 + Math.floor(mined * 0.35)));
+      if (got > 0) showToast(`🪨 Impact mined +${got} rock${got > 1 ? "s" : ""}`);
+    }
+    for (const m of iterCombatMobs()) {
+      const dist = Math.hypot(m.x - atX, m.y - atY);
+      if (dist > splash) continue;
+      if (p.hitIds && p.hitIds[m.id]) continue;
+      const falloff = dist < 0.55 ? 1 : Math.max(0.45, 1 - dist / (splash + 0.01) * 0.5);
+      const hitDmg = Math.max(1, Math.round(dmg * falloff));
+      damageMonster(m, hitDmg, { silent: true });
+      if (p.hitIds) p.hitIds[m.id] = true;
+      const ang = Math.atan2(m.y - atY, m.x - atX);
+      m.x += Math.cos(ang) * (0.7 + power * 0.9);
+      m.y += Math.sin(ang) * (0.7 + power * 0.9);
+      m.hitCd = Math.max(m.hitCd || 0, 0.4 + power * 0.4);
+      m.slowT = Math.max(m.slowT || 0, 0.5 + power * 0.6);
+      spawnFloatText(m.x, m.y - 0.4, String(hitDmg), p.charged ? "#ffe060" : "#c0a080");
+    }
+  }
+
+  /**
    * EARTHSHATTER — overpowered pickaxe special.
    * Tap = strong quake · full charge = absurd AoE damage + mass mining.
    */
@@ -3738,11 +4002,9 @@ const QUESTIONS = {
       spawnParticles(m.x, m.y, full ? 14 : 8, "dust");
     }
 
-    const stoneBonus = Math.min(12, Math.floor(mined * (0.35 + power * 0.4)));
-    for (let i = 0; i < stoneBonus; i++) {
-      addItem({ key: "stone_chunk", name: "Stone Chunk", type: "material", rarity: "common", uid: uid(), slot: null });
-    }
-    if (mined > 0 || stoneBonus > 0) {
+    const stoneBonus = Math.min(18, Math.floor(mined * (0.55 + power * 0.55)) + (full ? 4 : 1));
+    const got = addStoneChunks(stoneBonus);
+    if (mined > 0 || got > 0) {
       state.kp += Math.min(20, mined + (full ? 4 : 1));
       updateInventoryUI();
       updateHotbarUI();
@@ -3762,7 +4024,7 @@ const QUESTIONS = {
     const bits = [];
     if (hits) bits.push(`${hits} foe${hits > 1 ? "s" : ""} (${dmg} dmg)`);
     if (mined) bits.push(`${mined} tiles crushed`);
-    if (stoneBonus) bits.push(`+${stoneBonus} stone`);
+    if (got) bits.push(`+${got} rocks`);
     showToast(
       full
         ? `⛏ EARTHSHATTER!! ${bits.join(" · ") || "ground broken"}`
@@ -3812,15 +4074,10 @@ const QUESTIONS = {
       const tile = getTile(wx, wy);
       setTile(wx, wy, tile === TILES.RUIN ? TILES.DIRT : TILES.DIRT);
       spawnParticles(wx + 0.5, wy + 0.5, 14, "dust");
-      // Stone drop — craftable-feel loot
-      const stone = { key: "stone_chunk", name: "Stone Chunk", type: "consumable", effect: "heal", amount: 5, rarity: "common", uid: uid(), slot: null };
-      // Keep as material-ish: just inventory junk that heals tiny? Better as non-consumable material
-      const mat = { key: "stone_chunk", name: "Stone Chunk", slot: "tool", rarity: "common", pwr: 0, def: 0, know: 0, uid: uid(), material: true };
-      // Actually put as simple bag item without equip — use consumable false material
-      addItem({ key: "stone_chunk", name: "Stone Chunk", type: "material", rarity: "common", uid: uid(), slot: null });
+      const got = addStoneChunks(1 + (Math.random() < 0.35 ? 1 : 0));
       updateInventoryUI();
       updateHotbarUI();
-      showToast("Mined stone! +Stone Chunk");
+      showToast(got > 0 ? `Mined stone! +${got} Ruin Rock${got > 1 ? "s" : ""} (throw them!)` : "Mined stone!");
       state.mineTarget = null;
       state.mineAnim = 0;
       state.kp += 1;
@@ -3950,10 +4207,15 @@ const QUESTIONS = {
       p.x += p.vx * dt;
       p.y += p.vy * dt;
       p.life -= dt;
-      if (p.life <= 0) return false;
+      if (p.life <= 0) {
+        if (p.kind === "rock") detonateRock(p, p.x, p.y);
+        return false;
+      }
       if (isSolidTile(getTile(Math.floor(p.x), Math.floor(p.y)))) {
         if (p.kind === "spell") {
           spawnParticles(p.x, p.y, 10, p.element === "water" ? "splash" : "spark");
+        } else if (p.kind === "rock") {
+          detonateRock(p, p.x, p.y);
         }
         return false;
       }
@@ -3965,9 +4227,35 @@ const QUESTIONS = {
           spawnParticles(p.x, p.y, 1, trail);
         }
       }
-      const hitR = p.kind === "spell" ? (p.element === "fire" ? 0.65 : 0.5) : 0.45;
+      if (p.kind === "rock") {
+        p.spin = (p.spin || 0) + dt * (14 + (p.power || 0) * 10);
+        if (Math.random() < 0.5) spawnParticles(p.x, p.y, 1, "dust");
+      }
+      const hitR = p.kind === "spell"
+        ? (p.element === "fire" ? 0.65 : 0.5)
+        : p.kind === "rock"
+          ? (0.55 + (p.charged ? 0.25 : 0))
+          : 0.45;
       for (const m of iterCombatMobs()) {
         if (Math.hypot(m.x - p.x, m.y - p.y) < hitR) {
+          if (p.kind === "rock") {
+            if (!p.hitIds) p.hitIds = {};
+            if (p.hitIds[m.id]) continue;
+            p.hitIds[m.id] = true;
+            damageMonster(m, p.dmg, { silent: true });
+            spawnFloatText(m.x, m.y - 0.4, String(p.dmg), p.charged ? "#ffe060" : "#c0a080");
+            const ang = Math.atan2(m.y - p.y, m.x - p.x);
+            m.x += Math.cos(ang) * (0.55 + (p.power || 0) * 0.7);
+            m.y += Math.sin(ang) * (0.55 + (p.power || 0) * 0.7);
+            m.hitCd = Math.max(m.hitCd || 0, 0.35);
+            spawnParticles(p.x, p.y, p.charged ? 12 : 8, "dust");
+            p.pierce = (p.pierce || 1) - 1;
+            if (p.pierce <= 0 || p.charged) {
+              detonateRock(p, p.x, p.y);
+              return false;
+            }
+            continue;
+          }
           damageMonster(m, p.dmg);
           if (p.kind === "spell") {
             const pow = Math.max(0, Math.min(1, p.power || 0));
@@ -4021,7 +4309,8 @@ const QUESTIONS = {
 
     // Start hold — tap release = quick attack; hold longer = charge bar + power
     e.preventDefault();
-    if (wantsBowAttack()) startAttackCharge("bow", world.x, world.y);
+    if (wantsRockThrow()) startAttackCharge("rock", world.x, world.y);
+    else if (wantsBowAttack()) startAttackCharge("bow", world.x, world.y);
     else if (wantsPickAttack()) startAttackCharge("pick", world.x, world.y);
     else startAttackCharge("melee", world.x, world.y);
   }
@@ -4041,7 +4330,7 @@ const QUESTIONS = {
     if (state.attackCharge) {
       state.attackCharge.tx = world.x;
       state.attackCharge.ty = world.y;
-      if (state.attackCharge.kind === "bow" || state.attackCharge.shown) {
+      if (state.attackCharge.kind === "bow" || state.attackCharge.kind === "rock" || state.attackCharge.shown) {
         state.player.facing = Math.atan2(world.y - state.player.y, world.x - state.player.x);
       }
     }
@@ -4051,6 +4340,11 @@ const QUESTIONS = {
     if (!state.running || state.paused) return;
     if (state.attackCharge) {
       releaseAttackCharge();
+      return;
+    }
+    if (wantsRockThrow()) {
+      const ang = state.player.facing || 0;
+      throwRock(state.player.x + Math.cos(ang) * 3.5, state.player.y + Math.sin(ang) * 3.5, 0);
       return;
     }
     if (wantsBowAttack()) {
@@ -4978,6 +5272,33 @@ const QUESTIONS = {
     pxRect(ox - 2, oy + rh - 1, rw + 4, 2, "rgba(0,0,0,0.4)");
   }
 
+  function drawRockBolt(ax, ay, ang, p) {
+    const power = Math.max(0, Math.min(1, p.power || 0));
+    const big = 1 + power * 0.7 + (p.charged ? 0.35 : 0);
+    const spin = p.spin || 0;
+    const s = Math.floor(5 * big);
+    ctx.globalAlpha = 0.3 + power * 0.2;
+    pxRect(ax - s - 2, ay - s - 2, (s + 2) * 2, (s + 2) * 2, "#a07040");
+    ctx.globalAlpha = 1;
+    outlineRect(ax - s, ay - s, s * 2, s * 2, "#6a5040");
+    pxRect(ax - s + 1, ay - s + 1, s * 2 - 2, s * 2 - 2, "#9a8070");
+    pxRect(ax - 1, ay - s + 2, 3, 2, "#c8b090");
+    // spinning chips
+    for (let i = 0; i < 3; i++) {
+      const a = spin + i * 2.1;
+      pxRect(ax + Math.cos(a) * (s + 2) - 1, ay + Math.sin(a) * (s + 1) - 1, 2, 2, i % 2 ? "#5a4030" : "#c0a080");
+    }
+    if (p.charged) {
+      ctx.globalAlpha = 0.4 + Math.sin(state.animT * 16) * 0.2;
+      pxRect(ax - s - 3, ay - s - 3, (s + 3) * 2, (s + 3) * 2, "#ffe060");
+      ctx.globalAlpha = 1;
+    }
+    // motion streak
+    ctx.globalAlpha = 0.35;
+    pxRect(ax - Math.cos(ang) * 8 - 1, ay - Math.sin(ang) * 8 - 1, 3, 3, "#8a7060");
+    ctx.globalAlpha = 1;
+  }
+
   function drawSpellBolt(ax, ay, ang, p) {
     const sp = SPELLS[p.element] || SPELLS.fire;
     const spin = p.spin || 0;
@@ -5466,12 +5787,13 @@ const QUESTIONS = {
       ctx.textAlign = "left";
     }
 
-    // Projectiles (arrows + animated spell bolts)
+    // Projectiles (arrows + spell bolts + ruin rocks)
     for (const p of state.projectiles) {
       const ax = Math.floor((p.x - camX) * tileSize + w / 2);
       const ay = Math.floor((p.y - camY) * tileSize + h / 2);
       const ang = Math.atan2(p.vy, p.vx);
       if (p.kind === "spell") drawSpellBolt(ax, ay, ang, p);
+      else if (p.kind === "rock") drawRockBolt(ax, ay, ang, p);
       else {
         const hot = !!p.charged;
         outlineRect(ax - 1, ay - 1, hot ? 9 : 6, 2, hot ? "#ffe060" : "#e8d0a0");
@@ -5502,13 +5824,13 @@ const QUESTIONS = {
       let fillCol = "#90a0b8";
       if (ratio >= 1) fillCol = "#ffe060";
       else if (kind === "spell") fillCol = SPELLS[spellEl]?.color || "#d080ff";
-      else if (kind === "pick") fillCol = ratio > 0.55 ? "#e8a040" : "#a06830";
+      else if (kind === "pick" || kind === "rock") fillCol = ratio > 0.55 ? "#e8a040" : "#a06830";
       else if (kind === "bow") fillCol = ratio > 0.55 ? "#e0a040" : "#c07040";
       else fillCol = ratio > 0.55 ? "#d0d8e8" : "#90a0b8";
       pxRect(bx, by, Math.max(1, Math.floor(bw * ratio)), bh, fillCol);
       if (ratio >= 1) {
         ctx.globalAlpha = 0.45 + Math.sin(state.animT * 12) * 0.25;
-        pxRect(bx - 2, by - 2, bw + 4, bh + 4, kind === "spell" ? (SPELLS[spellEl]?.glow || "#ffe080") : kind === "pick" ? "#ffc060" : "#ffe080");
+        pxRect(bx - 2, by - 2, bw + 4, bh + 4, kind === "spell" ? (SPELLS[spellEl]?.glow || "#ffe080") : (kind === "pick" || kind === "rock") ? "#ffc060" : "#ffe080");
         ctx.globalAlpha = 1;
       }
     }
@@ -6062,7 +6384,7 @@ const QUESTIONS = {
     requestAnimationFrame(() => {
       resizeCanvas();
       draw();
-      showToast("Empty pack — loot a pickaxe for EARTHSHATTER (V). Books: Z/X/C. HOLD F / 🛡 BLOCK.");
+      showToast("Loot a pickaxe → V Earthshatter for rocks → select rocks & throw (hold = METEOR).");
       updateSessionTimerUI();
       updateBlockUI();
       updateSpellUI();
@@ -6310,7 +6632,8 @@ const QUESTIONS = {
       const ang = state.player.facing || 0;
       const aimX = state.mouseWorld?.x ?? (state.player.x + Math.cos(ang) * 3.5);
       const aimY = state.mouseWorld?.y ?? (state.player.y + Math.sin(ang) * 3.5);
-      if (wantsBowAttack()) startAttackCharge("bow", aimX, aimY);
+      if (wantsRockThrow()) startAttackCharge("rock", aimX, aimY);
+      else if (wantsBowAttack()) startAttackCharge("bow", aimX, aimY);
       else if (wantsPickAttack()) startAttackCharge("pick", aimX, aimY);
       else startAttackCharge("melee", aimX, aimY);
       return;
