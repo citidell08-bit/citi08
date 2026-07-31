@@ -27,10 +27,11 @@ interface Particle {
 const W = 900
 const H = 360
 const GROUND = 48
-const PLAYER_SIZE = 30
+const PLAYER_SIZE = 28
 const PLAYER_X = 110
-const GRAVITY = 0.72
-const JUMP_V = -12.2
+/** Snappy Geometry Dash–style arc: peak ~52px — clears spikes & short blocks. */
+const GRAVITY = 0.86
+const JUMP_V = -9.45
 const WIN_SCORE = 120
 
 export function DashGame({ onFinish, onBack }: Props) {
@@ -48,7 +49,7 @@ export function DashGame({ onFinish, onBack }: Props) {
     y: H - GROUND - PLAYER_SIZE,
     vy: 0,
     onGround: true,
-    speed: 6.2,
+    speed: 5.8,
     distance: 0,
     obstacles: [] as Obstacle[],
     spawnAt: 280,
@@ -75,7 +76,7 @@ export function DashGame({ onFinish, onBack }: Props) {
       st.y = H - GROUND - PLAYER_SIZE
       st.vy = 0
       st.onGround = true
-      st.speed = 6.2
+      st.speed = 5.8
       st.distance = 0
       st.obstacles = []
       st.spawnAt = 220
@@ -92,24 +93,31 @@ export function DashGame({ onFinish, onBack }: Props) {
     }
 
     function seedCourse() {
-      let x = 420
+      let x = 400
       for (let i = 0; i < 8; i++) {
         st.obstacles.push(makeObstacle(x))
-        x += 180 + Math.random() * 160
+        x += 175 + Math.random() * 140
       }
       st.spawnAt = x
     }
 
     function makeObstacle(x: number): Obstacle {
       const roll = Math.random()
-      if (roll < 0.45) {
-        return { x, w: 28, h: 28, kind: 'spike' }
+      // Peak jump clears ~52px — keep hazards within that envelope or landable.
+      if (roll < 0.42) {
+        return { x, w: 26, h: 26, kind: 'spike' }
       }
-      if (roll < 0.8) {
-        const h = 34 + Math.floor(Math.random() * 28)
-        return { x, w: 34, h, kind: 'block' }
+      if (roll < 0.72) {
+        // Short blocks: jump over in one hop
+        const h = 30 + Math.floor(Math.random() * 12) // 30–41
+        return { x, w: 30, h, kind: 'block' }
       }
-      return { x, w: 34, h: 52, kind: 'double' }
+      if (roll < 0.9) {
+        // Platform block: land on top, then hop the next hazard
+        return { x, w: 36, h: 46, kind: 'block' }
+      }
+      // Twin spikes — one small jump clears both if timed early
+      return { x, w: 44, h: 26, kind: 'double' }
     }
 
     function jump() {
@@ -158,11 +166,12 @@ export function DashGame({ onFinish, onBack }: Props) {
         const ox = o.x
         const top = H - GROUND - o.h
 
-        if (o.kind === 'spike') {
-          const sx = ox + 5
-          const sy = top + 10
-          const sw = o.w - 10
-          const sh = o.h - 10
+        if (o.kind === 'spike' || o.kind === 'double') {
+          // Fairer tip hitbox — clearable with a normal small jump
+          const sx = ox + 4
+          const sy = top + 8
+          const sw = o.w - 8
+          const sh = o.h - 8
           if (aabb(px, py, pw, ph, sx, sy, sw, sh)) return true
           continue
         }
@@ -170,7 +179,7 @@ export function DashGame({ onFinish, onBack }: Props) {
         if (!aabb(px, py, pw, ph, ox, top, o.w, o.h)) continue
 
         const prevBottom = prevY + PLAYER_SIZE
-        const comingFromAbove = st.vy >= 0 && prevBottom <= top + 10
+        const comingFromAbove = st.vy >= 0 && prevBottom <= top + 12
 
         if (comingFromAbove) {
           // Land on top of blocks (Geometry Dash style)
@@ -277,18 +286,30 @@ export function DashGame({ onFinish, onBack }: Props) {
       // obstacles
       for (const o of st.obstacles) {
         const oy = H - GROUND - o.h
-        if (o.kind === 'spike') {
+        if (o.kind === 'spike' || o.kind === 'double') {
           ctx.fillStyle = '#fb7185'
-          ctx.beginPath()
-          ctx.moveTo(o.x, H - GROUND)
-          ctx.lineTo(o.x + o.w / 2, oy)
-          ctx.lineTo(o.x + o.w, H - GROUND)
-          ctx.closePath()
-          ctx.fill()
+          if (o.kind === 'double') {
+            const half = o.w / 2
+            for (const offset of [0, half]) {
+              ctx.beginPath()
+              ctx.moveTo(o.x + offset, H - GROUND)
+              ctx.lineTo(o.x + offset + half / 2, oy)
+              ctx.lineTo(o.x + offset + half, H - GROUND)
+              ctx.closePath()
+              ctx.fill()
+            }
+          } else {
+            ctx.beginPath()
+            ctx.moveTo(o.x, H - GROUND)
+            ctx.lineTo(o.x + o.w / 2, oy)
+            ctx.lineTo(o.x + o.w, H - GROUND)
+            ctx.closePath()
+            ctx.fill()
+          }
           ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)'
           ctx.stroke()
         } else {
-          ctx.fillStyle = o.kind === 'double' ? '#1d4ed8' : '#0369a1'
+          ctx.fillStyle = '#0369a1'
           roundRect(ctx, o.x, oy, o.w, o.h, 6)
           ctx.fill()
           ctx.strokeStyle = 'rgba(56, 189, 248, 0.55)'
@@ -356,7 +377,7 @@ export function DashGame({ onFinish, onBack }: Props) {
           st.rot += 0.18 * dt
         }
 
-        st.speed = 6.2 + Math.min(7, st.distance / 900)
+        st.speed = 5.8 + Math.min(5.5, st.distance / 1000)
         const dx = st.speed * dt
         st.distance += dx
 
@@ -365,7 +386,8 @@ export function DashGame({ onFinish, onBack }: Props) {
         st.spawnAt -= dx
         while (st.spawnAt < W + 80) {
           st.obstacles.push(makeObstacle(st.spawnAt + W * 0.15))
-          st.spawnAt += 160 + Math.random() * (200 - Math.min(80, st.distance / 40))
+          // Spacing matches short jump airtime so one hop can clear a hazard
+          st.spawnAt += 170 + Math.random() * (190 - Math.min(60, st.distance / 50))
         }
 
         if (resolveHazards(prevY)) die()
@@ -419,7 +441,8 @@ export function DashGame({ onFinish, onBack }: Props) {
         <div>
           <h2 className="section-title">Spike Dash</h2>
           <p className="section-sub">
-            Tap / click / Space to jump. After a crash, tap the track again to restart.
+            Short hop over spikes and blocks — tap / Space to jump. After a crash, tap the track
+            to restart.
           </p>
         </div>
         <div className="dash-score-badge" aria-live="polite">
