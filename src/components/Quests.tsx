@@ -25,22 +25,30 @@ function QuestCard({ q }: { q: Quest }) {
   return (
     <li className={`panel quest-item ${q.completed ? 'done' : ''}`}>
       <div className="quest-top">
-        <div>
+        <div className="quest-copy">
           <strong>{q.title}</strong>
           <p>{q.description}</p>
         </div>
-        <em>
-          +{q.xpReward} XP · +{q.coinReward} ◉
-        </em>
+        <div className="quest-side">
+          {q.completed ? (
+            <span className="quest-complete-badge">Complete</span>
+          ) : (
+            <em>
+              +{q.xpReward} XP · +{q.coinReward} ◉
+            </em>
+          )}
+        </div>
       </div>
-      <div className="xp-track" aria-hidden="true">
+      <div className={`xp-track ${q.completed ? 'done' : ''}`} aria-hidden="true">
         <div className="xp-fill" style={{ width: `${ratio * 100}%` }} />
       </div>
       <div className="quest-meta">
         <span>
           {Math.min(q.progress, q.target)}/{q.target}
         </span>
-        <span>{q.completed ? 'Complete' : 'In progress'}</span>
+        <span className={q.completed ? 'quest-status-done' : ''}>
+          {q.completed ? '✓ Complete — saved' : 'In progress'}
+        </span>
       </div>
     </li>
   )
@@ -65,8 +73,8 @@ export function Quests({ state }: Props) {
       <header>
         <h2 className="section-title">Quest boards</h2>
         <p className="section-sub">
-          Finish every quest on a board and it resets so you can play again. Boards also refresh
-          automatically about every hour.
+          Cleared quests stay marked Complete (greyed out) and save to your progress. Finish a
+          whole board and it refreshes after a short beat — or wait about an hour.
         </p>
       </header>
 

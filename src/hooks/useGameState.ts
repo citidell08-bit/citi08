@@ -163,10 +163,9 @@ export function useGameState() {
     }
 
     const issuedAt = { ...next.questIssuedAt }
-    const now = Date.now()
-    let clearedAny = false
+    const boardsToRefresh: QuestPeriod[] = []
 
-    // When a whole board is cleared, unlock + roll a fresh set immediately (play again)
+    // Keep completed quests visible (greyed out) briefly, then roll a fresh board
     for (const period of PERIODS) {
       const inPeriod = quests.filter((q) => q.period === period)
       if (inPeriod.length === 0) continue
@@ -175,25 +174,36 @@ export function useGameState() {
       if (period === 'daily') next = unlock(next, 'quest_clear')
       if (period === 'weekly') next = unlock(next, 'quest_week')
       if (period === 'monthly') next = unlock(next, 'quest_month')
-
-      const fresh = generateQuestsForPeriod(period)
-      quests = [...quests.filter((q) => q.period !== period), ...fresh]
-      issuedAt[period] = now
-      clearedAny = true
+      boardsToRefresh.push(period)
 
       queueMicrotask(() =>
-        pushToast(`${PERIOD_LABEL[period]} quests cleared — fresh set ready!`),
+        pushToast(`${PERIOD_LABEL[period]} board complete — refreshing soon…`),
       )
     }
 
-    // If every active quest finished in one go, refresh all boards
-    if (!clearedAny && quests.length > 0 && quests.every((q) => q.completed)) {
-      quests = PERIODS.flatMap((period) => generateQuestsForPeriod(period))
-      Object.assign(issuedAt, freshQuestIssuedAt(now))
-      queueMicrotask(() => pushToast('All quests cleared — boards refreshed!'))
+    next = { ...next, quests, questIssuedAt: issuedAt }
+
+    if (boardsToRefresh.length > 0) {
+      window.setTimeout(() => {
+        setState((prev) => {
+          let list = [...prev.quests]
+          const stamps = { ...prev.questIssuedAt }
+          const stampNow = Date.now()
+          let changed = false
+          for (const period of boardsToRefresh) {
+            const inPeriod = list.filter((q) => q.period === period)
+            if (inPeriod.length === 0 || !inPeriod.every((q) => q.completed)) continue
+            list = [...list.filter((q) => q.period !== period), ...generateQuestsForPeriod(period)]
+            stamps[period] = stampNow
+            changed = true
+          }
+          if (!changed) return prev
+          queueMicrotask(() => pushToast('Fresh quest board ready!'))
+          return persist({ ...prev, quests: list, questIssuedAt: stamps })
+        })
+      }, 4500)
     }
 
-    next = { ...next, quests, questIssuedAt: issuedAt }
     return next
   }
 

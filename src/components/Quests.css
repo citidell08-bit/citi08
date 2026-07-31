@@ -92,10 +92,33 @@
 
 .quest-item {
   padding: 1.1rem 1.15rem;
+  transition:
+    opacity 200ms ease,
+    border-color 200ms ease,
+    background 200ms ease;
 }
 
 .quest-item.done {
-  border-color: rgba(56, 189, 248, 0.35);
+  opacity: 0.55;
+  border-color: rgba(148, 163, 184, 0.35);
+  background: rgba(15, 23, 42, 0.35);
+  filter: grayscale(0.45);
+}
+
+.quest-item.done .quest-copy strong,
+.quest-item.done .quest-copy p {
+  color: #94a3b8;
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
+  text-decoration-color: rgba(148, 163, 184, 0.75);
+}
+
+.quest-item.done .xp-track {
+  background: rgba(148, 163, 184, 0.15);
+}
+
+.quest-item.done .xp-fill {
+  background: linear-gradient(90deg, #64748b, #94a3b8);
 }
 
 .quest-top {
@@ -105,21 +128,40 @@
   margin-bottom: 0.85rem;
 }
 
-.quest-top strong {
+.quest-copy strong {
   display: block;
   font-size: 1.05rem;
 }
 
-.quest-top p {
+.quest-copy p {
   margin: 0.25rem 0 0;
   color: var(--muted);
   font-size: 0.9rem;
 }
 
-.quest-top em {
+.quest-side {
+  flex-shrink: 0;
+  text-align: right;
+}
+
+.quest-side em {
   font-style: normal;
   color: var(--ember);
   font-weight: 700;
+  white-space: nowrap;
+}
+
+.quest-complete-badge {
+  display: inline-block;
+  padding: 0.3rem 0.65rem;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  background: rgba(100, 116, 139, 0.25);
+  color: #cbd5e1;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   white-space: nowrap;
 }
 
@@ -129,6 +171,11 @@
   margin-top: 0.55rem;
   color: var(--muted);
   font-size: 0.82rem;
+}
+
+.quest-status-done {
+  color: #94a3b8;
+  font-weight: 700;
 }
 
 .recent-xp {
