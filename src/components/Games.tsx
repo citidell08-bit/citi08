@@ -50,9 +50,9 @@ const CATALOG: {
   {
     id: 'glow',
     title: 'Glow Catch',
-    blurb: 'Hit lit cells before they fade. Coin cells bank ◉ when you catch them.',
+    blurb: 'Clear lit waves. Win a level → 5s pause, then faster with more targets. Lose resets to Lv 1.',
     badge: 'Reflex',
-    goal: '7+ hits',
+    goal: 'Climb levels',
     bestKey: 'bestGlowScore',
   },
 ]
