@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { setBgmTrack } from '../../lib/bgm'
 import { isRestartKey } from '../../lib/gameInput'
 import {
   playHitSfx,
@@ -61,6 +62,13 @@ export function MathGame({ onFinish, onBack }: Props) {
   const playAgainRef = useRef<() => void>(() => {})
   onFinishRef.current = onFinish
   finishedRef.current = finished
+
+  // High-thrill Quick Sum bed starts the instant you enter
+  useEffect(() => {
+    unlockAudio()
+    setBgmTrack('math')
+    return () => setBgmTrack('hub')
+  }, [])
 
   useEffect(() => {
     return () => {

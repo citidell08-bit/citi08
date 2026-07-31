@@ -21,7 +21,7 @@ const TRACK: Record<BgmTrack, TrackConfig> = {
   hub: { bpm: 72, volume: 1.15, bars: 4 },
   dash: { bpm: 148, volume: 1.25, bars: 4 },
   glow: { bpm: 110, volume: 1.1, bars: 4 },
-  math: { bpm: 132, volume: 1.2, bars: 4 },
+  math: { bpm: 150, volume: 1.3, bars: 4 },
   memory: { bpm: 88, volume: 1.05, bars: 4 },
 }
 
@@ -344,48 +344,69 @@ function scheduleGlow(ac: AudioContext, bus: GainNode, start: number, beat: numb
   })
 }
 
-/** Quick Sum — urgent math-sprint thrill. */
+/** Quick Sum — high-thrill math sprint (kicks in the moment you enter). */
 function scheduleMath(ac: AudioContext, bus: GainNode, start: number, beat: number) {
-  // Bright “calculator” fifths + racing arp
-  const scale = [261.63, 293.66, 329.63, 349.23, 392, 440, 493.88, 523.25] // C major run
-  const bass = [130.81, 146.83, 164.81, 174.61]
+  const scale = [261.63, 293.66, 329.63, 349.23, 392, 440, 493.88, 523.25, 587.33, 659.25]
+  const bass = [130.81, 146.83, 164.81, 174.61, 196]
 
+  // Driving kick pulse
+  for (let i = 0; i < 8; i++) {
+    const t = start + i * beat
+    toneAt(ac, bus, 75, t, beat * 0.25, {
+      type: 'sine',
+      gain: 0.15,
+      attack: 0.002,
+      filterFreq: 150,
+      slideTo: 42,
+    })
+    noiseTick(ac, bus, t, 0.03, 0.055, 2000)
+  }
+
+  // Racing bass line
   for (let i = 0; i < 8; i++) {
     const t = start + i * (beat / 2)
-    toneAt(ac, bus, bass[i % bass.length], t, beat * 0.4, {
-      type: 'square',
-      gain: 0.08,
+    toneAt(ac, bus, bass[i % bass.length], t, beat * 0.38, {
+      type: 'sawtooth',
+      gain: 0.1,
       attack: 0.004,
-      filterFreq: 500,
+      filterFreq: 560,
+      slideTo: bass[i % bass.length] * 0.92,
     })
   }
 
+  // Fast “calculator” arp — high thrill
   for (let i = 0; i < 16; i++) {
     const t = start + i * (beat / 4)
-    const freq = scale[(i + step) % scale.length]
-    toneAt(ac, bus, freq, t, beat * 0.22, {
-      type: 'triangle',
-      gain: 0.05,
+    const freq = scale[(i + step * 2) % scale.length]
+    toneAt(ac, bus, freq, t, beat * 0.2, {
+      type: 'square',
+      gain: 0.06,
       attack: 0.002,
-      filterFreq: 2800,
+      filterFreq: 3200,
     })
-    // Soft “click” like key presses
-    if (i % 2 === 0) noiseTick(ac, bus, t, 0.015, 0.03, 3200)
+    toneAt(ac, bus, freq * 2, t + 0.02, beat * 0.12, {
+      type: 'triangle',
+      gain: 0.028,
+      attack: 0.002,
+      filterFreq: 4000,
+    })
+    if (i % 2 === 0) noiseTick(ac, bus, t, 0.012, 0.035, 3400)
   }
 
-  // High thrill stab
-  toneAt(ac, bus, 784, start + beat * 2, beat * 0.5, {
+  // Rising tension stabs
+  toneAt(ac, bus, 784, start + beat * 1.5, beat * 0.45, {
     type: 'sawtooth',
-    gain: 0.045,
-    attack: 0.01,
-    filterFreq: 2400,
-    slideTo: 988,
-  })
-  toneAt(ac, bus, 1046.5, start + beat * 3.2, beat * 0.55, {
-    type: 'square',
-    gain: 0.035,
+    gain: 0.06,
     attack: 0.008,
-    filterFreq: 3600,
+    filterFreq: 2600,
+    slideTo: 1046,
+  })
+  toneAt(ac, bus, 1175, start + beat * 3, beat * 0.55, {
+    type: 'square',
+    gain: 0.05,
+    attack: 0.006,
+    filterFreq: 3800,
+    slideTo: 1397,
   })
 }
 
