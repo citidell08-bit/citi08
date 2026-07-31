@@ -26,7 +26,13 @@ export interface Deck {
 }
 
 export type QuestPeriod = 'daily' | 'weekly' | 'monthly'
-export type QuestType = 'focus_minutes' | 'cards_reviewed' | 'sessions' | 'games_played'
+export type QuestType =
+  | 'focus_minutes'
+  | 'cards_reviewed'
+  | 'sessions'
+  | 'games_played'
+  /** Player marks complete themselves — not auto-tracked. */
+  | 'manual'
 
 export interface Quest {
   id: string
@@ -39,6 +45,8 @@ export interface Quest {
   completed: boolean
   type: QuestType
   period: QuestPeriod
+  /** Player-created quest — kept across system board refreshes. */
+  custom?: boolean
 }
 
 export interface Achievement {

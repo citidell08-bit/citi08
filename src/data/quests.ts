@@ -202,3 +202,126 @@ export const PERIOD_LABEL: Record<QuestPeriod, string> = {
   weekly: 'Weekly',
   monthly: 'Monthly',
 }
+
+export const QUEST_TYPE_LABEL: Record<QuestType, string> = {
+  focus_minutes: 'Focus minutes',
+  cards_reviewed: 'Cards reviewed',
+  sessions: 'Study sessions',
+  games_played: 'Games played',
+  manual: 'Manual check-off',
+}
+
+export const MAX_CUSTOM_QUESTS = 8
+
+export interface CustomQuestInput {
+  title: string
+  description?: string
+  type: QuestType
+  target: number
+  period: QuestPeriod
+}
+
+function clampTarget(type: QuestType, target: number, period: QuestPeriod): number {
+  const n = Math.max(1, Math.round(target) || 1)
+  if (type === 'manual') return 1
+  if (type === 'focus_minutes') {
+    if (period === 'monthly') return Math.min(600, Math.max(10, n))
+    if (period === 'weekly') return Math.min(240, Math.max(10, n))
+    return Math.min(120, Math.max(5, n))
+  }
+  if (type === 'cards_reviewed') {
+    if (period === 'monthly') return Math.min(300, Math.max(5, n))
+    if (period === 'weekly') return Math.min(100, Math.max(5, n))
+    return Math.min(40, Math.max(3, n))
+  }
+  if (type === 'sessions') {
+    if (period === 'monthly') return Math.min(40, Math.max(1, n))
+    if (period === 'weekly') return Math.min(14, Math.max(1, n))
+    return Math.min(5, Math.max(1, n))
+  }
+  // games_played
+  if (period === 'monthly') return Math.min(50, Math.max(1, n))
+  if (period === 'weekly') return Math.min(20, Math.max(1, n))
+  return Math.min(10, Math.max(1, n))
+}
+
+function rewardsFor(type: QuestType, target: number, period: QuestPeriod): {
+  xpReward: number
+  coinReward: number
+} {
+  const periodBoost = period === 'monthly' ? 1.4 : period === 'weekly' ? 1.15 : 1
+  let xp = 20
+  let coins = 12
+  if (type === 'focus_minutes') {
+    xp = Math.round(target * 1.6)
+    coins = Math.round(target * 0.85)
+  } else if (type === 'cards_reviewed') {
+    xp = Math.round(target * 3)
+    coins = Math.round(target * 1.5)
+  } else if (type === 'sessions') {
+    xp = target * 22
+    coins = target * 12
+  } else if (type === 'games_played') {
+    xp = target * 14
+    coins = target * 9
+  } else {
+    xp = period === 'monthly' ? 40 : period === 'weekly' ? 30 : 22
+    coins = period === 'monthly' ? 22 : period === 'weekly' ? 16 : 12
+  }
+  return {
+    xpReward: Math.min(400, Math.max(12, Math.round(xp * periodBoost))),
+    coinReward: Math.min(200, Math.max(8, Math.round(coins * periodBoost))),
+  }
+}
+
+function defaultDescription(type: QuestType, target: number, period: QuestPeriod): string {
+  const when =
+    period === 'weekly' ? 'this week' : period === 'monthly' ? 'this month' : 'today'
+  if (type === 'manual') return `Your personal goal — mark it done when you finish (${when}).`
+  if (type === 'focus_minutes') return `Log ${target} focus minutes ${when}.`
+  if (type === 'cards_reviewed') return `Review ${target} flashcards ${when}.`
+  if (type === 'sessions') return `Finish ${target} study session${target === 1 ? '' : 's'} ${when}.`
+  return `Play ${target} mini-game${target === 1 ? '' : 's'} ${when}.`
+}
+
+export function createCustomQuest(input: CustomQuestInput): Quest {
+  const title = input.title.trim().slice(0, 48) || 'My quest'
+  const type = input.type
+  const period = input.period
+  const target = clampTarget(type, input.target, period)
+  const { xpReward, coinReward } = rewardsFor(type, target, period)
+  const description =
+    input.description?.trim().slice(0, 140) || defaultDescription(type, target, period)
+
+  return {
+    id: uid('quest'),
+    title,
+    description,
+    target,
+    progress: 0,
+    xpReward,
+    coinReward,
+    completed: false,
+    type,
+    period,
+    custom: true,
+  }
+}
+
+/** Replace system quests for a period while keeping player-made ones. */
+export function replaceSystemQuests(
+  quests: Quest[],
+  period: QuestPeriod,
+  freshSystem: Quest[],
+  opts?: { resetCustomProgress?: boolean },
+): Quest[] {
+  const custom = quests
+    .filter((q) => q.period === period && q.custom)
+    .map((q) =>
+      opts?.resetCustomProgress
+        ? { ...q, progress: 0, completed: false }
+        : q,
+    )
+  const others = quests.filter((q) => q.period !== period)
+  return [...others, ...freshSystem, ...custom]
+}

@@ -31,6 +31,9 @@ function App() {
     completeMiniGame,
     createDeck,
     renameCompanion,
+    addCustomQuest,
+    removeCustomQuest,
+    completeManualQuest,
     dismissLevelUp,
     resetProgress,
   } = useGameState()
@@ -101,7 +104,14 @@ function App() {
           onActiveChange={onActiveGame}
         />
       )}
-      {tab === 'quests' && <Quests state={state} />}
+      {tab === 'quests' && (
+        <Quests
+          state={state}
+          onAddCustom={addCustomQuest}
+          onRemoveCustom={removeCustomQuest}
+          onCompleteManual={completeManualQuest}
+        />
+      )}
       {tab === 'store' && (
         <ThemeStore state={state} onBuy={buyTheme} onEquip={equipTheme} />
       )}

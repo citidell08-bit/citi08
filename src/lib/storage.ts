@@ -17,6 +17,13 @@ import { monthKey, todayKey, weekKey } from './dates'
 
 const VALID_GAMES: MiniGameId[] = ['memory', 'math', 'glow', 'dash']
 const VALID_PERIODS: QuestPeriod[] = ['daily', 'weekly', 'monthly']
+const VALID_QUEST_TYPES = [
+  'focus_minutes',
+  'cards_reviewed',
+  'sessions',
+  'games_played',
+  'manual',
+] as const
 
 /** Bumped to wipe legacy starter-coin saves — fresh installs start at 0. */
 const STORAGE_KEY = 'kith.game.v2'
@@ -184,18 +191,25 @@ function normalizeQuests(quests: Quest[] | undefined): Quest[] {
     return generateAllQuests()
   }
 
-  const list = quests.map((q) => ({
-    ...q,
-    period: VALID_PERIODS.includes(q.period) ? q.period : ('daily' as QuestPeriod),
-    coinReward: typeof q.coinReward === 'number' ? q.coinReward : 10,
-    completed: Boolean(q.completed),
-    progress: typeof q.progress === 'number' ? q.progress : 0,
-    target: typeof q.target === 'number' ? q.target : 1,
-  }))
+  const list = quests.map((q) => {
+    const type = VALID_QUEST_TYPES.includes(q.type as (typeof VALID_QUEST_TYPES)[number])
+      ? q.type
+      : ('sessions' as const)
+    return {
+      ...q,
+      type,
+      period: VALID_PERIODS.includes(q.period) ? q.period : ('daily' as QuestPeriod),
+      coinReward: typeof q.coinReward === 'number' ? q.coinReward : 10,
+      completed: Boolean(q.completed),
+      progress: typeof q.progress === 'number' ? q.progress : 0,
+      target: typeof q.target === 'number' ? q.target : 1,
+      custom: Boolean(q.custom),
+    }
+  })
 
   const next = [...list]
-  if (!next.some((q) => q.period === 'daily')) next.push(...generateDailyQuests())
-  if (!next.some((q) => q.period === 'weekly')) next.push(...generateWeeklyQuests())
-  if (!next.some((q) => q.period === 'monthly')) next.push(...generateMonthlyQuests())
+  if (!next.some((q) => q.period === 'daily' && !q.custom)) next.push(...generateDailyQuests())
+  if (!next.some((q) => q.period === 'weekly' && !q.custom)) next.push(...generateWeeklyQuests())
+  if (!next.some((q) => q.period === 'monthly' && !q.custom)) next.push(...generateMonthlyQuests())
   return next
 }

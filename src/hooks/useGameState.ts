@@ -1,5 +1,12 @@
 import { startTransition, useEffect, useState } from 'react'
-import { generateQuestsForPeriod, PERIOD_LABEL } from '../data/quests'
+import {
+  createCustomQuest,
+  generateQuestsForPeriod,
+  MAX_CUSTOM_QUESTS,
+  PERIOD_LABEL,
+  replaceSystemQuests,
+  type CustomQuestInput,
+} from '../data/quests'
 import { FREE_THEME, themeById, THEMES } from '../data/themes'
 import { COINS_PER_ACHIEVEMENT, coinsForLevelsGained, GAME_COSTS } from '../lib/coins'
 import { todayKey, uid, yesterdayKey } from '../lib/dates'
@@ -177,18 +184,15 @@ export function useGameState() {
 
     const keys = { ...(next.questIssuedAt ?? freshQuestPeriodKeys()) }
 
-    // Full board clear → achievements. Daily board refreshes immediately; weekly/monthly wait for calendar.
+    // Full system-board clear → achievements. Custom quests don't block / get wiped.
     for (const period of PERIODS) {
-      const inPeriod = quests.filter((q) => q.period === period)
-      if (inPeriod.length === 0) continue
-      if (!inPeriod.every((q) => q.completed)) continue
+      const systemBoard = quests.filter((q) => q.period === period && !q.custom)
+      if (systemBoard.length === 0) continue
+      if (!systemBoard.every((q) => q.completed)) continue
 
       if (period === 'daily') {
         next = unlock(next, 'quest_clear')
-        quests = [
-          ...quests.filter((q) => q.period !== 'daily'),
-          ...generateQuestsForPeriod('daily'),
-        ]
+        quests = replaceSystemQuests(quests, 'daily', generateQuestsForPeriod('daily'))
         keys.daily = currentKeyForPeriod('daily')
         queueMicrotask(() => pushToast('Daily board complete — fresh quests ready!'))
       } else {
@@ -451,6 +455,58 @@ export function useGameState() {
     )
   }
 
+  function addCustomQuest(input: CustomQuestInput): boolean {
+    let ok = false
+    setState((prev) => {
+      const customCount = prev.quests.filter((q) => q.custom).length
+      if (customCount >= MAX_CUSTOM_QUESTS) {
+        queueMicrotask(() =>
+          pushToast(`Custom quest limit reached (${MAX_CUSTOM_QUESTS}).`),
+        )
+        return prev
+      }
+      if (!input.title.trim()) {
+        queueMicrotask(() => pushToast('Give your quest a title.'))
+        return prev
+      }
+      ok = true
+      const quest = createCustomQuest(input)
+      queueMicrotask(() => pushToast(`Quest added: ${quest.title}`))
+      return persist({ ...prev, quests: [...prev.quests, quest] })
+    })
+    return ok
+  }
+
+  function removeCustomQuest(id: string) {
+    setState((prev) => {
+      const target = prev.quests.find((q) => q.id === id)
+      if (!target?.custom) return prev
+      queueMicrotask(() => pushToast('Custom quest removed'))
+      return persist({
+        ...prev,
+        quests: prev.quests.filter((q) => q.id !== id),
+      })
+    })
+  }
+
+  /** Mark a manual custom quest complete (or bump progress to target). */
+  function completeManualQuest(id: string) {
+    setState((prev) => {
+      const rolled = refreshQuests(prev)
+      const quest = rolled.quests.find((q) => q.id === id)
+      if (!quest || !quest.custom || quest.completed || quest.type !== 'manual') {
+        return rolled === prev ? prev : persist(rolled)
+      }
+      return persist(
+        withQuests(rolled, (quests) =>
+          quests.map((q) =>
+            q.id === id ? { ...q, progress: q.target } : q,
+          ),
+        ),
+      )
+    })
+  }
+
   function dismissLevelUp() {
     setLevelUp(null)
   }
@@ -475,6 +531,9 @@ export function useGameState() {
     completeMiniGame,
     createDeck,
     renameCompanion,
+    addCustomQuest,
+    removeCustomQuest,
+    completeManualQuest,
     dismissLevelUp,
     resetProgress,
   }
@@ -502,10 +561,15 @@ export function refreshQuests(state: GameState): GameState {
   let changed = false
 
   for (const period of PERIODS) {
-    const hasBoard = quests.some((q) => q.period === period)
+    const hasSystem = quests.some((q) => q.period === period && !q.custom)
     const stored = typeof keys[period] === 'string' ? keys[period] : undefined
-    if (!hasBoard || shouldResetQuestBoard(stored, period, date)) {
-      quests = [...quests.filter((q) => q.period !== period), ...generateQuestsForPeriod(period)]
+    if (!hasSystem || shouldResetQuestBoard(stored, period, date)) {
+      quests = replaceSystemQuests(
+        quests,
+        period,
+        generateQuestsForPeriod(period),
+        { resetCustomProgress: shouldResetQuestBoard(stored, period, date) },
+      )
       keys[period] = currentKeyForPeriod(period, date)
       changed = true
     }
