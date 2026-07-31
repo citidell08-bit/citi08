@@ -65,12 +65,12 @@
   ];
 
   const POTION_TABLE = [
-    { key: "heal_small", name: "Minor Healing Potion", type: "consumable", effect: "heal", amount: 25, rarity: "common" },
-    { key: "heal_med", name: "Healing Potion", type: "consumable", effect: "heal", amount: 50, rarity: "uncommon" },
-    { key: "heal_big", name: "Greater Healing Potion", type: "consumable", effect: "heal", amount: 80, rarity: "rare" },
+    { key: "heal_small", name: "Minor Healing Potion", type: "consumable", effect: "heal", amount: 30, rarity: "common" },
+    { key: "heal_med", name: "Healing Potion", type: "consumable", effect: "heal", amount: 55, rarity: "uncommon" },
+    { key: "heal_big", name: "Greater Healing Potion", type: "consumable", effect: "heal", amount: 90, rarity: "rare" },
     { key: "breath_vial", name: "Breath Vial", type: "consumable", effect: "breath", amount: 100, rarity: "uncommon" },
     { key: "might_draught", name: "Might Draught", type: "consumable", effect: "might", amount: 4, rarity: "rare" },
-    { key: "elixir", name: "Scholar's Elixir", type: "consumable", effect: "heal", amount: 40, rarity: "epic", alsoBreath: true },
+    { key: "elixir", name: "Scholar's Elixir", type: "consumable", effect: "heal", amount: 50, rarity: "epic", alsoBreath: true },
   ];
 
   const GATE_RANKS = ["E", "D", "C", "B", "A", "S"];
@@ -305,6 +305,11 @@ const QUESTIONS = {
     swimAnim: 0,
     mineAnim: 0,
     mineTarget: null,
+    drinkAnim: 0,
+    drinkUid: null,
+    drinkItem: null,
+    drinkHealAmt: 0,
+    lowHpWarned: false,
     projectiles: [],
     nextId: 1,
   };
@@ -1139,7 +1144,7 @@ const QUESTIONS = {
       const gr = state.dungeon.gateRank || "E";
       $("hud-floor").textContent = `${state.dungeon.floor}/10`;
       $("hud-biome").textContent = `${gr}-Rank · ${state.dungeon.name} · ${FLOOR_THEMES[state.dungeon.floor - 1].name}`;
-      $("combat-hint").textContent = `${gr}-Rank Gate · Floor ${state.dungeon.floor}/10 · LMB attack · E chests/stairs · H heal`;
+      $("combat-hint").textContent = `${gr}-Rank Gate · Floor ${state.dungeon.floor}/10 · LMB attack · H drink · E chests`;
     } else {
       $("hud-biome").textContent = BIOME_NAMES[biomeAt(Math.floor(state.player.x), Math.floor(state.player.y))] || "Grassland Ruins";
     }
@@ -1393,6 +1398,114 @@ const QUESTIONS = {
     return gained;
   }
 
+  function canUseConsumablesNow() {
+    if (!state.running) return false;
+    if (modalIsOpen("quest-modal") || modalIsOpen("boss-modal") || modalIsOpen("result-modal") || modalIsOpen("dungeon-modal") || modalIsOpen("session-modal")) {
+      return false;
+    }
+    return true;
+  }
+
+  function potionColor(item) {
+    if (!item) return "#e06070";
+    if (item.effect === "breath") return "#60c8f0";
+    if (item.effect === "might") return "#e0a040";
+    if (item.alsoBreath) return "#c080e0";
+    if ((item.amount || 0) >= 70) return "#ff5060";
+    if ((item.amount || 0) >= 40) return "#e04070";
+    return "#f07090";
+  }
+
+  function applyConsumableEffects(item) {
+    if (!item) return;
+    if (item.effect === "heal") {
+      const before = state.hp;
+      const amt = item.amount || 25;
+      state.hp = Math.min(state.maxHp, state.hp + amt);
+      const gained = Math.ceil(state.hp - before);
+      state.drinkHealAmt = gained;
+      showToast(`Drank ${item.name} · +${gained} HP`);
+      spawnParticles(state.player.x, state.player.y, 14, "heal");
+      state.lowHpWarned = false;
+    } else if (item.effect === "breath") {
+      state.breath = state.maxBreath;
+      updateBreathUI();
+      showToast(`Drank ${item.name} · breath restored!`);
+      spawnParticles(state.player.x, state.player.y, 10, "bubble");
+    } else if (item.effect === "might") {
+      state.tempPwr = (state.tempPwr || 0) + (item.amount || 4);
+      state.tempPwrT = Math.max(state.tempPwrT || 0, 18);
+      showToast(`Drank ${item.name} · Might +${item.amount || 4}!`);
+      spawnParticles(state.player.x, state.player.y, 12, "spark");
+    }
+    if (item.alsoBreath) {
+      state.breath = state.maxBreath;
+      updateBreathUI();
+    }
+    recalcHp();
+    updateHUD();
+  }
+
+  function finishDrink() {
+    const uid = state.drinkUid;
+    const fallback = state.drinkItem;
+    const item = (uid && findItemByUid(uid)) || fallback;
+    state.drinkAnim = 0;
+    state.drinkUid = null;
+    state.drinkItem = null;
+    if (!item) return;
+    // Item may have been removed already — still apply from snapshot
+    applyConsumableEffects(item);
+    if (uid) {
+      removeItemByUid(uid);
+      if (state.heldItem && state.heldItem.uid === uid) state.heldItem = null;
+    }
+    updateInventoryUI();
+    updateHotbarUI();
+    updateHUD();
+  }
+
+  function startDrink(itemUid) {
+    if (!canUseConsumablesNow()) {
+      showToast("Finish this screen first, then drink.", true);
+      return false;
+    }
+    if (state.drinkAnim > 0) {
+      showToast("Already drinking…");
+      return false;
+    }
+    const item = findItemByUid(itemUid);
+    if (!item) return false;
+    if (item.type !== "consumable") {
+      showToast("That item must be equipped, not used.");
+      return false;
+    }
+    if (item.effect === "heal") {
+      if (state.hp >= state.maxHp && !item.alsoBreath) {
+        showToast("Already at full HP.");
+        return false;
+      }
+    }
+    // Close inventory/map/settings so the drink anim is visible
+    if (modalIsOpen("inventory-modal")) {
+      if (state.heldItem) { addItem(state.heldItem); state.heldItem = null; }
+      closeModal("inventory-modal");
+      state.paused = false;
+    }
+    if (modalIsOpen("map-modal")) closeFullMap();
+    if (modalIsOpen("settings-modal")) { closeModal("settings-modal"); state.paused = false; }
+
+    state.drinkAnim = 0.7;
+    state.drinkUid = item.uid;
+    state.drinkItem = { ...item };
+    state.drinkHealAmt = 0;
+    state.hitCd = Math.max(state.hitCd, 0.7);
+    state.mineTarget = null;
+    showToast(`Drinking ${item.name}…`);
+    spawnParticles(state.player.x, state.player.y - 0.2, 4, item.effect === "breath" ? "bubble" : "heal");
+    return true;
+  }
+
   function useItem(itemUid) {
     const item = findItemByUid(itemUid);
     if (!item) return;
@@ -1400,49 +1513,34 @@ const QUESTIONS = {
       showToast("That item must be equipped, not used.");
       return;
     }
-    if (item.effect === "heal") {
-      if (state.hp >= state.maxHp && !item.alsoBreath) {
-        showToast("Already at full HP.");
-        return;
-      }
-      const before = state.hp;
-      state.hp = Math.min(state.maxHp, state.hp + (item.amount || 25));
-      showToast(`Healed +${Math.ceil(state.hp - before)} HP`);
-      spawnParticles(state.player.x, state.player.y, 10, "spark");
-    } else if (item.effect === "breath") {
-      state.breath = state.maxBreath;
-      updateBreathUI();
-      showToast("Breath fully restored!");
-      spawnParticles(state.player.x, state.player.y, 8, "bubble");
-    } else if (item.effect === "might") {
-      state.tempPwr = (state.tempPwr || 0) + (item.amount || 4);
-      state.tempPwrT = Math.max(state.tempPwrT || 0, 18);
-      showToast(`Might +${item.amount || 4} ATK for a while!`);
-      spawnParticles(state.player.x, state.player.y, 12, "spark");
-    }
-    if (item.alsoBreath) {
-      state.breath = state.maxBreath;
-      updateBreathUI();
-    }
-    removeItemByUid(itemUid);
-    if (state.heldItem && state.heldItem.uid === itemUid) state.heldItem = null;
-    recalcHp();
-    updateInventoryUI();
-    updateHotbarUI();
-    updateHUD();
+    startDrink(itemUid);
   }
 
   function useBestHeal() {
-    if (!state.running || state.paused) return;
+    if (!state.running) return;
+    if (!canUseConsumablesNow()) {
+      showToast("Can't drink during this screen.", true);
+      return;
+    }
+    if (state.drinkAnim > 0) {
+      showToast("Already drinking…");
+      return;
+    }
     const missing = state.maxHp - state.hp;
     if (missing <= 0) {
+      // Still allow breath/might from hand if heal not needed
+      const hand = getHandItem();
+      if (hand && hand.type === "consumable" && hand.effect !== "heal") {
+        startDrink(hand.uid);
+        return;
+      }
       showToast("Already at full HP.");
       return;
     }
-    // Prefer selected hotbar potion (Minecraft hand), then any heal potion
+    // Prefer selected hotbar heal potion, then best-fit heal in bag/hotbar
     const hand = getHandItem();
-    if (hand && hand.type === "consumable" && hand.effect === "heal") {
-      useItem(hand.uid);
+    if (hand && hand.type === "consumable" && (hand.effect === "heal" || hand.alsoBreath)) {
+      startDrink(hand.uid);
       return;
     }
     const all = [];
@@ -1452,11 +1550,23 @@ const QUESTIONS = {
     }
     all.sort((a, b) => (a.amount || 0) - (b.amount || 0));
     if (!all.length) {
-      showToast("No healing potions! Loot chests.", true);
+      showToast("No healing potions! Loot chests or quests.", true);
       return;
     }
+    // Prefer smallest potion that covers the missing HP (don't waste big ones)
     const fit = all.find((p) => (p.amount || 0) >= missing) || all[all.length - 1];
-    useItem(fit.uid);
+    startDrink(fit.uid);
+  }
+
+  function drinkHandPotion() {
+    // Drink whatever consumable is selected on the hotbar (heal / breath / might)
+    if (!state.running) return;
+    const hand = getHandItem();
+    if (hand && hand.type === "consumable") {
+      startDrink(hand.uid);
+      return;
+    }
+    useBestHeal();
   }
 
   function clearInventoryAndGear() {
@@ -1606,7 +1716,7 @@ const QUESTIONS = {
     if (hint) {
       hint.textContent = state.heldItem
         ? `Holding ${state.heldItem.name} — click a slot to place`
-        : "Click to pick up · click to place · right-click potion to use · right-click gear to equip";
+        : "Click to pick up · place · right-click potion to drink · right-click gear to equip";
     }
     updateEquipUI();
     updateHotbarUI();
@@ -2250,6 +2360,7 @@ const QUESTIONS = {
   }
 
   function performMeleeSwing() {
+    if (state.drinkAnim > 0) { showToast("Drinking…"); return false; }
     if (state.hitCd > 0 || state.paused) return false;
     const weapon = getCombatWeapon();
     const hasWeapon = !!weapon;
@@ -2276,6 +2387,7 @@ const QUESTIONS = {
 
   function shootBow(tx, ty) {
     const bow = getCombatBow();
+    if (state.drinkAnim > 0) { showToast("Drinking…"); return false; }
     if (!bow || state.hitCd > 0 || state.paused) return false;
     const dx = tx - state.player.x, dy = ty - state.player.y;
     const dist = Math.hypot(dx, dy) || 1;
@@ -2299,6 +2411,7 @@ const QUESTIONS = {
   }
 
   function startMining(wx, wy) {
+    if (state.drinkAnim > 0) { showToast("Drinking…"); return; }
     const pick = getCombatPick();
     if (!pick) { showToast("Hold a pickaxe on the hotbar (1–9) or equip Tool!", true); return; }
     const minePow = pick.mine || 1;
@@ -2505,6 +2618,12 @@ const QUESTIONS = {
         vy = -0.2 - Math.random() * 0.8;
         life = 0.6 + Math.random() * 0.5;
         size = 3;
+      } else if (kind === "heal") {
+        color = Math.random() > 0.45 ? "#ff8090" : "#ffe0a0";
+        vx = (Math.random() - 0.5) * 1.4;
+        vy = -0.8 - Math.random() * 1.2;
+        life = 0.55 + Math.random() * 0.45;
+        size = 2 + Math.floor(Math.random() * 2);
       } else {
         color = Math.random() > 0.5 ? "#f0c96a" : "#e06a55";
         vx = (Math.random() - 0.5) * 2;
@@ -2559,7 +2678,8 @@ const QUESTIONS = {
     }
 
     const baseSpeed = state.swimming ? 2.1 : 3.2;
-    const speed = (baseSpeed + gearStats().pwr * 0.04) * state.settings.speed;
+    const drinkSlow = state.drinkAnim > 0 ? 0.35 : 1;
+    const speed = (baseSpeed + gearStats().pwr * 0.04) * state.settings.speed * drinkSlow;
     const nx = state.player.x + mx * speed * dt;
     const ny = state.player.y + my * speed * dt;
     if (!collides(nx, state.player.y)) state.player.x = nx;
@@ -2640,6 +2760,21 @@ const QUESTIONS = {
     updateMining(dt);
     updateProjectiles(dt);
     if (state.attackAnim > 0) state.attackAnim = Math.max(0, state.attackAnim - dt);
+    if (state.drinkAnim > 0) {
+      state.drinkAnim -= dt;
+      if (Math.random() < 0.25) {
+        spawnParticles(state.player.x, state.player.y - 0.35, 1, state.drinkItem?.effect === "breath" ? "bubble" : "heal");
+      }
+      if (state.drinkAnim <= 0) finishDrink();
+    }
+    // Low HP tip — remind them they can drink
+    if (state.hp / Math.max(1, state.maxHp) <= 0.35 && !state.lowHpWarned && state.drinkAnim <= 0) {
+      const hasHeal = state.slots.some((it) => it && it.type === "consumable" && it.effect === "heal");
+      if (hasHeal) {
+        state.lowHpWarned = true;
+        showToast("Low HP! Press H or hold a potion & drink.", true);
+      }
+    }
     if (state.swimming) state.swimAnim = (state.swimAnim || 0) + dt; else state.swimAnim = 0;
 
     state.interactTarget = findInteractable();
@@ -3106,6 +3241,9 @@ const QUESTIONS = {
     const s = Math.max(10, ps * 1.12);
     const swingT = state.attackAnim > 0 ? (state.attackAnim / 0.35) : 0;
     const mineT = state.mineAnim > 0 ? Math.sin(state.animT * 18) : 0;
+    const drinking = state.drinkAnim > 0;
+    const drinkT = drinking ? 1 - Math.max(0, state.drinkAnim / 0.7) : 0; // 0→1 through drink
+    const tipBack = drinking ? Math.sin(drinkT * Math.PI) * 3 : 0;
 
     if (swim) pxRect(ppx - s * 0.4, ppy + s * 0.28 + bob, s * 0.8, 3, "rgba(20,60,120,0.45)");
     else pxRect(ppx - s * 0.35, ppy + s * 0.42, s * 0.7, 3, "rgba(0,0,0,0.4)");
@@ -3123,17 +3261,44 @@ const QUESTIONS = {
     pxRect(ppx - s * 0.4, ppy - s * 0.05 + bob - sub, s * 0.8, 2, "rgba(255,255,255,0.2)");
     if (armor) pxRect(ppx - s * 0.15, ppy + s * 0.05 + bob - sub, 3, 3, "#ffe060");
 
-    outlineRect(ppx - s * 0.3, ppy - s * 0.5 + bob - sub, s * 0.6, s * 0.42, "#f0c090");
-    outlineRect(ppx - s * 0.22, ppy - s * 0.55 + bob - sub, s * 0.44, s * 0.18, "#5a3820");
-    pxRect(ppx - 3 + lookX, ppy - s * 0.3 + lookY + bob - sub, 2, 2, "#0a0a0a");
-    pxRect(ppx + 1 + lookX, ppy - s * 0.3 + lookY + bob - sub, 2, 2, "#0a0a0a");
+    // Head tips back while drinking
+    outlineRect(ppx - s * 0.3, ppy - s * 0.5 + bob - sub - tipBack, s * 0.6, s * 0.42, "#f0c090");
+    outlineRect(ppx - s * 0.22, ppy - s * 0.55 + bob - sub - tipBack, s * 0.44, s * 0.18, "#5a3820");
+    pxRect(ppx - 3 + lookX, ppy - s * 0.3 + lookY + bob - sub - tipBack, 2, 2, "#0a0a0a");
+    pxRect(ppx + 1 + lookX, ppy - s * 0.3 + lookY + bob - sub - tipBack, 2, 2, "#0a0a0a");
 
-    if (book && !swim) {
+    if (book && !swim && !drinking) {
       outlineRect(ppx - right * (s * 0.55) - 2, ppy - s * 0.05 + bob, 6, 8, "#e06040");
     }
 
+    // DRINK animation — raise potion to mouth, tip back, glow
+    if (drinking && !swim) {
+      const bottle = state.drinkItem;
+      const col = potionColor(bottle);
+      const raise = Math.min(1, drinkT * 1.6);
+      const bx = ppx + right * (s * 0.15) + lookX * 0.5;
+      const by = ppy - s * (0.05 + raise * 0.42) + bob - sub - tipBack * 0.3;
+      // arm
+      outlineRect(ppx + right * (s * 0.28), ppy - s * 0.05 + bob - raise * s * 0.2, 3, s * 0.28, "#f0c090");
+      // bottle body
+      outlineRect(bx - 3, by - 2, 7, 11, col);
+      pxRect(bx - 2, by, 5, 7, "#ffffff55");
+      outlineRect(bx - 1, by - 5, 3, 4, "#c0a070"); // neck
+      pxRect(bx, by - 6, 2, 2, "#ffe060"); // cork
+      // glug sparkles near mouth
+      if (drinkT > 0.25 && drinkT < 0.85) {
+        pxRect(bx - 1 + right * 2, by - 8, 2, 2, "#fff8c0");
+        pxRect(bx + 2, by - 10, 2, 2, col);
+      }
+      // soft heal aura
+      const aura = Math.sin(drinkT * Math.PI);
+      ctx.globalAlpha = 0.2 + aura * 0.25;
+      pxRect(ppx - s * 0.55, ppy - s * 0.55 + bob - sub, s * 1.1, s * 1.1, col);
+      ctx.globalAlpha = 1;
+    }
+
     // TOOL / pickaxe — swings while mining
-    if (tool && !swim) {
+    if (tool && !swim && !drinking) {
       const mineSwing = mineT * right * s * 0.35;
       const tx = ppx - right * (s * 0.48) + lookX + mineSwing;
       const ty = ppy + bob - sub - Math.abs(mineT) * s * 0.25;
@@ -3144,7 +3309,7 @@ const QUESTIONS = {
     }
 
     // BOW on back / drawn when shooting
-    if (bow && !swim) {
+    if (bow && !swim && !drinking) {
       const drawBack = state.attackAnim > 0 && !weapon ? 1 : 0;
       const bx = ppx - right * (s * 0.42) + lookX * drawBack;
       const by = ppy - s * 0.2 + bob - sub;
@@ -3155,7 +3320,7 @@ const QUESTIONS = {
     }
 
     // SWORD swing animation in arc
-    if (weapon && !swim) {
+    if (weapon && !swim && !drinking) {
       const swing = swingT;
       const ang = face + (1 - swing) * 1.6 * right - 0.4 * right;
       const reach = s * (0.55 + swing * 0.5);
@@ -3171,20 +3336,26 @@ const QUESTIONS = {
           pxRect(ppx + Math.cos(a2) * reach * 0.85, ppy + Math.sin(a2) * reach * 0.45 + bob, 3, 2, `rgba(255,255,255,${0.35 - i * 0.07})`);
         }
       }
-    } else if (!weapon && !swim && swingT > 0) {
+    } else if (!weapon && !swim && !drinking && swingT > 0) {
       // fist punch
       outlineRect(ppx + right * (s * 0.4 + swingT * s * 0.35), ppy + bob, 4, 4, "#f0c090");
-    } else if (!weapon && !bow && !swim) {
+    } else if (!weapon && !bow && !swim && !drinking) {
       outlineRect(ppx + right * (s * 0.38), ppy + bob, 3, 3, "#f0c090");
     }
 
-    if (swim) {
+    if (swim && !drinking) {
       // arm paddle
       const paddle = Math.sin((state.swimAnim || 0) * 9) * s * 0.25;
       outlineRect(ppx - s * 0.55 + paddle, ppy + bob, 4, 3, "#f0c090");
       outlineRect(ppx + s * 0.35 - paddle, ppy + bob, 4, 3, "#f0c090");
       pxRect(ppx - s * 0.55, ppy + s * 0.05 + bob, s * 1.1, s * 0.5, "rgba(40,120,200,0.4)");
       pxRect(ppx - s * 0.4, ppy + s * 0.08 + bob, s * 0.8, 2, "rgba(200,240,255,0.5)");
+    }
+    // Low HP pulse
+    if (!drinking && state.hp / Math.max(1, state.maxHp) <= 0.35 && Math.sin(state.animT * 8) > 0.3) {
+      ctx.globalAlpha = 0.18;
+      pxRect(ppx - s / 2, ppy - s / 2 + bob - sub, s, s, "#ff3030");
+      ctx.globalAlpha = 1;
     }
     if (state.hurtCd > 0) {
       ctx.globalAlpha = 0.4;
@@ -3351,6 +3522,10 @@ const QUESTIONS = {
         p.x += p.vx * 0.016;
         p.y += p.vy * 0.016;
         p.vy += 0.06;
+      } else if (kind === "heal") {
+        p.x += p.vx * 0.016;
+        p.y += p.vy * 0.016;
+        p.vy -= 0.02; // float up
       } else {
         p.x += p.vx * 0.016;
         p.y += p.vy * 0.016;
@@ -3367,6 +3542,11 @@ const QUESTIONS = {
         pxRect(x, y, sz, sz, p.color);
         pxRect(x + 1, y + 1, Math.max(1, sz - 2), Math.max(1, sz - 2), "rgba(20,60,90,0.35)");
         pxDot(x, y, "#ffffff");
+      } else if (kind === "heal") {
+        // tiny heart / cross sparkle
+        pxRect(x, y + 1, sz + 1, sz - 1, p.color);
+        pxRect(x + 1, y, sz - 1, sz + 1, p.color);
+        pxDot(x + 1, y + 1, "#ffffff");
       } else {
         pxRect(x, y, sz, sz, p.color);
       }
@@ -3775,10 +3955,16 @@ const QUESTIONS = {
     state.mineTarget = null;
     state.mineAnim = 0;
     state.swimAnim = 0;
+    state.drinkAnim = 0;
+    state.drinkUid = null;
+    state.drinkItem = null;
+    state.drinkHealAmt = 0;
+    state.lowHpWarned = false;
     // Start unequipped — grind quests/chests/dungeons for weapons, armor, picks & bows
-    // Only a couple emergency heals in the satchel
+    // Emergency heals in the satchel
     const heal = POTION_TABLE.find((p) => p.key === "heal_small");
     if (heal) {
+      addItem({ ...heal, uid: uid(), slot: null });
       addItem({ ...heal, uid: uid(), slot: null });
       addItem({ ...heal, uid: uid(), slot: null });
     }
@@ -3977,9 +4163,9 @@ const QUESTIONS = {
     }
     if (e.code === "KeyH" || e.key === "h" || e.key === "H") {
       if (!state.running) return;
-      if (modalIsOpen("quest-modal") || modalIsOpen("boss-modal")) return;
+      if (modalIsOpen("quest-modal") || modalIsOpen("boss-modal") || modalIsOpen("result-modal")) return;
       e.preventDefault();
-      useBestHeal();
+      drinkHandPotion();
       return;
     }
     if (/^[1-9]$/.test(e.key) && state.running && !state.paused) {
@@ -4173,7 +4359,7 @@ const QUESTIONS = {
     btn.addEventListener("pointercancel", off);
   });
   $("btn-interact").addEventListener("click", (e) => { e.preventDefault(); tryInteract(); });
-  $("btn-heal").addEventListener("click", (e) => { e.preventDefault(); useBestHeal(); });
+  $("btn-heal").addEventListener("click", (e) => { e.preventDefault(); drinkHandPotion(); });
   canvas.addEventListener("click", handleCanvasClick);
   canvas.addEventListener("contextmenu", (e) => e.preventDefault());
   window.addEventListener("resize", () => { applyMobileVisibility(); if (state.running) resizeCanvas(); });

@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=daynight1" />
+  <link rel="stylesheet" href="style.css?v=heal1" />
 </head>
 <body>
   <div id="app">
@@ -214,7 +214,7 @@
           </div>
         </div>
 
-        <div id="combat-hint" class="combat-hint hidden">LMB close swing · hold bow + click far · E chest/mine · H heal</div>
+        <div id="combat-hint" class="combat-hint hidden">LMB swing · bow click far · H drink potion · E chest/mine</div>
 
         <div id="toast" class="toast hidden" role="status"></div>
 
@@ -228,7 +228,7 @@
             <button type="button" data-dir="down" class="pad-btn">▼</button>
           </div>
           <button type="button" id="btn-interact" class="action-btn">E</button>
-          <button type="button" id="btn-heal" class="action-btn heal-btn" title="Use heal potion">H</button>
+          <button type="button" id="btn-heal" class="action-btn heal-btn" title="Drink potion (H)">H</button>
         </div>
       </div>
     </section>
@@ -476,7 +476,7 @@
     </div>
   </div>
 
-  <script src="script.js?v=daynight1"></script>
+  <script src="script.js?v=heal1"></script>
   <script>
     // Fallback only — skips if main script already handled the key/button
     (function () {
