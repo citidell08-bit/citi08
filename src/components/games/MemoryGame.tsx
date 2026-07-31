@@ -6,7 +6,7 @@ const SYMBOLS = ['◆', '●', '▲', '★', '✚', '◈', '⬡', '✦']
 const DURATION = 60
 
 interface Tile {
-  id: number
+  id: string
   symbol: string
   matched: boolean
 }
@@ -25,16 +25,17 @@ function shuffle<T>(arr: T[]): T[] {
   return a
 }
 
-function makeBoard(): Tile[] {
+function makeBoard(round: number): Tile[] {
   const pairs = SYMBOLS.flatMap((symbol, i) => [
-    { id: i * 2, symbol, matched: false },
-    { id: i * 2 + 1, symbol, matched: false },
+    { id: `r${round}-a${i}`, symbol, matched: false },
+    { id: `r${round}-b${i}`, symbol, matched: false },
   ])
   return shuffle(pairs)
 }
 
 export function MemoryGame({ onFinish, onBack }: Props) {
-  const [tiles, setTiles] = useState<Tile[]>(() => makeBoard())
+  const [round, setRound] = useState(1)
+  const [tiles, setTiles] = useState<Tile[]>(() => makeBoard(1))
   const [flipped, setFlipped] = useState<number[]>([])
   const [moves, setMoves] = useState(0)
   const [lock, setLock] = useState(false)
@@ -43,8 +44,11 @@ export function MemoryGame({ onFinish, onBack }: Props) {
   const [running, setRunning] = useState(true)
   const reportedRef = useRef(false)
   const movesRef = useRef(0)
+  const onFinishRef = useRef(onFinish)
+  onFinishRef.current = onFinish
 
   const matchedCount = useMemo(() => tiles.filter((t) => t.matched).length, [tiles])
+  const won = done && matchedCount === tiles.length
 
   useEffect(() => {
     if (!running || done) return
@@ -53,7 +57,7 @@ export function MemoryGame({ onFinish, onBack }: Props) {
       setDone(true)
       if (!reportedRef.current) {
         reportedRef.current = true
-        onFinish({
+        onFinishRef.current({
           gameId: 'memory',
           won: false,
           score: movesRef.current,
@@ -65,7 +69,7 @@ export function MemoryGame({ onFinish, onBack }: Props) {
     }
     const id = window.setTimeout(() => setSeconds((s) => s - 1), 1000)
     return () => window.clearTimeout(id)
-  }, [running, seconds, done, onFinish])
+  }, [running, seconds, done])
 
   function finishWin(finalMoves: number) {
     if (reportedRef.current) return
@@ -73,13 +77,27 @@ export function MemoryGame({ onFinish, onBack }: Props) {
     setRunning(false)
     setDone(true)
     const xp = Math.max(12, 40 - finalMoves + Math.floor(seconds / 4))
-    onFinish({
+    onFinishRef.current({
       gameId: 'memory',
       won: true,
       score: finalMoves,
       xp,
       label: `Memory Nest · ${finalMoves} moves`,
     })
+  }
+
+  function playAgain() {
+    const nextRound = round + 1
+    reportedRef.current = false
+    movesRef.current = 0
+    setRound(nextRound)
+    setTiles(makeBoard(nextRound))
+    setFlipped([])
+    setMoves(0)
+    setLock(false)
+    setDone(false)
+    setSeconds(DURATION)
+    setRunning(true)
   }
 
   function flip(index: number) {
@@ -146,12 +164,12 @@ export function MemoryGame({ onFinish, onBack }: Props) {
       </div>
 
       <div className="panel play-board">
-        <div className="memory-grid" aria-label="Memory board">
+        <div className="memory-grid" aria-label="Memory board" key={`board-${round}`}>
           {tiles.map((tile, index) => {
             const open = flipped.includes(index) || tile.matched
             return (
               <button
-                key={`${tile.id}-${tile.symbol}`}
+                key={tile.id}
                 type="button"
                 className={`memory-tile ${open ? 'open' : ''} ${tile.matched ? 'matched' : ''}`}
                 onClick={() => flip(index)}
@@ -167,13 +185,18 @@ export function MemoryGame({ onFinish, onBack }: Props) {
         {done && (
           <div className="mini-end overlay-end">
             <p>
-              {matchedCount === tiles.length
+              {won
                 ? `Nest cleared in ${moves} moves!`
-                : 'Time is up — try again for a clearer board.'}
+                : 'Time is up — try a new random board.'}
             </p>
-            <button type="button" className="btn btn-primary" onClick={onBack}>
-              Back to arcade
-            </button>
+            <div className="dash-end-actions">
+              <button type="button" className="btn btn-ember" onClick={playAgain}>
+                Play again
+              </button>
+              <button type="button" className="btn btn-ghost" onClick={onBack}>
+                Back to arcade
+              </button>
+            </div>
           </div>
         )}
       </div>
