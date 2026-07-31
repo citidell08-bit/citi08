@@ -1,0 +1,43 @@
+.dash-game .dash-board {
+  padding: 0.85rem;
+  overflow: hidden;
+}
+
+.dash-canvas {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 16px;
+  background: #071816;
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  border: 1px solid var(--line);
+}
+
+.dash-board {
+  touch-action: none;
+  user-select: none;
+}
+
+.score-pill {
+  color: var(--ember) !important;
+  border-color: rgba(34, 211, 238, 0.35) !important;
+}
+
+.coin-grab-badge {
+  background: rgba(251, 191, 36, 0.12);
+  border-color: rgba(251, 191, 36, 0.45);
+}
+
+.coin-grab-badge strong {
+  color: #fbbf24;
+}
+
+.game-end-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  justify-content: center;
+}

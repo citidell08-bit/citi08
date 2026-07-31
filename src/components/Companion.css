@@ -1,0 +1,139 @@
+.companion {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 0.75rem;
+}
+
+.companion-lg .companion-svg {
+  width: min(260px, 70vw);
+}
+
+.companion-md .companion-svg {
+  width: 140px;
+}
+
+.companion-glow {
+  position: absolute;
+  width: 70%;
+  height: 55%;
+  top: 18%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(56, 189, 248, 0.45), transparent 70%);
+  filter: blur(18px);
+  animation: breathe 3.6s ease-in-out infinite;
+}
+
+.companion-svg {
+  position: relative;
+  z-index: 1;
+  animation: bob 3.2s ease-in-out infinite;
+  filter: drop-shadow(0 18px 28px rgba(0, 0, 0, 0.35));
+}
+
+.wing-l {
+  transform-origin: 76px 108px;
+  animation: flap-l 3.2s ease-in-out infinite;
+}
+
+.wing-r {
+  transform-origin: 124px 108px;
+  animation: flap-r 3.2s ease-in-out infinite;
+}
+
+.crest {
+  transform-origin: 100px 60px;
+  animation: flicker 2.4s ease-in-out infinite;
+}
+
+.halo {
+  animation: spin-soft 8s linear infinite;
+  transform-origin: 100px 48px;
+}
+
+.companion-meta {
+  text-align: center;
+}
+
+.companion-meta strong {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  letter-spacing: -0.03em;
+}
+
+.companion-meta span {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.stage-1 .companion-glow {
+  opacity: 0.7;
+}
+
+.stage-4 .companion-glow {
+  background: radial-gradient(circle, rgba(34, 211, 238, 0.35), rgba(56, 189, 248, 0.22), transparent 70%);
+}
+
+@keyframes bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    transform: scale(0.95);
+    opacity: 0.65;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+}
+
+@keyframes flap-l {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  50% {
+    transform: rotate(-8deg);
+  }
+}
+
+@keyframes flap-r {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  50% {
+    transform: rotate(8deg);
+  }
+}
+
+@keyframes flicker {
+  0%,
+  100% {
+    opacity: 0.85;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+}
+
+@keyframes spin-soft {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}

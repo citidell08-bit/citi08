@@ -1,0 +1,152 @@
+.cards {
+  display: grid;
+  gap: 1rem;
+}
+
+.cards-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.deck-select {
+  display: flex;
+  gap: 0.55rem;
+  overflow-x: auto;
+  padding-bottom: 0.25rem;
+}
+
+.deck-select button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.65rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.18);
+  color: var(--mist);
+  white-space: nowrap;
+}
+
+.deck-select button.active {
+  background: var(--glow-soft);
+  border-color: rgba(56, 189, 248, 0.35);
+  color: var(--ink);
+}
+
+.deck-select button em {
+  font-style: normal;
+  font-size: 0.75rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.study-panel,
+.create-panel,
+.empty-panel {
+  padding: 1.25rem;
+}
+
+.flip-card {
+  width: 100%;
+  perspective: 1200px;
+  min-height: 220px;
+  padding: 0;
+  background: transparent;
+}
+
+.flip-inner {
+  position: relative;
+  width: 100%;
+  min-height: 220px;
+  transform-style: preserve-3d;
+  transition: transform 480ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.flip-card.flipped .flip-inner {
+  transform: rotateY(180deg);
+}
+
+.face {
+  position: absolute;
+  inset: 0;
+  border-radius: 18px;
+  padding: 1.25rem;
+  display: grid;
+  align-content: center;
+  gap: 0.65rem;
+  backface-visibility: hidden;
+  border: 1px solid var(--line);
+  background:
+    radial-gradient(500px 200px at 20% 0%, rgba(56, 189, 248, 0.12), transparent 60%),
+    rgba(8, 28, 24, 0.9);
+  text-align: left;
+}
+
+.face.back {
+  transform: rotateY(180deg);
+  background:
+    radial-gradient(500px 200px at 80% 0%, rgba(34, 211, 238, 0.14), transparent 60%),
+    rgba(8, 28, 24, 0.9);
+}
+
+.face span {
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.72rem;
+}
+
+.face p {
+  margin: 0;
+  font-size: 1.25rem;
+  line-height: 1.45;
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+}
+
+.card-progress {
+  text-align: center;
+  color: var(--muted);
+  margin: 0.9rem 0 0;
+  font-size: 0.88rem;
+}
+
+.grade-actions,
+.create-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.65rem;
+  margin-top: 1rem;
+}
+
+.create-panel label {
+  display: grid;
+  gap: 0.4rem;
+  color: var(--muted);
+  font-size: 0.88rem;
+  margin-bottom: 0.85rem;
+}
+
+.card-inputs {
+  display: grid;
+  gap: 0.75rem;
+}
+
+@media (min-width: 700px) {
+  .card-inputs {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.create-actions {
+  justify-content: flex-end;
+}
+
+.create-actions .btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}

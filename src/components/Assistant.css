@@ -1,0 +1,274 @@
+/* Right-edge Ask control — kept off the coin/music chip row and nav dock */
+.assistant-fab {
+  position: fixed;
+  top: 50%;
+  right: max(0.65rem, calc((100% - 1120px) / 2 - 0.15rem));
+  left: auto;
+  transform: translateY(-50%);
+  z-index: 36;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  width: 3.25rem;
+  min-height: 6.25rem;
+  padding: 0.85rem 0.4rem;
+  border-radius: 1.15rem;
+  border: 1px solid rgba(56, 189, 248, 0.5);
+  background: linear-gradient(180deg, rgba(14, 116, 180, 0.72), rgba(8, 47, 73, 0.95));
+  color: #e0f2fe;
+  font-weight: 800;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  line-height: 1.1;
+  text-align: center;
+  box-shadow:
+    0 12px 32px rgba(0, 0, 0, 0.4),
+    0 0 22px rgba(34, 211, 238, 0.28);
+  cursor: pointer;
+}
+
+.assistant-fab:active {
+  transform: translateY(-50%) scale(0.96);
+}
+
+.assistant-fab-icon {
+  color: #67e8f9;
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.assistant-fab-label {
+  display: block;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  white-space: nowrap;
+  max-height: 7rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.assistant-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  display: grid;
+  place-items: stretch end;
+  padding: 0.75rem 0.75rem 5.75rem;
+  background: rgba(2, 6, 23, 0.45);
+  backdrop-filter: blur(6px);
+}
+
+.assistant-panel {
+  width: min(400px, 100%);
+  max-height: min(78vh, 680px);
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  gap: 0.75rem;
+  padding: 1rem 1.05rem 1.05rem;
+  justify-self: end;
+  align-self: end;
+  animation: assistant-rise 220ms ease-out;
+}
+
+@keyframes assistant-rise {
+  from {
+    opacity: 0;
+    transform: translateX(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.assistant-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.assistant-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  letter-spacing: -0.03em;
+}
+
+.assistant-sub {
+  margin: 0.2rem 0 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.assistant-head-actions {
+  display: flex;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.assistant-close {
+  flex-shrink: 0;
+  padding: 0.4rem 0.7rem;
+}
+
+.assistant-settings {
+  display: grid;
+  gap: 0.75rem;
+  overflow: auto;
+}
+
+.assistant-source {
+  display: inline-block;
+  margin-bottom: 0.35rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  background: rgba(14, 116, 180, 0.25);
+  color: #7dd3fc;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.assistant-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.assistant-compose .btn:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.assistant-chips {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.4rem;
+  max-height: 9.5rem;
+  overflow: auto;
+  padding-right: 0.15rem;
+}
+
+.assistant-chip {
+  width: 100%;
+  padding: 0.55rem 0.75rem;
+  border-radius: 12px;
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  background: rgba(8, 30, 55, 0.55);
+  color: #bae6fd;
+  font-size: 0.8rem;
+  font-weight: 650;
+  text-align: left;
+  cursor: pointer;
+}
+
+.assistant-chip:hover {
+  border-color: rgba(56, 189, 248, 0.6);
+  background: rgba(14, 116, 180, 0.35);
+}
+
+.assistant-thread {
+  overflow: auto;
+  display: grid;
+  gap: 0.55rem;
+  padding-right: 0.15rem;
+  min-height: 10rem;
+}
+
+.assistant-bubble {
+  max-width: 92%;
+  padding: 0.7rem 0.85rem;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.22);
+}
+
+.assistant-bubble p {
+  margin: 0;
+  line-height: 1.45;
+  font-size: 0.92rem;
+}
+
+.assistant-bubble.user {
+  justify-self: end;
+  background: rgba(14, 116, 180, 0.35);
+  border-color: rgba(56, 189, 248, 0.4);
+}
+
+.assistant-bubble.assistant {
+  justify-self: start;
+}
+
+.assistant-go {
+  margin-top: 0.65rem;
+  font-size: 0.82rem;
+  padding: 0.45rem 0.75rem;
+}
+
+.assistant-compose {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+@media (max-width: 839px) {
+  .assistant-fab {
+    top: auto;
+    bottom: 5.45rem;
+    right: 1rem;
+    left: auto;
+    transform: none;
+    width: auto;
+    min-height: 0;
+    flex-direction: row;
+    gap: 0.4rem;
+    padding: 0.6rem 0.85rem;
+    border-radius: 999px;
+    font-size: 0.82rem;
+    letter-spacing: 0.02em;
+  }
+
+  .assistant-fab:active {
+    transform: scale(0.96);
+  }
+
+  .assistant-fab-label {
+    writing-mode: horizontal-tb;
+    transform: none;
+    max-width: 7.5rem;
+    max-height: none;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .assistant-backdrop {
+    padding: 0.75rem 0.75rem 5.5rem;
+    place-items: end stretch;
+  }
+
+  .assistant-panel {
+    width: 100%;
+    max-height: min(78vh, 680px);
+    justify-self: stretch;
+  }
+}
+
+@media (min-width: 840px) {
+  .assistant-backdrop {
+    place-items: stretch end;
+    padding: 1.25rem;
+  }
+
+  .assistant-panel {
+    align-self: stretch;
+    max-height: calc(100vh - 2.5rem);
+    width: min(420px, 42vw);
+  }
+}

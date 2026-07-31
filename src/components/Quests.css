@@ -1,0 +1,376 @@
+.quests {
+  display: grid;
+  gap: 1rem;
+}
+
+.quests-header {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.quests-header .section-sub {
+  max-width: 36rem;
+  margin-bottom: 0;
+}
+
+.quest-add-btn {
+  width: 100%;
+  justify-content: center;
+  font-weight: 800;
+  min-height: 2.85rem;
+}
+
+.quest-add-banner {
+  width: 100%;
+  justify-content: center;
+  font-weight: 800;
+  min-height: 3rem;
+  font-size: 1rem;
+}
+
+.quest-add-dock {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 5.35rem;
+  z-index: 36;
+  width: min(220px, calc(100% - 10.5rem));
+  pointer-events: none;
+  display: flex;
+  justify-content: center;
+}
+
+.quest-add-dock-btn {
+  pointer-events: auto;
+  width: 100%;
+  justify-content: center;
+  font-weight: 800;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+}
+
+@media (min-width: 840px) {
+  .quests-header {
+    grid-template-columns: 1fr auto;
+    align-items: end;
+  }
+
+  .quest-add-btn {
+    width: auto;
+    min-width: 11rem;
+  }
+
+  /* Desktop: header button is enough — hide the floating chip. */
+  .quest-add-dock {
+    display: none;
+  }
+}
+
+@media (max-width: 839px) {
+  .quests {
+    padding-bottom: 3.25rem;
+  }
+}
+
+.quest-create {
+  padding: 1.15rem 1.2rem;
+  display: grid;
+  gap: 0.85rem;
+}
+
+.quest-create-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  letter-spacing: -0.03em;
+}
+
+.quest-create-grid {
+  display: grid;
+  gap: 0.75rem;
+}
+
+@media (min-width: 640px) {
+  .quest-create-grid {
+    grid-template-columns: 1.2fr 1fr 0.7fr;
+  }
+}
+
+.quest-field {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.quest-field span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.quest-field select.field {
+  appearance: none;
+  cursor: pointer;
+}
+
+.quest-create-actions {
+  display: flex;
+  gap: 0.55rem;
+}
+
+.quest-item.custom {
+  border-color: rgba(56, 189, 248, 0.35);
+}
+
+.quest-custom-tag {
+  display: inline-block;
+  margin-left: 0.45rem;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  background: rgba(14, 116, 180, 0.25);
+  color: #7dd3fc;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
+.quest-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.75rem;
+}
+
+.quest-remove-btn {
+  border-color: rgba(248, 113, 113, 0.4);
+  color: #fca5a5;
+}
+
+.quest-period {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.quest-period-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.quest-period-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  letter-spacing: -0.03em;
+}
+
+.quest-period-badges {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.quest-period-count,
+.quest-period-timer {
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  background: var(--ember-soft);
+  color: var(--ember);
+  font-weight: 700;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.quest-period-timer {
+  color: var(--mist);
+  background: rgba(0, 0, 0, 0.2);
+  font-variant-numeric: tabular-nums;
+}
+
+.quest-timer-line {
+  margin: 0.35rem 0 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.quest-timer-line strong {
+  color: var(--ember);
+  font-family: inherit;
+  letter-spacing: 0;
+}
+
+.quest-timer-line span {
+  color: var(--muted);
+}
+
+.quest-summary {
+  padding: 1rem 1.2rem;
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+}
+
+.quest-summary strong {
+  font-family: var(--font-display);
+  letter-spacing: -0.03em;
+}
+
+.quest-summary span {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.quest-streak-block {
+  display: grid;
+  justify-items: end;
+  gap: 0.1rem;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.quest-streak-block strong {
+  font-size: 1.65rem;
+  line-height: 1;
+  color: var(--ember);
+}
+
+.quest-streak-block span {
+  font-weight: 700;
+  color: var(--text);
+  font-size: 0.82rem;
+}
+
+.quest-streak-block em {
+  font-style: normal;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.quest-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.quest-item {
+  padding: 1.1rem 1.15rem;
+  transition:
+    opacity 200ms ease,
+    border-color 200ms ease,
+    background 200ms ease;
+}
+
+.quest-item.done {
+  opacity: 0.55;
+  border-color: rgba(148, 163, 184, 0.35);
+  background: rgba(15, 23, 42, 0.35);
+  filter: grayscale(0.45);
+}
+
+.quest-item.done .quest-copy strong,
+.quest-item.done .quest-copy p {
+  color: #94a3b8;
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
+  text-decoration-color: rgba(148, 163, 184, 0.75);
+}
+
+.quest-item.done .xp-track {
+  background: rgba(148, 163, 184, 0.15);
+}
+
+.quest-item.done .xp-fill {
+  background: linear-gradient(90deg, #64748b, #94a3b8);
+}
+
+.quest-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.85rem;
+}
+
+.quest-copy strong {
+  display: block;
+  font-size: 1.05rem;
+}
+
+.quest-copy p {
+  margin: 0.25rem 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.quest-side {
+  flex-shrink: 0;
+  text-align: right;
+}
+
+.quest-side em {
+  font-style: normal;
+  color: var(--ember);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.quest-complete-badge {
+  display: inline-block;
+  padding: 0.3rem 0.65rem;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  background: rgba(100, 116, 139, 0.25);
+  color: #cbd5e1;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.quest-meta {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.55rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.quest-status-done {
+  color: #94a3b8;
+  font-weight: 700;
+}
+
+.recent-xp {
+  padding: 1.15rem;
+}
+
+.recent-xp ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.recent-xp li {
+  display: flex;
+  gap: 0.65rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.16);
+  border: 1px solid var(--line);
+}
+
+.recent-xp .amt {
+  color: var(--ember);
+  font-weight: 700;
+  min-width: 2.5rem;
+}
