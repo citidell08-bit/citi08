@@ -83,6 +83,15 @@
     legendary: 3.2,
   };
 
+  /** Base max durability by rarity — rarer gear lasts much longer */
+  const DURABILITY_BY_RARITY = {
+    common: 50,
+    uncommon: 90,
+    rare: 145,
+    epic: 220,
+    legendary: 340,
+  };
+
   const POTION_TABLE = [
     { key: "heal_small", name: "Minor Healing Potion", type: "consumable", effect: "heal", amount: 30, rarity: "common" },
     { key: "heal_med", name: "Healing Potion", type: "consumable", effect: "heal", amount: 55, rarity: "uncommon" },
@@ -1934,38 +1943,129 @@ const QUESTIONS = {
     return null;
   }
 
-  // Hotbar hand wins for combat: holding a sword never shoots, holding a bow never swings far
-  function getCombatWeapon() {
-    const hand = getHandItem();
-    if (hand) {
-      if (hand.slot === "weapon") return hand;
-      if (hand.slot === "bow" || hand.slot === "tool" || hand.type === "consumable" || hand.type === "material") return null;
-    }
-    return state.equipped.weapon || null;
-  }
-
-  function getCombatBow() {
-    const hand = getHandItem();
-    if (hand) {
-      if (hand.slot === "bow") return hand;
-      if (hand.slot === "weapon" || hand.slot === "tool" || hand.type === "consumable" || hand.type === "material") return null;
-    }
-    return state.equipped.bow || null;
-  }
-
   function isMineTool(it) {
     if (!it) return false;
     return !!(it.mine || /pick|hammer|spade|lens/i.test(it.key || "") || /pick/i.test(it.name || ""));
   }
 
+  /** Swords, bows, pickaxes, and shields wear out with use */
+  function hasDurability(item) {
+    if (!item || item.type === "consumable" || item.type === "material") return false;
+    if (item.slot === "weapon" || item.slot === "bow") return true;
+    if (item.shield) return true;
+    if (isMineTool(item)) return true;
+    return false;
+  }
+
+  function maxDurabilityFor(item) {
+    if (!item) return 0;
+    const base = DURABILITY_BY_RARITY[item.rarity] || DURABILITY_BY_RARITY.common;
+    let mul = 1;
+    if (item.slot === "bow") mul = 1.15;
+    else if (isMineTool(item)) mul = 1.3;
+    else if (item.shield) mul = 1.55;
+    else if (item.slot === "weapon") mul = 1;
+    return Math.max(1, Math.round(base * mul));
+  }
+
+  function ensureDurability(item) {
+    if (!item || !hasDurability(item)) return item;
+    if (item.maxDur == null || item.maxDur <= 0) item.maxDur = maxDurabilityFor(item);
+    if (item.dur == null || item.dur < 0) item.dur = item.maxDur;
+    if (item.dur > item.maxDur) item.dur = item.maxDur;
+    return item;
+  }
+
+  function isGearUsable(item) {
+    if (!item) return false;
+    if (!hasDurability(item)) return true;
+    ensureDurability(item);
+    return item.dur > 0;
+  }
+
+  function breakGear(item) {
+    if (!item) return;
+    const name = item.name || "Gear";
+    // Clear from equip slots
+    for (const slot of Object.keys(state.equipped)) {
+      if (state.equipped[slot] && state.equipped[slot].uid === item.uid) {
+        state.equipped[slot] = null;
+      }
+    }
+    // Clear from inventory / hotbar / held
+    removeItemByUid(item.uid);
+    if (state.heldItem && state.heldItem.uid === item.uid) state.heldItem = null;
+    if (state.blocking) state.blocking = false;
+    state.mineTarget = null;
+    if (state.attackCharge) cancelAttackCharge();
+    spawnParticles(state.player.x, state.player.y, 14, "spark");
+    spawnFloatText(state.player.x, state.player.y - 0.6, "BROKEN", "#ff8060");
+    try { SFX.hurt(); } catch (_) {}
+    showToast(`${name} broke from wear!`, true);
+    updateInventoryUI();
+    updateHotbarUI();
+    updateEquipUI();
+    updateBlockUI();
+    updateQuakeUI();
+    updateHUD();
+  }
+
+  /**
+   * Wear down durable gear. Returns true if the item broke.
+   * amount: durability points lost
+   */
+  function damageGear(item, amount = 1, { silent = false } = {}) {
+    if (!item || !hasDurability(item)) return false;
+    ensureDurability(item);
+    const lose = Math.max(0, Math.floor(Number(amount) || 0));
+    if (lose <= 0) return false;
+    item.dur = Math.max(0, item.dur - lose);
+    if (item.dur <= 0) {
+      breakGear(item);
+      return true;
+    }
+    if (!silent) {
+      const pct = item.dur / item.maxDur;
+      if (pct <= 0.15 && item.dur + lose > item.maxDur * 0.15) {
+        showToast(`${item.name} is nearly broken! (${item.dur}/${item.maxDur})`, true);
+      } else if (pct <= 0.35 && item.dur + lose > item.maxDur * 0.35) {
+        showToast(`${item.name} is wearing down (${item.dur}/${item.maxDur})`);
+      }
+    }
+    updateHotbarUI();
+    updateEquipUI();
+    return false;
+  }
+
+  // Hotbar hand wins for combat: holding a sword never shoots, holding a bow never swings far
+  function getCombatWeapon() {
+    const hand = getHandItem();
+    if (hand) {
+      if (hand.slot === "weapon") return isGearUsable(hand) ? hand : null;
+      if (hand.slot === "bow" || hand.slot === "tool" || hand.type === "consumable" || hand.type === "material") return null;
+    }
+    const eq = state.equipped.weapon;
+    return isGearUsable(eq) ? eq : null;
+  }
+
+  function getCombatBow() {
+    const hand = getHandItem();
+    if (hand) {
+      if (hand.slot === "bow") return isGearUsable(hand) ? hand : null;
+      if (hand.slot === "weapon" || hand.slot === "tool" || hand.type === "consumable" || hand.type === "material") return null;
+    }
+    const eq = state.equipped.bow;
+    return isGearUsable(eq) ? eq : null;
+  }
+
   function getCombatPick() {
     const hand = getHandItem();
     if (hand) {
-      if (isMineTool(hand)) return hand;
+      if (isMineTool(hand)) return isGearUsable(hand) ? hand : null;
       if (hand.slot === "weapon" || hand.slot === "bow" || hand.type === "consumable" || hand.type === "material") return null;
     }
     const tool = state.equipped.tool;
-    return isMineTool(tool) ? tool : null;
+    return isMineTool(tool) && isGearUsable(tool) ? tool : null;
   }
 
   function gearStats() {
@@ -1992,16 +2092,24 @@ const QUESTIONS = {
   }
 
   function getBlockArmor() {
+    // Prefer a usable shield, then any usable armor with DEF
     const eq = state.equipped.armor;
-    if (eq && (eq.def || 0) > 0) return eq;
     const hand = getHandItem();
-    if (hand && hand.slot === "armor" && (hand.def || 0) > 0) return hand;
-    return eq || null;
+    const handArmor = hand && hand.slot === "armor" ? hand : null;
+    const candidates = [eq, handArmor].filter(Boolean);
+    const shield = candidates.find((it) => it.shield && (it.def || 0) > 0 && isGearUsable(it));
+    if (shield) return shield;
+    const any = candidates.find((it) => (it.def || 0) > 0 && (!hasDurability(it) || isGearUsable(it)));
+    return any || null;
   }
 
   function canBlock() {
     if (!state.running || state.paused || state.drinkAnim > 0 || state.swimming) return false;
-    return gearStats().def > 0 && !!getBlockArmor();
+    const armor = getBlockArmor();
+    if (!armor) return false;
+    // Shields must still have durability; plain armor can block if it has DEF
+    if (armor.shield && !isGearUsable(armor)) return false;
+    return gearStats().def > 0;
   }
 
   function isBlocking() {
@@ -2017,13 +2125,16 @@ const QUESTIONS = {
     const on = isBlocking();
     const ready = !!(state.running && canBlock());
     if (banner) banner.classList.toggle("hidden", !on);
+    const armor = getBlockArmor();
+    if (armor) ensureDurability(armor);
+    const durBit = armor && hasDurability(armor) ? ` · DUR ${armor.dur}/${armor.maxDur}` : "";
     if (hudBtn) {
       hudBtn.classList.toggle("active", on);
       hudBtn.classList.toggle("ready-pulse", ready && !on);
       hudBtn.title = on
-        ? "Release to lower shield"
+        ? `Release to lower shield${durBit}`
         : ready
-          ? "HOLD this button (or F / Shift) to raise your shield"
+          ? `HOLD this button (or F / Shift) to raise your shield${durBit}`
           : "Equip a shield/armor in Inventory (I) first";
     }
     if (mobBtn) {
@@ -2036,8 +2147,8 @@ const QUESTIONS = {
       tip.classList.toggle("ready", ready && !on);
     }
     if (tipText) {
-      if (on) tipText.innerHTML = "<strong>BLOCKING</strong> — release <kbd>F</kbd> / <kbd>Shift</kbd> / top-right <strong>🛡 BLOCK</strong>";
-      else if (ready) tipText.innerHTML = "Your shield is equipped — <strong>HOLD F</strong> or the top-right <strong>🛡 BLOCK</strong> button";
+      if (on) tipText.innerHTML = `<strong>BLOCKING</strong> — release <kbd>F</kbd> / <kbd>Shift</kbd> / top-right <strong>🛡 BLOCK</strong>${durBit ? ` <span class="dur-chip">${durBit.trim()}</span>` : ""}`;
+      else if (ready) tipText.innerHTML = `Your shield is equipped${durBit} — <strong>HOLD F</strong> or the top-right <strong>🛡 BLOCK</strong> button`;
       else tipText.innerHTML = "No shield equipped — open <kbd>I</kbd> Inventory → put a 🛡 in the Armor slot";
     }
   }
@@ -2209,16 +2320,28 @@ const QUESTIONS = {
       el.appendChild(stack);
     }
     if (item) {
+      ensureDurability(item);
       const cnt = item.count || 1;
       const countHtml = cnt > 1 ? `<span class="mc-count">${cnt}</span>` : "";
-      stack.innerHTML = `<span class="mc-ico">${item.type === "material" || isRockItem(item) ? "🪨" : itemIcon(item)}</span>${countHtml}`;
+      let durHtml = "";
+      if (hasDurability(item) && item.maxDur > 0) {
+        const pct = Math.max(0, Math.min(1, item.dur / item.maxDur));
+        const cls = pct <= 0.15 ? "crit" : pct <= 0.35 ? "low" : "";
+        durHtml = `<span class="mc-dur ${cls}" style="width:${Math.max(8, Math.round(pct * 100))}%"></span>`;
+      }
+      stack.innerHTML = `<span class="mc-ico">${item.type === "material" || isRockItem(item) ? "🪨" : itemIcon(item)}</span>${countHtml}${durHtml}`;
       let tip = item.name + (item.rarity ? ` (${item.rarity})` : "");
+      if (hasDurability(item)) tip += ` · DUR ${item.dur}/${item.maxDur}`;
       if (isRockItem(item)) tip += ` ×${cnt} · throw LMB/Space · hold = METEOR`;
+      if (item.shield) tip += " · HOLD F / 🛡 to block";
       el.title = tip;
       el.classList.add(`rarity-${item.rarity || "common"}`);
+      el.classList.toggle("dur-low", !!(hasDurability(item) && item.dur / item.maxDur <= 0.35));
+      el.classList.toggle("dur-crit", !!(hasDurability(item) && item.dur / item.maxDur <= 0.15));
     } else {
       stack.innerHTML = "";
       el.title = ghost || "Empty";
+      el.classList.remove("dur-low", "dur-crit");
     }
   }
 
@@ -2351,6 +2474,7 @@ const QUESTIONS = {
       if (!options.length) options = LOOT_TABLE.filter((l) => l.rarity === "common");
       const base = options[Math.floor(Math.random() * options.length)] || LOOT_TABLE[0];
       const item = { ...base, uid: uid(), fromRank: rank };
+      ensureDurability(item);
       addItem(item);
       gained.push(item);
     }
@@ -2591,6 +2715,8 @@ const QUESTIONS = {
     if (item.slot === "book") stats.push("spells Z/X/C · Fire/Water/Air");
     if (isMineTool(item)) stats.push("EARTHSHATTER · hold attack / V");
     if (item.know) stats.push(`KNOW ${item.know}`);
+    ensureDurability(item);
+    if (hasDurability(item)) stats.push(`DUR ${item.dur}/${item.maxDur}`);
     showToast(`Equipped ${item.name}${stats.length ? ` · ${stats.join(" · ")}` : ""}`);
     updateBlockUI();
     updateSpellUI();
@@ -3770,6 +3896,7 @@ const QUESTIONS = {
       spawnParticles(state.player.x + Math.cos(state.player.facing) * 0.45, state.player.y + Math.sin(state.player.facing) * 0.45, full ? 8 : 5, "spark");
       if (mobs.length) showToast(hasWeapon ? "Swing missed — step closer!" : "Fists miss — get closer!");
     }
+    if (hasWeapon) damageGear(weapon, full ? 2 : 1);
     return true;
   }
 
@@ -3812,6 +3939,7 @@ const QUESTIONS = {
     spawnParticles(state.player.x, state.player.y, full ? 10 : 4, "spark");
     if (full) spawnFloatText(state.player.x, state.player.y - 0.55, "POWER", "#ffd060");
     try { SFX.bow(0.75 + power * 0.55); } catch (_) {}
+    damageGear(bow, full ? 2 : 1);
     return true;
   }
 
@@ -4040,6 +4168,8 @@ const QUESTIONS = {
         ? `⛏ EARTHSHATTER!! ${bits.join(" · ") || "ground broken"}`
         : `⛏ Quake · ${bits.join(" · ") || "smash"}`
     );
+    // Earthshatter is hard on the pick — full charge wears more
+    damageGear(pick, full ? 5 : 3);
     updateHUD();
     updateQuakeUI();
     return true;
@@ -4091,6 +4221,7 @@ const QUESTIONS = {
       state.mineTarget = null;
       state.mineAnim = 0;
       state.kp += 1;
+      damageGear(pick, 1);
       updateHUD();
     }
   }
@@ -4374,6 +4505,7 @@ const QUESTIONS = {
     let taken;
     if (isBlocking()) {
       // Active shield / armor block — much stronger than passive DEF
+      const blockArmor = getBlockArmor();
       const blockPower = 0.6 + Math.min(0.35, def * 0.035);
       const mitigated = Math.floor(dmg * blockPower) + Math.floor(def * 0.9);
       taken = Math.max(0, dmg - mitigated);
@@ -4381,9 +4513,17 @@ const QUESTIONS = {
       state.hurtCd = 0.55;
       SFX.block();
       spawnParticles(state.player.x + Math.cos(state.player.facing) * 0.4, state.player.y + Math.sin(state.player.facing) * 0.4, 8, "spark");
+      // Shields / blocking gear lose durability on every blocked hit
+      if (blockArmor && hasDurability(blockArmor)) {
+        const wear = Math.max(1, Math.min(4, 1 + Math.floor(dmg / 10)));
+        damageGear(blockArmor, wear, { silent: taken > 0 });
+      }
       if (taken <= 0) {
         spawnFloatText(state.player.x, state.player.y - 0.5, "BLOCK", "#90d0ff");
-        showToast("Blocked with your shield/armor!");
+        const left = blockArmor && hasDurability(blockArmor) && blockArmor.dur > 0
+          ? ` · DUR ${blockArmor.dur}/${blockArmor.maxDur}`
+          : "";
+        showToast(`Blocked with your shield/armor!${left}`);
         return;
       }
       spawnFloatText(state.player.x, state.player.y - 0.5, `-${taken}`, "#a0c8ff");
@@ -7119,6 +7259,7 @@ const QUESTIONS = {
         const blade = LOOT_TABLE.find((x) => x.slot === "weapon");
         if (!blade) return null;
         const item = { ...blade, uid: uid(), slot: null };
+        ensureDurability(item);
         if (!addItem(item)) return null;
         const idx = state.slots.findIndex((s) => s && s.uid === item.uid);
         if (idx >= 0 && idx < 9) state.hotbarSel = idx;
