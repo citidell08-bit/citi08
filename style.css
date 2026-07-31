@@ -443,6 +443,17 @@ select {
   max-width: 40vw;
 }
 
+#hud-tod {
+  font-family: var(--font-display);
+  font-size: 0.38rem;
+  letter-spacing: 0.06em;
+  color: #f0d080;
+}
+
+#hud-tod.night {
+  color: #90b0ff;
+}
+
 .hud-btn {
   pointer-events: auto;
   width: 40px;

@@ -247,8 +247,14 @@ const QUESTIONS = {
     grade: 8,
     bookId: "",
     bookTitle: "",
+    bookTopics: "",
     difficulty: "easy",
     playerName: "Scholar",
+    dayTime: 0.22, // 0..1 — dawn→noon→dusk→night
+    dayLength: 220, // seconds for a full day/night cycle
+    nightMobs: [],
+    nightSpawnCd: 0,
+    wasNight: false,
     session: {
       totalSec: 25 * 60,
       remaining: 25 * 60,
@@ -346,15 +352,17 @@ const QUESTIONS = {
     const custom = ($("custom-book") && $("custom-book").value.trim()) || "";
     const id = $("book-select").value;
     const preset = booksFor(subject, grade).find((b) => b.id === id) || null;
+    const typedTopics = ($("book-topics") && $("book-topics").value.trim()) || "";
     if (custom) {
       return {
         id: preset && preset.title === custom ? preset.id : "custom",
         title: custom,
         grades: [grade],
-        topics: preset && preset.title === custom ? preset.topics : "your study book",
+        topics: typedTopics || (preset && preset.title === custom ? preset.topics : "your study book"),
       };
     }
-    return preset || booksFor(subject, grade)[0] || null;
+    if (preset) return { ...preset, topics: typedTopics || preset.topics };
+    return booksFor(subject, grade)[0] || null;
   }
 
   function selectBook(bookId) {
@@ -365,12 +373,13 @@ const QUESTIONS = {
     if (!book) return;
     $("book-select").value = book.id;
     if ($("custom-book")) $("custom-book").value = book.title;
+    if ($("book-topics")) $("book-topics").value = book.topics;
     $("book-list").querySelectorAll(".book-option").forEach((btn) => {
       const on = btn.getAttribute("data-book-id") === book.id;
       btn.classList.toggle("selected", on);
       btn.setAttribute("aria-checked", on ? "true" : "false");
     });
-    $("book-hint").textContent = `Book: ${book.title}. Topics: ${book.topics}. Grade ${grade}.`;
+    $("book-hint").textContent = `Book: ${book.title}. Studying: ${book.topics}. Quests will use this.`;
   }
 
   function refreshBookSelect() {
@@ -1084,8 +1093,10 @@ const QUESTIONS = {
     state.dungeon = null;
     state.player.x = state.overworldReturn.x;
     state.player.y = state.overworldReturn.y;
+    state.wasNight = isNight();
+    if (!isNight()) state.nightMobs = [];
     updateDungeonUI();
-    showToast("Returned to the overworld.");
+    showToast(isNight() ? "Returned under the night sky…" : "Returned to the overworld.");
   }
 
   function nextDungeonFloor() {
@@ -1607,7 +1618,11 @@ const QUESTIONS = {
     $("hud-kp").textContent = String(state.kp);
     const px = Math.floor(state.player.x), py = Math.floor(state.player.y);
     $("hud-coords").textContent = `${px}, ${py}`;
-    $("hud-study").textContent = `${state.playerName} · G${state.grade} · ${state.bookTitle}`;
+    const topicShort = bookTopicList()[0] || "";
+    $("hud-study").textContent = topicShort
+      ? `${state.playerName} · ${state.bookTitle} · ${topicShort}`
+      : `${state.playerName} · G${state.grade} · ${state.bookTitle}`;
+    updateDayNightUI();
     updateSessionTimerUI();
     updateDungeonUI();
     recalcHp();
@@ -1645,22 +1660,129 @@ const QUESTIONS = {
 
   function gradeTierBoost() { return DIFFICULTY[state.difficulty].questTier; }
 
+  function bookTopicList() {
+    return String(state.bookTopics || "")
+      .split(/[,;/|]+/)
+      .map((t) => t.trim())
+      .filter(Boolean);
+  }
+
+  function questionMatchesBook(q) {
+    const topics = bookTopicList().map((t) => t.toLowerCase());
+    if (!topics.length) return 0;
+    const hay = `${q.q} ${(q.a || []).join(" ")}`.toLowerCase();
+    let score = 0;
+    for (const t of topics) {
+      const words = t.split(/\s+/).filter((w) => w.length > 2);
+      for (const w of words) {
+        if (hay.includes(w)) score += 2;
+      }
+      if (hay.includes(t)) score += 3;
+    }
+    return score;
+  }
+
+  function makeBookTopicQuestions() {
+    const topics = bookTopicList();
+    const book = state.bookTitle || "your book";
+    const subject = labelSubject();
+    const out = [];
+    if (topics.length) {
+      const focus = topics[0];
+      const distractors = topics.slice(1, 4);
+      while (distractors.length < 3) {
+        distractors.push(["review chapter", "vocabulary list", "practice set", "summary notes"][distractors.length]);
+      }
+      const opts = [focus, ...distractors.slice(0, 3)];
+      // shuffle but track correct
+      const order = [0, 1, 2, 3].sort(() => Math.random() - 0.5);
+      const a = order.map((i) => opts[i]);
+      const c = order.indexOf(0);
+      out.push({
+        q: `In your book "${book}", which topic are you focusing on right now?`,
+        a, c, g: [state.grade, state.grade], bookQ: true,
+      });
+      if (topics.length > 1) {
+        out.push({
+          q: `Your study plan for "${book}" includes all EXCEPT:`,
+          a: [topics[1], topics[0], "random unrelated trivia", topics[Math.min(2, topics.length - 1)]],
+          c: 2, g: [state.grade, state.grade], bookQ: true,
+        });
+      }
+      out.push({
+        q: `True or related: "${focus}" is a key idea from "${book}" (${subject}). Best next study step?`,
+        a: [
+          `Review ${focus} examples in the book`,
+          "Ignore the book and guess",
+          "Skip straight to a final exam only",
+          "Study a different subject entirely",
+        ],
+        c: 0, g: [state.grade, state.grade], bookQ: true,
+      });
+    }
+    out.push({
+      q: `Which resource should guide this Grade ${state.grade} ${subject} trial?`,
+      a: [book, "A random comic", "An unrelated cookbook", "A blank notebook with no notes"],
+      c: 0, g: [state.grade, state.grade], bookQ: true,
+    });
+    return out;
+  }
+
+  function wrapQuestionForBook(q) {
+    if (!q || q.bookQ) return q;
+    const book = state.bookTitle || "your book";
+    const topics = bookTopicList();
+    const topicBit = topics.length ? ` (topic: ${topics[0]})` : "";
+    return {
+      ...q,
+      q: `From "${book}"${topicBit}: ${q.q}`,
+      displayTopics: topics.join(", "),
+    };
+  }
+
   function pickQuestion(extraTier = 0) {
     const pool = QUESTIONS[state.subject] || QUESTIONS.math;
     const g = state.grade;
     let eligible = pool.filter((q) => g >= q.g[0] && g <= q.g[1]);
     if (!eligible.length) eligible = pool.filter((q) => Math.abs(((q.g[0] + q.g[1]) / 2) - g) <= 3);
     if (!eligible.length) eligible = pool.slice();
-    let unused = eligible.filter((q) => !state.usedQuestions.has(q.q));
-    if (!unused.length) { eligible.forEach((q) => state.usedQuestions.delete(q.q)); unused = eligible; }
+
+    // Prefer questions that match the player's described book topics
+    const scored = eligible.map((q) => ({ q, s: questionMatchesBook(q) }));
+    scored.sort((a, b) => b.s - a.s);
+    const matched = scored.filter((x) => x.s > 0).map((x) => x.q);
+    if (matched.length >= 2) eligible = matched.concat(eligible.filter((q) => !matched.includes(q)));
+
+    // Mix in book-specific prompts from their description
+    const bookQs = makeBookTopicQuestions();
+    let combined = bookQs.concat(eligible);
+
+    let unused = combined.filter((q) => !state.usedQuestions.has(q.q));
+    if (!unused.length) {
+      combined.forEach((q) => state.usedQuestions.delete(q.q));
+      unused = combined.slice();
+    }
+
+    // Bias toward book questions + topic matches
+    const bookFirst = unused.filter((q) => q.bookQ || questionMatchesBook(q) > 0);
+    const poolUse = bookFirst.length ? bookFirst.concat(unused.filter((q) => !bookFirst.includes(q))) : unused;
+
     if (extraTier > 0 || state.difficulty === "hard" || state.difficulty === "raid") {
-      unused.sort((a, b) => b.g[1] - a.g[1]);
-      const top = unused.slice(0, Math.max(3, Math.ceil(unused.length * 0.6)));
-      const q = top[Math.floor(Math.random() * top.length)];
+      const ranked = poolUse.slice().sort((a, b) => {
+        const tb = (b.bookQ ? 5 : 0) + questionMatchesBook(b) - ((a.bookQ ? 5 : 0) + questionMatchesBook(a));
+        if (tb) return tb;
+        return (b.g?.[1] || 0) - (a.g?.[1] || 0);
+      });
+      const top = ranked.slice(0, Math.max(4, Math.ceil(ranked.length * 0.55)));
+      const q = wrapQuestionForBook(top[Math.floor(Math.random() * top.length)]);
       state.usedQuestions.add(q.q);
       return q;
     }
-    const q = unused[Math.floor(Math.random() * unused.length)];
+    // ~45% chance to pull a book-specific question when available
+    let pickPool = poolUse;
+    const onlyBook = poolUse.filter((q) => q.bookQ);
+    if (onlyBook.length && Math.random() < 0.45) pickPool = onlyBook;
+    const q = wrapQuestionForBook(pickPool[Math.floor(Math.random() * pickPool.length)]);
     state.usedQuestions.add(q.q);
     return q;
   }
@@ -1671,12 +1793,13 @@ const QUESTIONS = {
     state.paused = true;
     const rank = structure.rank || 0;
     const question = pickQuestion(rank + gradeTierBoost());
+    const topics = bookTopicList().join(", ") || "your listed topics";
     $("quest-title").textContent = structure.name || "Trial";
     $("quest-rank").textContent = `Rank ${rankLabel(rank)}`;
     $("quest-flavor").textContent = structure.village
-      ? `"${state.playerName}, Grade ${state.grade} — prove your knowledge from ${state.bookTitle}."`
-      : `A weathered pedestal hums with Grade ${state.grade} trials from ${state.bookTitle}.`;
-    $("quest-book-tag").textContent = `📖 ${state.bookTitle} · ${labelSubject()} · Grade ${state.grade}`;
+      ? `"${state.playerName}, open ${state.bookTitle} — this trial covers: ${topics}."`
+      : `The pedestal reads from your book "${state.bookTitle}". Focus: ${topics}.`;
+    $("quest-book-tag").textContent = `📖 ${state.bookTitle} · ${topics} · Grade ${state.grade}`;
     $("quest-question").textContent = question.q;
     $("quest-feedback").classList.add("hidden");
     const choices = $("quest-choices");
@@ -1753,8 +1876,9 @@ const QUESTIONS = {
       fromDungeon: !!(state.dungeon && state.dungeon.active),
     };
     $("boss-title").textContent = bossName;
-    $("boss-flavor").textContent = `Dungeon guardian of Rank ${rankLabel(rank)}. Three escalating questions from ${state.bookTitle}. Fail one → lose all gear & drop a level.`;
-    $("boss-book-tag").textContent = `📖 ${state.bookTitle} · Grade ${state.grade} · ${DIFFICULTY[state.difficulty].label}`;
+    const topics = bookTopicList().join(", ") || "your study topics";
+    $("boss-flavor").textContent = `Dungeon guardian of Rank ${rankLabel(rank)}. Three questions from "${state.bookTitle}" (${topics}). Fail one → lose all gear & drop a level.`;
+    $("boss-book-tag").textContent = `📖 ${state.bookTitle} · ${topics} · Grade ${state.grade} · ${DIFFICULTY[state.difficulty].label}`;
     $("boss-hp-bar").style.width = "100%";
     openModal("boss-modal");
     showBossQuestion();
@@ -1987,12 +2111,127 @@ const QUESTIONS = {
     return getCombatWeapon() ? MELEE_RANGE : FIST_RANGE;
   }
 
+  function overworldDiffMult() {
+    return { easy: 0.75, medium: 1.15, hard: 1.7, raid: 2.35 }[state.difficulty] || 1;
+  }
+
+  function nightMobBaseDmg() {
+    return { easy: 4, medium: 7, hard: 11, raid: 16 }[state.difficulty] || 6;
+  }
+
+  function isNight() {
+    // Night window: evening through late night
+    return state.dayTime >= 0.62 && state.dayTime < 0.92;
+  }
+
+  function dayPhaseLabel() {
+    const t = state.dayTime;
+    if (t < 0.18) return "Dawn";
+    if (t < 0.45) return "Day";
+    if (t < 0.62) return "Dusk";
+    if (t < 0.92) return "Night";
+    return "Dawn";
+  }
+
+  function updateDayNightUI() {
+    const el = $("hud-tod");
+    if (!el) return;
+    const label = dayPhaseLabel();
+    el.textContent = label;
+    el.classList.toggle("night", label === "Night");
+  }
+
+  function updateDayNight(dt) {
+    if (state.dungeon?.active) {
+      updateDayNightUI();
+      return;
+    }
+    state.dayTime = (state.dayTime + dt / Math.max(60, state.dayLength)) % 1;
+    const night = isNight();
+    if (night && !state.wasNight) {
+      showToast("Night falls… monsters stir in the ruins!", true);
+      state.nightSpawnCd = 0.4;
+    }
+    if (!night && state.wasNight) {
+      showToast("Dawn breaks — night beasts flee.");
+      // Burn remaining night mobs in sunlight
+      for (const m of state.nightMobs) spawnParticles(m.x, m.y, 6, "spark");
+      state.nightMobs = [];
+    }
+    state.wasNight = night;
+    updateDayNightUI();
+    if (night) updateNightSpawns(dt);
+    else state.nightSpawnCd = 0;
+  }
+
+  function canSpawnNightAt(wx, wy) {
+    const tile = getOverworldTile(wx, wy);
+    if ([TILES.WATER, TILES.LAVA, TILES.WALL, TILES.VILLAGE, TILES.DOOR, TILES.ROOF].includes(tile)) return false;
+    if (isSolidTile(tile)) return false;
+    // Stay out of village cores a bit
+    for (const s of state.structures.values()) {
+      if ((s.village || s.type === "quest") && Math.hypot(wx - s.wx, wy - s.wy) < 4) return false;
+    }
+    return true;
+  }
+
+  function spawnOneNightMob() {
+    const types = [
+      { type: "shadow", color: "#282030", body: "#181020", eye: "#a060ff", hp: 18, spd: 1.7 },
+      { type: "wolf", color: "#5a5a68", body: "#3a3a48", eye: "#ffe080", hp: 22, spd: 2.0 },
+      { type: "bat", color: "#4a3858", body: "#3a2848", eye: "#f0c040", hp: 14, spd: 2.3 },
+      { type: "wraith", color: "#405878", body: "#304060", eye: "#c0e0ff", hp: 26, spd: 1.4 },
+    ];
+    const t = types[Math.floor(Math.random() * types.length)];
+    const mult = overworldDiffMult();
+    const ang = Math.random() * Math.PI * 2;
+    const dist = 7 + Math.random() * 6;
+    const x = state.player.x + Math.cos(ang) * dist;
+    const y = state.player.y + Math.sin(ang) * dist;
+    const wx = Math.floor(x), wy = Math.floor(y);
+    if (!canSpawnNightAt(wx, wy)) return null;
+    return {
+      id: uid(),
+      x: wx + 0.5,
+      y: wy + 0.5,
+      type: t.type,
+      hp: Math.floor(t.hp * mult),
+      maxHp: Math.floor(t.hp * mult),
+      dmg: Math.max(1, Math.floor(nightMobBaseDmg() * (0.85 + Math.random() * 0.3))),
+      spd: t.spd * (0.9 + mult * 0.08),
+      color: t.color,
+      body: t.body,
+      eye: t.eye,
+      hitFlash: 0,
+      night: true,
+    };
+  }
+
+  function updateNightSpawns(dt) {
+    if (state.dungeon?.active || state.paused) return;
+    const cap = { easy: 3, medium: 5, hard: 7, raid: 9 }[state.difficulty] || 4;
+    state.nightSpawnCd -= dt;
+    if (state.nightSpawnCd <= 0 && state.nightMobs.length < cap) {
+      const m = spawnOneNightMob();
+      if (m) state.nightMobs.push(m);
+      state.nightSpawnCd = { easy: 3.8, medium: 2.6, hard: 1.8, raid: 1.2 }[state.difficulty] || 2.5;
+    }
+  }
+
   function damageMonster(monster, dmg) {
-    if (!monster || !state.dungeon?.active) return;
+    if (!monster) return;
     monster.hp -= dmg;
     monster.hitFlash = 0.2;
     spawnParticles(monster.x, monster.y, 8, "spark");
     if (monster.hp <= 0) {
+      if (monster.night) {
+        state.nightMobs = state.nightMobs.filter((m) => m.id !== monster.id);
+        state.kp += 2 + ({ easy: 1, medium: 2, hard: 3, raid: 4 }[state.difficulty] || 1);
+        showToast(`Night ${monster.type} defeated!`);
+        updateHUD();
+        return;
+      }
+      if (!state.dungeon?.active) return;
       state.dungeon.monsters = state.dungeon.monsters.filter((m) => m.id !== monster.id);
       state.kp += 3 + state.dungeon.floor;
       showToast(`${monster.type} defeated!`);
@@ -2005,6 +2244,11 @@ const QUESTIONS = {
     }
   }
 
+  function iterCombatMobs() {
+    if (state.dungeon?.active) return state.dungeon.monsters;
+    return state.nightMobs;
+  }
+
   function performMeleeSwing() {
     if (state.hitCd > 0 || state.paused) return false;
     const weapon = getCombatWeapon();
@@ -2015,20 +2259,18 @@ const QUESTIONS = {
     state.attackAnim = 0.28;
     state.attackArc = range;
     let hitAny = false;
-    if (state.dungeon?.active) {
-      for (const m of state.dungeon.monsters) {
-        const dist = Math.hypot(m.x - state.player.x, m.y - state.player.y);
-        if (dist > range) continue;
-        const ang = Math.atan2(m.y - state.player.y, m.x - state.player.x);
-        let diff = Math.abs(((ang - state.player.facing + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
-        // Must face the target — only point-blank ignores cone
-        if (diff > MELEE_ARC / 2 && dist > 0.55) continue;
-        damageMonster(m, base);
-        hitAny = true;
-      }
+    const mobs = iterCombatMobs();
+    for (const m of mobs) {
+      const dist = Math.hypot(m.x - state.player.x, m.y - state.player.y);
+      if (dist > range) continue;
+      const ang = Math.atan2(m.y - state.player.y, m.x - state.player.x);
+      let diff = Math.abs(((ang - state.player.facing + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+      if (diff > MELEE_ARC / 2 && dist > 0.55) continue;
+      damageMonster(m, base);
+      hitAny = true;
     }
     spawnParticles(state.player.x + Math.cos(state.player.facing) * 0.45, state.player.y + Math.sin(state.player.facing) * 0.45, 5, "spark");
-    if (!hitAny && state.dungeon?.active) showToast(hasWeapon ? "Swing missed — step closer!" : "Fists miss — get closer!");
+    if (!hitAny && mobs.length) showToast(hasWeapon ? "Swing missed — step closer!" : "Fists miss — get closer!");
     return true;
   }
 
@@ -2112,13 +2354,11 @@ const QUESTIONS = {
       p.life -= dt;
       if (p.life <= 0) return false;
       if (isSolidTile(getTile(Math.floor(p.x), Math.floor(p.y)))) return false;
-      if (state.dungeon?.active) {
-        for (const m of state.dungeon.monsters) {
-          if (Math.hypot(m.x - p.x, m.y - p.y) < 0.45) {
-            damageMonster(m, p.dmg);
-            spawnParticles(p.x, p.y, 6, "spark");
-            return false;
-          }
+      for (const m of iterCombatMobs()) {
+        if (Math.hypot(m.x - p.x, m.y - p.y) < 0.45) {
+          damageMonster(m, p.dmg);
+          spawnParticles(p.x, p.y, 6, "spark");
+          return false;
         }
       }
       return true;
@@ -2196,28 +2436,45 @@ const QUESTIONS = {
   }
 
   function updateMonsters(dt) {
-    if (!state.dungeon?.active) return;
     const px = state.player.x, py = state.player.y;
-    for (const m of state.dungeon.monsters) {
+    if (state.dungeon?.active) {
+      for (const m of state.dungeon.monsters) {
+        const dx = px - m.x, dy = py - m.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist < 8 && dist > 0.4) {
+          const spd = m.spd * dt;
+          const nx = m.x + (dx / dist) * spd;
+          const ny = m.y + (dy / dist) * spd;
+          if (!isSolidTile(getTile(Math.floor(nx), Math.floor(m.y)))) m.x = nx;
+          if (!isSolidTile(getTile(Math.floor(m.x), Math.floor(ny)))) m.y = ny;
+        }
+        if (dist < 0.55 && state.hurtCd <= 0) playerHurt(m.dmg);
+        if (m.hitCd > 0) m.hitCd -= dt;
+      }
+      if (state.dungeon.floor === 10 && state.dungeon.monsters.length === 0) {
+        const bt = state.dungeon.bossTile;
+        if (bt && Math.hypot(px - bt.x - 0.5, py - bt.y - 0.5) < 1.2 && !state.dungeon.bossStarted) {
+          state.dungeon.bossStarted = true;
+          startBoss({ name: `${state.dungeon.name} Guardian`, rank: state.dungeon.rank, done: false });
+        }
+      }
+      return;
+    }
+    // Overworld night mobs
+    state.nightMobs = state.nightMobs.filter((m) => {
       const dx = px - m.x, dy = py - m.y;
       const dist = Math.hypot(dx, dy);
-      if (dist < 8 && dist > 0.4) {
+      if (dist > 28) return false; // despawn far away
+      if (dist < 9 && dist > 0.4) {
         const spd = m.spd * dt;
         const nx = m.x + (dx / dist) * spd;
         const ny = m.y + (dy / dist) * spd;
-        if (!isSolidTile(getTile(Math.floor(nx), Math.floor(m.y)))) m.x = nx;
-        if (!isSolidTile(getTile(Math.floor(m.x), Math.floor(ny)))) m.y = ny;
+        if (!isSolidTile(getOverworldTile(Math.floor(nx), Math.floor(m.y)))) m.x = nx;
+        if (!isSolidTile(getOverworldTile(Math.floor(m.x), Math.floor(ny)))) m.y = ny;
       }
       if (dist < 0.55 && state.hurtCd <= 0) playerHurt(m.dmg);
-      if (m.hitCd > 0) m.hitCd -= dt;
-    }
-    if (state.dungeon.floor === 10 && state.dungeon.monsters.length === 0) {
-      const bt = state.dungeon.bossTile;
-      if (bt && Math.hypot(px - bt.x - 0.5, py - bt.y - 0.5) < 1.2 && !state.dungeon.bossStarted) {
-        state.dungeon.bossStarted = true;
-        startBoss({ name: `${state.dungeon.name} Guardian`, rank: state.dungeon.rank, done: false });
-      }
-    }
+      return true;
+    });
   }
 
   function spawnParticles(x, y, n, kind = "spark") {
@@ -2377,6 +2634,7 @@ const QUESTIONS = {
         showToast("Might buff faded.");
       }
     }
+    updateDayNight(dt);
     updateMonsters(dt);
     updateChests(dt);
     updateMining(dt);
@@ -2989,7 +3247,10 @@ const QUESTIONS = {
     resizeCanvas();
     const w = canvas.width, h = canvas.height;
     if (w <= 0 || h <= 0) return;
-    ctx.fillStyle = state.dungeon?.active ? "#100e18" : "#1a3020";
+    if (state.dungeon?.active) ctx.fillStyle = "#100e18";
+    else if (isNight()) ctx.fillStyle = "#0a1020";
+    else if (state.dayTime >= 0.55 && state.dayTime < 0.62) ctx.fillStyle = "#2a2030";
+    else ctx.fillStyle = "#1a3020";
     ctx.fillRect(0, 0, w, h);
 
     const fov = state.settings.fov;
@@ -3018,6 +3279,12 @@ const QUESTIONS = {
 
     if (state.dungeon?.active) {
       for (const m of state.dungeon.monsters) {
+        const px = Math.floor((m.x - camX) * tileSize + w / 2);
+        const py = Math.floor((m.y - camY) * tileSize + h / 2);
+        drawMonster(m, px, py, tileSize);
+      }
+    } else {
+      for (const m of state.nightMobs) {
         const px = Math.floor((m.x - camX) * tileSize + w / 2);
         const py = Math.floor((m.y - camY) * tileSize + h / 2);
         drawMonster(m, px, py, tileSize);
@@ -3107,20 +3374,42 @@ const QUESTIONS = {
       return true;
     });
 
-    // Pixel Quest-style vignette (lighter outdoors, purple in dungeons)
-    const grd = ctx.createRadialGradient(w / 2, h / 2, h * 0.25, w / 2, h / 2, h * 0.85);
-    grd.addColorStop(0, "rgba(0,0,0,0)");
-    grd.addColorStop(1, state.dungeon?.active ? "rgba(10,0,24,0.55)" : "rgba(0,20,10,0.35)");
-    ctx.fillStyle = grd;
-    ctx.fillRect(0, 0, w, h);
+    // Day/night sky wash + vignette
     if (!state.dungeon?.active) {
-      ctx.fillStyle = "rgba(180, 255, 160, 0.03)";
+      const t = state.dayTime;
+      let wash = "rgba(0,0,0,0)";
+      if (t >= 0.55 && t < 0.62) { // dusk
+        const k = (t - 0.55) / 0.07;
+        wash = `rgba(40, 20, 60, ${0.15 + k * 0.25})`;
+      } else if (isNight()) {
+        const mid = 1 - Math.abs(((t - 0.77) / 0.15));
+        wash = `rgba(6, 10, 28, ${0.42 + Math.max(0, mid) * 0.18})`;
+      } else if (t >= 0.92 || t < 0.18) { // dawn
+        wash = "rgba(60, 40, 30, 0.18)";
+      } else {
+        wash = "rgba(180, 255, 160, 0.03)";
+      }
+      ctx.fillStyle = wash;
       ctx.fillRect(0, 0, w, h);
+      if (isNight()) {
+        // Soft lantern around player
+        const light = ctx.createRadialGradient(w / 2, h / 2, tileSize * 0.6, w / 2, h / 2, tileSize * 4.5);
+        light.addColorStop(0, "rgba(0,0,0,0)");
+        light.addColorStop(0.55, "rgba(0,0,0,0.15)");
+        light.addColorStop(1, "rgba(0,0,8,0.55)");
+        ctx.fillStyle = light;
+        ctx.fillRect(0, 0, w, h);
+      }
       if (state.swimming) {
         ctx.fillStyle = "rgba(40, 120, 220, 0.14)";
         ctx.fillRect(0, 0, w, h);
       }
     }
+    const grd = ctx.createRadialGradient(w / 2, h / 2, h * 0.25, w / 2, h / 2, h * 0.85);
+    grd.addColorStop(0, "rgba(0,0,0,0)");
+    grd.addColorStop(1, state.dungeon?.active ? "rgba(10,0,24,0.55)" : (isNight() ? "rgba(0,0,20,0.4)" : "rgba(0,20,10,0.28)"));
+    ctx.fillStyle = grd;
+    ctx.fillRect(0, 0, w, h);
     drawMinimap();
   }
 
@@ -3425,8 +3714,14 @@ const QUESTIONS = {
     state.grade = cfg.grade;
     state.bookId = cfg.bookId;
     state.bookTitle = cfg.bookTitle;
+    state.bookTopics = cfg.bookTopics || "";
     state.difficulty = cfg.difficulty;
     state.playerName = cfg.name || "Scholar";
+    state.dayTime = 0.22;
+    state.dayLength = 220;
+    state.nightMobs = [];
+    state.nightSpawnCd = 0;
+    state.wasNight = false;
     state.level = 1;
     state.kp = 0;
     state.questsDone = 0;
@@ -3517,6 +3812,7 @@ const QUESTIONS = {
     state.running = false;
     state.paused = false;
     state.dungeon = null;
+    state.nightMobs = [];
     ["settings-modal", "inventory-modal", "map-modal", "quest-modal", "boss-modal", "result-modal", "dungeon-modal", "session-modal"].forEach(closeModal);
     $("game-screen").classList.remove("active");
     $("start-screen").classList.add("active");
@@ -3573,9 +3869,21 @@ const QUESTIONS = {
         btn.setAttribute("aria-checked", on ? "true" : "false");
       });
       if ($("book-hint")) {
+        const tops = ($("book-topics") && $("book-topics").value.trim()) || "";
         $("book-hint").textContent = typed
-          ? `Book: ${typed}. Grade ${grade}.`
-          : "Type your book name above (required), or pick a suggestion.";
+          ? `Book: ${typed}${tops ? ` · Studying: ${tops}` : ""}. Quests use this.`
+          : "Type your book and what you’re studying — quests use this.";
+      }
+    });
+  }
+  if ($("book-topics")) {
+    $("book-topics").addEventListener("input", () => {
+      const typed = ($("custom-book") && $("custom-book").value.trim()) || "";
+      const tops = $("book-topics").value.trim();
+      if ($("book-hint")) {
+        $("book-hint").textContent = typed || tops
+          ? `Book: ${typed || "…"}${tops ? ` · Studying: ${tops}` : ""}. Quests use this.`
+          : "Type your book and what you’re studying — quests use this.";
       }
     });
   }
@@ -3598,6 +3906,12 @@ const QUESTIONS = {
       if ($("custom-book")) $("custom-book").focus();
       return;
     }
+    const bookTopics = ($("book-topics") && $("book-topics").value.trim()) || "";
+    if (!bookTopics) {
+      alert("Please describe what you are studying in your book (topics).");
+      if ($("book-topics")) $("book-topics").focus();
+      return;
+    }
     const book = selectedBook();
     const difficulty = (document.querySelector('input[name="difficulty"]:checked') || {}).value || "easy";
     const timerMinutes = Math.max(1, Math.min(180, parseInt(($("timer-minutes") || {}).value || "25", 10) || 25));
@@ -3607,6 +3921,7 @@ const QUESTIONS = {
       grade,
       bookId: book ? book.id : "custom",
       bookTitle,
+      bookTopics,
       difficulty,
       timerMinutes,
     });

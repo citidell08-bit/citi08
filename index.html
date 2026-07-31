@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=timer1" />
+  <link rel="stylesheet" href="style.css?v=daynight1" />
 </head>
 <body>
   <div id="app">
@@ -60,11 +60,15 @@
               <span>Book / textbook name</span>
               <input type="text" id="custom-book" maxlength="48" placeholder="Type the book you are using" autocomplete="off" required />
             </label>
-            <p class="book-pick-label muted">Or tap a suggested book to fill it in:</p>
+            <label class="field">
+              <span>What are you studying in it?</span>
+              <input type="text" id="book-topics" maxlength="100" placeholder="e.g. fractions, chapter 5, cells, Civil War" autocomplete="off" required />
+            </label>
+            <p class="book-pick-label muted">Or tap a suggested book to fill name + topics:</p>
             <input type="hidden" id="book-select" name="book" value="" />
             <div id="book-list" class="book-list" role="radiogroup" aria-label="Suggested textbooks"></div>
           </fieldset>
-          <p id="book-hint" class="book-hint">Type your book name above (required), or pick a suggestion.</p>
+          <p id="book-hint" class="book-hint">Type your book and what you’re studying — quests use this.</p>
 
           <fieldset class="timer-field">
             <legend>Study timer</legend>
@@ -169,6 +173,7 @@
           </div>
           <div class="hud-center">
             <span id="hud-coords">0, 0</span>
+            <span id="hud-tod" class="hud-tod">Day</span>
             <span id="hud-biome">Grassland Ruins</span>
             <span id="hud-study" class="hud-study"></span>
           </div>
@@ -471,7 +476,7 @@
     </div>
   </div>
 
-  <script src="script.js?v=timer1"></script>
+  <script src="script.js?v=daynight1"></script>
   <script>
     // Fallback only — skips if main script already handled the key/button
     (function () {
