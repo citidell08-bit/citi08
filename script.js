@@ -6642,7 +6642,10 @@ const QUESTIONS = {
       state.hotbarSel = parseInt(e.key, 10) - 1;
       updateHotbarUI();
       const it = state.slots[state.hotbarSel];
-      if (it) showToast(`Hand: ${it.name}`);
+      if (it) {
+        if (isRockItem(it)) showToast(`Hand: ${it.name} ×${it.count || 1} — throw / hold METEOR`);
+        else showToast(`Hand: ${it.name}`);
+      }
       return;
     }
     if (e.code === "KeyI" || e.key === "i" || e.key === "I") {
