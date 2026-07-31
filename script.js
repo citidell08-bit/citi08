@@ -353,7 +353,8 @@ const QUESTIONS = {
       if (!master) return;
       const on = state.settings.sound !== false;
       const v = Math.max(0, Math.min(1, pendingVol));
-      master.gain.value = on ? 0.6 * v : 0;
+      // Keep SFX punchy over ambient beds
+      master.gain.value = on ? 0.9 * v : 0;
     }
 
     function ensure() {
@@ -653,48 +654,74 @@ const QUESTIONS = {
     }
 
     function swordSlash() {
-      // Air whoosh + bright metallic “shing”
-      noiseBurst(0.11, 0.32, 2200);
-      tone(1600, 0.16, "sawtooth", 0.11, 0.015, 380);
-      tone(2400, 0.2, "triangle", 0.1, 0.025, 520);
-      tone(3600, 0.14, "sine", 0.07, 0.03, 900);
-      tone(4800, 0.1, "sine", 0.045, 0.04, 1400);
+      // Loud whoosh + metallic “SHING” — unmistakable on every swing
+      noiseBurst(0.14, 0.55, 1800);
+      noiseBurst(0.1, 0.35, 3200, 0.02);
+      tone(1400, 0.18, "sawtooth", 0.28, 0.01, 320);
+      tone(2200, 0.22, "triangle", 0.24, 0.02, 480);
+      tone(3400, 0.16, "sine", 0.18, 0.03, 800);
+      tone(4800, 0.12, "sine", 0.12, 0.04, 1200);
     }
 
     function swordHit() {
-      noiseBurst(0.07, 0.38, 1100);
-      tone(200, 0.09, "square", 0.14, 0, 70);
-      tone(980, 0.11, "triangle", 0.09, 0.01, 240);
+      noiseBurst(0.09, 0.55, 900);
+      tone(180, 0.12, "square", 0.28, 0, 60);
+      tone(900, 0.14, "triangle", 0.2, 0.01, 200);
     }
 
     function fist() {
-      noiseBurst(0.06, 0.22, 420);
-      tone(110, 0.08, "sine", 0.18, 0, 45);
+      noiseBurst(0.08, 0.4, 420);
+      tone(110, 0.1, "sine", 0.3, 0, 45);
     }
 
     function bow() {
-      noiseBurst(0.05, 0.2, 2600);
-      tone(420, 0.1, "triangle", 0.1, 0, 160);
+      // Bowstring pull + sharp twang + arrow whoosh
+      tone(140, 0.08, "triangle", 0.22, 0, 90);
+      noiseBurst(0.1, 0.5, 2400, 0.02);
+      tone(520, 0.14, "sine", 0.32, 0.03, 180);
+      tone(980, 0.12, "triangle", 0.22, 0.06, 360);
+      noiseBurst(0.12, 0.35, 1400, 0.05);
+    }
+
+    function bowDry() {
+      // Soft misfire / out-of-range cue so bow still “makes sound”
+      tone(200, 0.08, "triangle", 0.16, 0, 120);
+      noiseBurst(0.06, 0.2, 1800);
     }
 
     function footstep(surface) {
-      const jit = 0.9 + Math.random() * 0.2;
+      // Clear heel–toe walking thuds (much louder than ambience)
+      const jit = 0.88 + Math.random() * 0.28;
+      const heel = (surface === "stone" ? 85 : surface === "sand" ? 60 : 72) * jit;
       if (surface === "water") {
-        noiseBurst(0.09 * jit, 0.16, 650);
-        tone(200 * jit, 0.06, "sine", 0.055, 0, 80);
+        noiseBurst(0.12 * jit, 0.42, 700);
+        tone(190 * jit, 0.1, "sine", 0.22, 0, 70);
+        tone(120 * jit, 0.08, "triangle", 0.14, 0.04, 50);
       } else if (surface === "stone") {
-        noiseBurst(0.035 * jit, 0.15, 1400);
-        tone(95 * jit, 0.045, "triangle", 0.09, 0, 48);
+        noiseBurst(0.07 * jit, 0.45, 1100);
+        tone(heel, 0.1, "triangle", 0.34, 0, heel * 0.4);
+        tone(heel * 1.8, 0.06, "sine", 0.16, 0.035, heel);
       } else if (surface === "sand") {
-        noiseBurst(0.07 * jit, 0.13, 900);
+        noiseBurst(0.11 * jit, 0.4, 850);
+        tone(heel, 0.09, "sine", 0.26, 0, heel * 0.45);
       } else if (surface === "forest") {
-        noiseBurst(0.055 * jit, 0.12, 1100);
-        tone(90 * jit, 0.04, "sine", 0.05, 0, 40);
+        noiseBurst(0.09 * jit, 0.42, 950);
+        tone(heel, 0.1, "sine", 0.3, 0, heel * 0.4);
+        tone(heel * 1.5, 0.06, "triangle", 0.14, 0.03, heel * 0.7);
         forestStepRustle();
       } else {
-        noiseBurst(0.04 * jit, 0.11, 750);
-        tone(72 * jit, 0.045, "sine", 0.07, 0, 38);
+        // grass / dirt — classic walking footsteps
+        noiseBurst(0.08 * jit, 0.48, 600);
+        tone(heel, 0.11, "sine", 0.36, 0, heel * 0.42);
+        tone(heel * 1.7, 0.07, "triangle", 0.18, 0.04, heel * 0.75);
+        noiseBurst(0.05 * jit, 0.22, 1200, 0.05);
       }
+    }
+
+    function shieldRaise() {
+      noiseBurst(0.08, 0.3, 900);
+      tone(220, 0.1, "triangle", 0.22, 0, 140);
+      tone(360, 0.08, "sine", 0.14, 0.04, 220);
     }
 
     function drinkGulp() {
@@ -765,9 +792,10 @@ const QUESTIONS = {
     }
 
     function block() {
-      noiseBurst(0.08, 0.28, 1400);
-      tone(180, 0.1, "triangle", 0.16, 0, 90);
-      tone(420, 0.08, "square", 0.08, 0.02, 200);
+      noiseBurst(0.1, 0.45, 1200);
+      tone(180, 0.12, "triangle", 0.28, 0, 90);
+      tone(420, 0.1, "square", 0.16, 0.02, 200);
+      tone(800, 0.08, "sine", 0.12, 0.04, 400);
     }
 
     function questOk() {
@@ -824,7 +852,7 @@ const QUESTIONS = {
       unlock, setVolume, setEnabled, setMusicEnabled, syncAmbience, stopAmbience,
       swordSlash, swordHit, fist, bow,
       footstep, drinkGulp, healChime, healBurst, potionPop, hurt, mine, ui,
-      chestOpen, chestLoot, block, questOk, questFail,
+      chestOpen, chestLoot, block, shieldRaise, bowDry, questOk, questFail,
       portalEnter, portalExit, levelUp, equip, monsterDie, stairs,
     };
   })();
@@ -1687,11 +1715,11 @@ const QUESTIONS = {
       const gr = state.dungeon.gateRank || "E";
       $("hud-floor").textContent = `${state.dungeon.floor}/10`;
       $("hud-biome").textContent = `${gr}-Rank · ${state.dungeon.name} · ${FLOOR_THEMES[state.dungeon.floor - 1].name}`;
-      $("combat-hint").textContent = `${gr}-Rank · Fl.${state.dungeon.floor}/10 · LMB attack · Q/RMB block · H heal · E chests`;
+      $("combat-hint").textContent = `${gr}-Rank · Fl.${state.dungeon.floor}/10 · LMB/Space attack · F/🛡 block · H heal · E chests`;
     } else {
       $("hud-biome").textContent = BIOME_NAMES[biomeAt(Math.floor(state.player.x), Math.floor(state.player.y))] || "Grassland Ruins";
       if ($("combat-hint")) {
-        $("combat-hint").textContent = "LMB attack · Q/RMB block (armor/shield) · H heal · E interact · I bag · M map";
+        $("combat-hint").textContent = "LMB/Space attack · F/Shift/🛡 BLOCK · put bow on hotbar to shoot · H heal · E interact";
       }
     }
   }
@@ -1785,17 +1813,33 @@ const QUESTIONS = {
     return !!(state.blocking && canBlock());
   }
 
+  function updateBlockUI() {
+    const banner = $("block-banner");
+    const hudBtn = $("btn-hud-block");
+    const mobBtn = $("btn-block");
+    const on = isBlocking();
+    if (banner) banner.classList.toggle("hidden", !on);
+    if (hudBtn) hudBtn.classList.toggle("active", on);
+    if (mobBtn) mobBtn.classList.toggle("active", on);
+  }
+
   function setBlocking(on) {
     const want = !!on;
     if (want && !canBlock()) {
       if (on && state.running && !state.paused) {
-        showToast("Equip armor or a shield (I) to block!", true);
+        showToast("Equip a shield/armor in Inventory (I), then hold F / Shift / 🛡 to block!", true);
       }
       state.blocking = false;
+      updateBlockUI();
       return;
     }
-    if (want && !state.blocking) SFX.unlock();
+    if (want && !state.blocking) {
+      SFX.unlock();
+      SFX.shieldRaise();
+      showToast("Shield up! Hold F / Shift / 🛡 — release to lower.");
+    }
     state.blocking = want;
+    updateBlockUI();
   }
 
 
@@ -2204,8 +2248,7 @@ const QUESTIONS = {
     const stats = [];
     if (item.def) stats.push(`DEF ${item.def}`);
     if (item.pwr) stats.push(`PWR ${item.pwr}`);
-    if (item.shield) stats.push("hold Q/RMB to block");
-    else if (item.slot === "armor" && item.def) stats.push("hold Q/RMB to block");
+    if (item.shield || (item.slot === "armor" && item.def)) stats.push("hold F / 🛡 BLOCK");
     showToast(`Equipped ${item.name}${stats.length ? ` · ${stats.join(" · ")}` : ""}`);
   }
 
@@ -3046,7 +3089,7 @@ const QUESTIONS = {
 
   function performMeleeSwing() {
     if (state.drinkAnim > 0) { showToast("Drinking…"); return false; }
-    if (isBlocking()) { showToast("Lower your shield to attack (release Q / RMB)"); return false; }
+    if (isBlocking()) { showToast("Lower your shield first (release F / Shift / 🛡)"); return false; }
     if (state.hitCd > 0 || state.paused) return false;
     const weapon = getCombatWeapon();
     const hasWeapon = !!weapon;
@@ -3056,6 +3099,7 @@ const QUESTIONS = {
     state.attackAnim = 0.32;
     state.attackArc = range;
     SFX.unlock();
+    // Always play a clear swing sound
     if (hasWeapon) SFX.swordSlash();
     else SFX.fist();
     let hitAny = false;
@@ -3082,16 +3126,22 @@ const QUESTIONS = {
   function shootBow(tx, ty) {
     const bow = getCombatBow();
     if (state.drinkAnim > 0) { showToast("Drinking…"); return false; }
-    if (isBlocking()) { showToast("Can't shoot while blocking."); return false; }
-    if (!bow || state.hitCd > 0 || state.paused) return false;
+    if (isBlocking()) { showToast("Lower shield to shoot (release F / 🛡)"); return false; }
+    if (!bow || state.paused) return false;
+    SFX.unlock();
+    if (state.hitCd > 0) {
+      SFX.bowDry();
+      return false;
+    }
     const dx = tx - state.player.x, dy = ty - state.player.y;
     const dist = Math.hypot(dx, dy) || 1;
     const range = bow.range || 6;
+    state.player.facing = Math.atan2(dy, dx);
     if (dist > range + 0.5) {
-      showToast("Out of bow range!");
+      showToast("Out of bow range — click farther / closer target!");
+      SFX.bowDry();
       return false;
     }
-    state.player.facing = Math.atan2(dy, dx);
     state.hitCd = 0.45;
     state.attackAnim = 0.3;
     const spd = 9;
@@ -3102,7 +3152,6 @@ const QUESTIONS = {
       kind: "arrow",
     });
     spawnParticles(state.player.x, state.player.y, 4, "spark");
-    SFX.unlock();
     SFX.bow();
     return true;
   }
@@ -3215,24 +3264,34 @@ const QUESTIONS = {
       return;
     }
 
-    // Bow only when actually using a bow (hotbar hand wins) and click is beyond melee
-    if (getCombatBow() && !getCombatWeapon() && dist > meleeRange() + 0.2) {
-      if (shootBow(wx, wy)) return;
+    // Hotbar hand wins: bow in hand always shoots (twang/dry-fire always plays)
+    const hand = getHandItem();
+    if (hand && hand.slot === "bow") {
+      shootBow(wx, wy);
+      return;
     }
-
-    // Melee: sword/fists — short range only (never bow distance)
-    if (getCombatWeapon() || state.dungeon?.active || !getCombatBow()) {
-      performMeleeSwing();
+    if (getCombatBow() && !getCombatWeapon()) {
+      shootBow(wx, wy);
       return;
     }
 
-    // Interact only via E/tap on prompt — canvas click near interactable still works
-    if (state.interactTarget && dist < 2.2) {
-      tryInteract();
+    // Melee: sword/fists — slash SFX always plays
+    performMeleeSwing();
+  }
+
+  function attackFacing() {
+    if (!state.running || state.paused) return;
+    const hand = getHandItem();
+    if (hand && hand.slot === "bow") {
+      const ang = state.player.facing || 0;
+      shootBow(state.player.x + Math.cos(ang) * 3.5, state.player.y + Math.sin(ang) * 3.5);
       return;
     }
-
-    // Empty-hand practice swing
+    if (getCombatBow() && !getCombatWeapon()) {
+      const ang = state.player.facing || 0;
+      shootBow(state.player.x + Math.cos(ang) * 3.5, state.player.y + Math.sin(ang) * 3.5);
+      return;
+    }
     performMeleeSwing();
   }
 
@@ -3421,17 +3480,18 @@ const QUESTIONS = {
       : biomeAt(Math.floor(state.player.x), Math.floor(state.player.y));
 
     if (moving && state.footstepCd <= 0) {
+      SFX.unlock();
       if (state.swimming) {
         spawnParticles(state.player.x, state.player.y + 0.15, 3, "splash");
         SFX.footstep("water");
-        state.footstepCd = 0.28;
+        state.footstepCd = 0.34;
       } else {
         const ground = getTile(Math.floor(state.player.x), Math.floor(state.player.y));
         let surface = "grass";
-        if (biome === "forest") {
-          surface = "forest";
-        } else if (ground === TILES.STONE || ground === TILES.COBBLE || ground === TILES.FLOOR || ground === TILES.WALL || ground === TILES.RUIN) {
+        if (state.dungeon?.active || ground === TILES.STONE || ground === TILES.COBBLE || ground === TILES.FLOOR || ground === TILES.WALL || ground === TILES.RUIN) {
           surface = "stone";
+        } else if (biome === "forest") {
+          surface = "forest";
         } else if (ground === TILES.SAND) {
           surface = "sand";
         } else if (ground === TILES.DIRT || ground === TILES.PATH) {
@@ -3441,7 +3501,8 @@ const QUESTIONS = {
           spawnParticles(state.player.x, state.player.y + 0.35, 2, "dust");
         }
         SFX.footstep(surface);
-        state.footstepCd = 0.32 / Math.max(0.7, state.settings.speed || 1);
+        // Natural walking cadence
+        state.footstepCd = 0.38 / Math.max(0.75, state.settings.speed || 1);
       }
     }
 
@@ -4846,14 +4907,24 @@ const QUESTIONS = {
     state.lowHpWarned = false;
     state.blocking = false;
     state.blockFlash = 0;
-    // Start unequipped — grind quests/chests/dungeons for weapons, armor, picks & bows
-    // Emergency heals in the satchel
+    // Starter kit: blade + bow on hotbar, shield equipped, emergency heals
+    const blade = LOOT_TABLE.find((p) => p.key === "wood_blade");
+    if (blade) addItem({ ...blade, uid: uid() });
+    const bowLoot = LOOT_TABLE.find((p) => p.key === "short_bow");
+    if (bowLoot) addItem({ ...bowLoot, uid: uid() });
     const heal = POTION_TABLE.find((p) => p.key === "heal_small");
     if (heal) {
       addItem({ ...heal, uid: uid(), slot: null });
       addItem({ ...heal, uid: uid(), slot: null });
-      addItem({ ...heal, uid: uid(), slot: null });
     }
+    const buckler = LOOT_TABLE.find((p) => p.key === "wood_shield");
+    if (buckler) {
+      const shieldItem = { ...buckler, uid: uid() };
+      // Auto-equip starter shield so F / 🛡 BLOCK works right away
+      state.equipped.armor = shieldItem;
+    }
+    state.hotbarSel = 0;
+    updateBlockUI();
 
     ensureChunk(0, 0);
     $("start-screen").classList.remove("active");
@@ -4870,8 +4941,9 @@ const QUESTIONS = {
     requestAnimationFrame(() => {
       resizeCanvas();
       draw();
-      showToast(`${state.playerName} · ${state.bookTitle} · ${Math.round(state.session.totalSec / 60)}m timer. Leave unlocks when done!`);
+      showToast(`${state.playerName} · Walk=footsteps · LMB/Space=slash · hotbar 2+click=bow · hold F=shield`);
       updateSessionTimerUI();
+      updateBlockUI();
     });
   }
 
@@ -5055,11 +5127,20 @@ const QUESTIONS = {
       drinkHandPotion();
       return;
     }
-    if (e.code === "KeyQ" || e.key === "q" || e.key === "Q") {
+    if (e.code === "KeyF" || e.key === "f" || e.key === "F"
+      || e.code === "ShiftLeft" || e.code === "ShiftRight"
+      || e.code === "KeyQ" || e.key === "q" || e.key === "Q") {
       if (!state.running || state.paused) return;
       if (modalIsOpen("quest-modal") || modalIsOpen("boss-modal") || modalIsOpen("result-modal")) return;
       e.preventDefault();
       setBlocking(true);
+      return;
+    }
+    if (e.code === "Space") {
+      if (!state.running || state.paused) return;
+      if (modalIsOpen("quest-modal") || modalIsOpen("boss-modal") || modalIsOpen("result-modal") || modalIsOpen("inventory-modal") || modalIsOpen("settings-modal") || isMapOpen()) return;
+      e.preventDefault();
+      attackFacing();
       return;
     }
     if (/^[1-9]$/.test(e.key) && state.running && !state.paused) {
@@ -5118,7 +5199,11 @@ const QUESTIONS = {
     if (e.code === "ArrowDown" || e.key === "ArrowDown" || e.code === "KeyS" || e.key === "s" || e.key === "S") state.keys.ArrowDown = state.keys.s = state.keys.S = false;
     if (e.code === "ArrowLeft" || e.key === "ArrowLeft" || e.code === "KeyA" || e.key === "a" || e.key === "A") state.keys.ArrowLeft = state.keys.a = state.keys.A = false;
     if (e.code === "ArrowRight" || e.key === "ArrowRight" || e.code === "KeyD" || e.key === "d" || e.key === "D") state.keys.ArrowRight = state.keys.d = state.keys.D = false;
-    if (e.code === "KeyQ" || e.key === "q" || e.key === "Q") setBlocking(false);
+    if (e.code === "KeyF" || e.key === "f" || e.key === "F"
+      || e.code === "ShiftLeft" || e.code === "ShiftRight"
+      || e.code === "KeyQ" || e.key === "q" || e.key === "Q") {
+      setBlocking(false);
+    }
     state.keys[e.key] = false;
   }
 
@@ -5328,14 +5413,17 @@ const QUESTIONS = {
   });
   $("btn-interact").addEventListener("click", (e) => { e.preventDefault(); tryInteract(); });
   $("btn-heal").addEventListener("click", (e) => { e.preventDefault(); drinkHandPotion(); });
-  if ($("btn-block")) {
+  function bindBlockButton(el) {
+    if (!el) return;
     const blockOn = (e) => { e.preventDefault(); setBlocking(true); };
     const blockOff = (e) => { e.preventDefault(); setBlocking(false); };
-    $("btn-block").addEventListener("pointerdown", blockOn);
-    $("btn-block").addEventListener("pointerup", blockOff);
-    $("btn-block").addEventListener("pointerleave", blockOff);
-    $("btn-block").addEventListener("pointercancel", blockOff);
+    el.addEventListener("pointerdown", blockOn);
+    el.addEventListener("pointerup", blockOff);
+    el.addEventListener("pointerleave", blockOff);
+    el.addEventListener("pointercancel", blockOff);
   }
+  bindBlockButton($("btn-block"));
+  bindBlockButton($("btn-hud-block"));
   canvas.addEventListener("click", handleCanvasClick);
   canvas.addEventListener("contextmenu", (e) => e.preventDefault());
   // Hold right mouse to block with shield/armor

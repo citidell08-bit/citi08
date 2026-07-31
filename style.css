@@ -522,6 +522,48 @@ select {
   border-color: var(--gold);
 }
 
+.hud-btn-block {
+  width: auto;
+  min-width: 72px;
+  padding: 0 0.45rem;
+  font-family: var(--font-display);
+  font-size: 0.34rem;
+  letter-spacing: 0.04em;
+  color: #d0e4ff;
+  border-color: #6a88b0;
+  background: rgba(30, 48, 80, 0.9);
+}
+
+.hud-btn-block.active,
+.action-btn.block-btn.active {
+  border-color: #a8d0ff;
+  background: rgba(50, 100, 180, 0.95);
+  box-shadow: 0 0 10px rgba(120, 180, 255, 0.45);
+  color: #fff;
+}
+
+.block-banner {
+  position: absolute;
+  top: calc(var(--hud-h) + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 8;
+  padding: 0.35rem 0.8rem;
+  border: 2px solid #8ab0e0;
+  border-radius: var(--radius);
+  background: rgba(20, 40, 70, 0.92);
+  color: #d8ecff;
+  font-family: var(--font-display);
+  font-size: 0.36rem;
+  letter-spacing: 0.04em;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.block-banner.hidden {
+  display: none;
+}
+
 .minimap {
   position: absolute;
   top: calc(var(--hud-h) + 8px);

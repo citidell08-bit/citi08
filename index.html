@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=shield1" />
+  <link rel="stylesheet" href="style.css?v=audio3" />
 </head>
 <body>
   <div id="app">
@@ -128,7 +128,7 @@
           <button type="submit" class="btn primary" id="btn-start">Enter the Ruins</button>
         </form>
 
-        <p class="hint-keys">Move: WASD · Attack: LMB · Block: Q/RMB · Interact: E · Heal: H · Bag: I · Map: M · Esc: Menu</p>
+        <p class="hint-keys">Move: WASD · Attack: LMB/Space · Block: F/Shift/🛡 · Interact: E · Heal: H · Bag: I · Map: M</p>
       </div>
     </section>
 
@@ -186,11 +186,14 @@
             <span id="hud-study" class="hud-study"></span>
           </div>
           <div class="hud-right">
+            <button type="button" class="hud-btn hud-btn-block" id="btn-hud-block" title="Hold to block with shield/armor (F / Shift)">🛡 BLOCK</button>
             <button type="button" class="hud-btn hud-btn-map" id="btn-map" title="Full map (M)">MAP</button>
             <button type="button" class="hud-btn" id="btn-inventory" title="Inventory (I)">Bag</button>
             <button type="button" class="hud-btn" id="btn-settings" title="Settings (Esc)">⚙</button>
           </div>
         </div>
+
+        <div id="block-banner" class="block-banner hidden" aria-live="polite">🛡 BLOCKING — release F / Shift / 🛡 to lower</div>
 
         <div id="equip-strip" class="equip-strip hidden" aria-hidden="true"></div>
 
@@ -222,7 +225,7 @@
           </div>
         </div>
 
-        <div id="combat-hint" class="combat-hint hidden">LMB attack · Q/RMB block · H heal · E interact</div>
+        <div id="combat-hint" class="combat-hint hidden">LMB/Space attack · F/Shift/🛡 block · H heal · E interact</div>
 
         <div id="toast" class="toast hidden" role="status"></div>
 
@@ -236,7 +239,7 @@
             <button type="button" data-dir="down" class="pad-btn">▼</button>
           </div>
           <div class="mobile-actions">
-            <button type="button" id="btn-block" class="action-btn block-btn" title="Hold to block (Q)">🛡</button>
+            <button type="button" id="btn-block" class="action-btn block-btn" title="Hold to block (F)">🛡</button>
             <button type="button" id="btn-interact" class="action-btn">E</button>
             <button type="button" id="btn-heal" class="action-btn heal-btn" title="Drink potion (H)">H</button>
           </div>
@@ -292,17 +295,18 @@
           <div class="controls-help" aria-label="Controls">
             <h3 class="controls-title">Controls</h3>
             <ul class="controls-list">
-              <li><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> / arrows — Move</li>
-              <li><kbd>LMB</kbd> — Attack / mine (with pickaxe)</li>
-              <li><kbd>Q</kbd> / <kbd>RMB</kbd> — Block with armor or shield</li>
+              <li><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> / arrows — Move (footstep sounds)</li>
+              <li><kbd>LMB</kbd> / <kbd>Space</kbd> — Attack (sword slash / bow twang)</li>
+              <li><kbd>F</kbd> / <kbd>Shift</kbd> / <kbd>🛡 BLOCK</kbd> — Hold to raise shield</li>
+              <li><kbd>RMB</kbd> — Also hold to block</li>
               <li><kbd>E</kbd> — Interact (chest, quest, portal, stairs)</li>
               <li><kbd>H</kbd> — Drink healing potion</li>
-              <li><kbd>1</kbd>–<kbd>9</kbd> — Hotbar hand</li>
+              <li><kbd>1</kbd>–<kbd>9</kbd> — Hotbar (put bow/sword in hand)</li>
               <li><kbd>I</kbd> — Inventory · right-click gear to equip</li>
               <li><kbd>M</kbd> — World map</li>
               <li><kbd>Esc</kbd> — Settings / pause</li>
             </ul>
-            <p class="muted controls-note">Equip armor or a shield in Inventory, then hold <kbd>Q</kbd> or right-click to block hits.</p>
+            <p class="muted controls-note">You start with a wood blade (hotbar <kbd>1</kbd>), short bow (<kbd>2</kbd>), and a shield already equipped. Hold <kbd>F</kbd> / <kbd>Shift</kbd> / <strong>🛡 BLOCK</strong> to raise the shield. Select the bow and click / Space to hear the twang.</p>
           </div>
 
           <div class="settings-actions">
@@ -516,7 +520,7 @@
     </div>
   </div>
 
-  <script src="script.js?v=shield1"></script>
+  <script src="script.js?v=audio3"></script>
   <script>
     // Fallback only — skips if main script already handled the key/button
     (function () {
