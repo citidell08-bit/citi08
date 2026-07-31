@@ -101,8 +101,12 @@ export function MemoryGame({ onFinish, onBack }: Props) {
         </div>
       </div>
 
-      <h2 className="section-title">Memory Nest</h2>
-      <p className="section-sub">Match every pair. Fewer moves = more XP.</p>
+      <h2 className="section-title" style={{ marginBottom: 0 }}>
+        Memory Nest
+      </h2>
+      <p className="section-sub" style={{ marginBottom: '0.35rem' }}>
+        Match every pair. Fewer moves = more XP.
+      </p>
 
       <div className="memory-grid">
         {tiles.map((tile, index) => {

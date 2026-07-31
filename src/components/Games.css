@@ -85,16 +85,18 @@
 .memory-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.55rem;
+  gap: 0.45rem;
+  width: min(440px, 100%);
+  margin: 0 auto;
 }
 
 .memory-tile {
   aspect-ratio: 1;
-  border-radius: 16px;
+  border-radius: 14px;
   border: 1px solid var(--line);
   background: rgba(0, 0, 0, 0.28);
   color: var(--muted);
-  font-size: clamp(1.2rem, 4vw, 1.7rem);
+  font-size: clamp(1.05rem, 3.5vw, 1.45rem);
   transition: transform 160ms ease, background 160ms ease, border-color 160ms ease;
 }
 
