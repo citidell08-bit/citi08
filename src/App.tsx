@@ -13,12 +13,14 @@ import { installClickSfx, playAccessGrantedSfx, unlockAudio } from './lib/sfx'
 import type { MiniGameId, Tab } from './types'
 import { Companion } from './components/Companion'
 import { MusicToggle } from './components/MusicToggle'
+import { Assistant } from './components/Assistant'
 import { COINS_PER_LEVEL } from './lib/coins'
 import './App.css'
 
 function App() {
   const [tab, setTab] = useState<Tab>('home')
   const [playingGame, setPlayingGame] = useState<MiniGameId | null>(null)
+  const [assistantOpen, setAssistantOpen] = useState(false)
   const {
     state,
     toasts,
@@ -121,6 +123,14 @@ function App() {
         playingGame={tab === 'play' ? playingGame : null}
         onBreak={focus.session.onBreak}
         onChange={changeTab}
+      />
+
+      <Assistant
+        state={state}
+        open={assistantOpen}
+        onOpenChange={setAssistantOpen}
+        onNavigate={changeTab}
+        hidden={playingGame != null}
       />
 
       <div className="toast-stack" aria-live="polite">
