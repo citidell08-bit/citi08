@@ -225,7 +225,7 @@ export function replyAsAssistant(raw: string, state: GameState): AssistantReply 
 
   if (hasAny(q, ['who are you', 'what are you', 'companion', 'kith', 'ember', 'your name'])) {
     return {
-      text: `I'm ${name}, your Cyber Kith — a study companion that levels up with you (you're Lv ${level}). Rename me on Home anytime. I help with the app and study nudges offline; no account needed.`,
+      text: `I'm ${name}, your Cyber Kith — I level up with you (you're Lv ${level}). Rename me on Home anytime. Ask me anything; I know it all.`,
       goTo: 'home',
       goLabel: 'Visit Home',
     }
