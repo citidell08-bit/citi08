@@ -1,26 +1,18 @@
 # Cyber Kith — Gamified Study Companion
 
-Cyber Kith is a browser study companion that turns focus sessions and flashcard reviews into XP, coins, streaks, daily quests, and a leveling owl friend.
+Cyber Kith turns focus sessions and flashcard reviews into XP, coins, streaks, daily quests, and arcade mini-games (including Spike Dash).
 
-## Features
+## Open in Chrome (no install)
 
-- **Companion growth** — Earn XP to level up Ember (renameable) through Hatchling → Nestling → Scholar → Sage
-- **Coins** — Earn coins from quests, achievements, and every level-up; spend them to play arcade games
-- **Focus den** — Timed study sessions (15 / 25 / 45 min) with XP rewards
-- **Flashcards** — Review a starter biology deck or create your own
-- **Arcade mini-games** — Spike Dash (Geometry Dash-style runner), Memory Nest, Quick Sum, and Glow Catch — each with live scores and timers
-- **Daily quests** — Rotating goals that refresh each day and pay out coins on completion
-- **Achievements & streaks** — Milestones and consecutive study days
-- **Local save** — Progress persists in `localStorage`
+After downloading this folder:
 
-## Play by opening a file (no server)
+1. Double-click **`index.html`**  
+   (or **`CyberKith.html`** — same game)
+2. It should open in your browser and show Cyber Kith
 
-1. Download / clone this repo
-2. Double-click **`play/index.html`**  
-   (or open root `index.html` — it redirects to the playable build)
-3. Cyber Kith loads in your browser
+These files are a full offline build (JS/CSS inlined). You do **not** need `npm` or a server.
 
-The `play/` folder is a single-file offline build (`base: './'`), so it works over `file://` without a blank page.
+If Chrome still fails, right-click `index.html` → **Open with** → **Google Chrome**.
 
 ## Develop locally
 
@@ -29,15 +21,23 @@ npm install
 npm run dev
 ```
 
-Rebuild the offline playable file:
+Dev server opens `app.html`.
+
+Rebuild the double-clickable files:
 
 ```bash
 npm run build
 ```
 
-That refreshes `play/index.html`.
+That refreshes `index.html`, `CyberKith.html`, and `play/index.html`.
+
+## Features
+
+- Companion growth, XP, levels, streaks
+- Coins from quests, achievements, and every level-up
+- Focus timer + flashcards
+- Arcade: Spike Dash, Memory Nest, Quick Sum, Glow Catch (live scores + timers)
 
 ## Stack
 
-- Vite + React 19 + TypeScript
-- CSS (no UI framework) with Syne + Outfit
+Vite + React 19 + TypeScript
