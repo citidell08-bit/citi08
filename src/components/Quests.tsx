@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react'
 import { PERIOD_LABEL } from '../data/quests'
 import {
   formatResetCountdown,
-  msUntilQuestReset,
-  QUEST_RESET_MS,
+  msUntilPeriodReset,
+  PERIOD_RESET_HINT,
 } from '../lib/questReset'
 import type { GameState, Quest, QuestPeriod } from '../types'
 import './Quests.css'
@@ -15,9 +15,9 @@ interface Props {
 const PERIOD_ORDER: QuestPeriod[] = ['daily', 'weekly', 'monthly']
 
 const PERIOD_BLURB: Record<QuestPeriod, string> = {
-  daily: 'Quick goals. Finish one and it resets into a fresh daily after a short beat.',
-  weekly: 'Bigger mid-tier goals. Finish them all to refresh, or let the hour timer roll.',
-  monthly: 'Long-haul challenges. Clear the set or wait ~1 hour for a new board.',
+  daily: 'Quick goals for today. Fresh board every day at midnight.',
+  weekly: 'Bigger mid-tier goals. Fresh board every Monday.',
+  monthly: 'Long-haul challenges. Fresh board on the 1st of each month.',
 }
 
 function QuestCard({ q }: { q: Quest }) {
@@ -47,11 +47,7 @@ function QuestCard({ q }: { q: Quest }) {
           {Math.min(q.progress, q.target)}/{q.target}
         </span>
         <span className={q.completed ? 'quest-status-done' : ''}>
-          {q.completed
-            ? q.period === 'daily'
-              ? '✓ Complete — resetting…'
-              : '✓ Complete — saved'
-            : 'In progress'}
+          {q.completed ? '✓ Complete' : 'In progress'}
         </span>
       </div>
     </li>
@@ -68,28 +64,28 @@ export function Quests({ state }: Props) {
 
   const byPeriod = (period: QuestPeriod) => state.quests.filter((q) => q.period === period)
   const totalDone = state.quests.filter((q) => q.completed).length
-  const soonestMs = Math.min(
-    ...PERIOD_ORDER.map((p) => msUntilQuestReset(state.questIssuedAt?.[p] ?? now, now)),
-  )
+  const soonestMs = Math.min(...PERIOD_ORDER.map((p) => msUntilPeriodReset(p, now)))
+  const soonestPeriod =
+    PERIOD_ORDER.find((p) => msUntilPeriodReset(p, now) === soonestMs) ?? 'daily'
 
   return (
     <div className="quests">
       <header>
         <h2 className="section-title">Quest boards</h2>
         <p className="section-sub">
-          Daily quests reset into new ones when you complete them. Weekly and monthly boards
-          refresh when you clear the whole set — or wait about an hour.
+          Daily resets every day, weekly every week, monthly every month. Cleared quests stay
+          marked Complete until their board rolls over.
         </p>
       </header>
 
       <div className="panel quest-summary">
         <div>
           <strong>
-            {totalDone}/{state.quests.length} active clears
+            {totalDone}/{state.quests.length} cleared
           </strong>
           <p className="quest-timer-line">
-            Next auto-reset in <strong>{formatResetCountdown(soonestMs)}</strong>
-            <span> · {Math.round(QUEST_RESET_MS / 60000)} min cycle</span>
+            Next board reset ({PERIOD_LABEL[soonestPeriod].toLowerCase()}) in{' '}
+            <strong>{formatResetCountdown(soonestMs)}</strong>
           </p>
         </div>
         <span>
@@ -101,7 +97,7 @@ export function Quests({ state }: Props) {
         const list = byPeriod(period)
         if (list.length === 0) return null
         const done = list.filter((q) => q.completed).length
-        const left = msUntilQuestReset(state.questIssuedAt?.[period] ?? now, now)
+        const left = msUntilPeriodReset(period, now)
         return (
           <section key={period} className="quest-period">
             <div className="quest-period-head">
@@ -113,7 +109,10 @@ export function Quests({ state }: Props) {
                 <span className="quest-period-count">
                   {done}/{list.length}
                 </span>
-                <span className="quest-period-timer" title="Time until this board auto-resets">
+                <span
+                  className="quest-period-timer"
+                  title={PERIOD_RESET_HINT[period]}
+                >
                   ⟳ {formatResetCountdown(left)}
                 </span>
               </div>

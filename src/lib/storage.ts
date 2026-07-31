@@ -8,7 +8,12 @@ import {
 import { FREE_THEME, VALID_THEMES } from '../data/themes'
 import { SAMPLE_DECK } from '../data/sampleDecks'
 import type { GameState, MiniGameId, Quest, QuestPeriod, ThemeId } from '../types'
-import { freshQuestIssuedAt, type QuestIssuedAt } from './questReset'
+import {
+  currentKeyForPeriod,
+  freshQuestPeriodKeys,
+  type QuestPeriodKeys,
+} from './questReset'
+import { monthKey, todayKey, weekKey } from './dates'
 
 const VALID_GAMES: MiniGameId[] = ['memory', 'math', 'glow', 'dash']
 const VALID_PERIODS: QuestPeriod[] = ['daily', 'weekly', 'monthly']
@@ -17,7 +22,6 @@ const STORAGE_KEY = 'kith.game.v1'
 const STARTER_COINS = 100
 
 export function createInitialState(): GameState {
-  const now = Date.now()
   return {
     xp: 0,
     coins: STARTER_COINS,
@@ -40,7 +44,7 @@ export function createInitialState(): GameState {
     lastActiveDate: null,
     decks: [SAMPLE_DECK],
     quests: generateAllQuests(),
-    questIssuedAt: freshQuestIssuedAt(now),
+    questIssuedAt: freshQuestPeriodKeys(),
     achievements: DEFAULT_ACHIEVEMENTS.map((a) => ({ ...a })),
     companionName: 'Ember',
     xpHistory: [],
@@ -70,7 +74,7 @@ export function loadState(): GameState {
       activeTheme: normalizeActiveTheme(parsed.activeTheme, parsed.ownedThemes),
       achievements: mergeAchievements(parsed.achievements),
       quests: normalizeQuests(parsed.quests),
-      questIssuedAt: normalizeIssuedAt(parsed.questIssuedAt),
+      questIssuedAt: normalizePeriodKeys(parsed),
       decks:
         Array.isArray(parsed.decks) && parsed.decks.length > 0
           ? parsed.decks
@@ -123,16 +127,48 @@ function mergeAchievements(
   })
 }
 
-function normalizeIssuedAt(raw: unknown): QuestIssuedAt {
-  const now = Date.now()
-  const fallback = freshQuestIssuedAt(now)
-  if (!raw || typeof raw !== 'object') return fallback
-  const obj = raw as Partial<QuestIssuedAt>
-  return {
-    daily: typeof obj.daily === 'number' ? obj.daily : now,
-    weekly: typeof obj.weekly === 'number' ? obj.weekly : now,
-    monthly: typeof obj.monthly === 'number' ? obj.monthly : now,
+function isPeriodKey(value: unknown, period: QuestPeriod): value is string {
+  if (typeof value !== 'string' || value.length < 4) return false
+  if (period === 'daily') return /^\d{4}-\d{2}-\d{2}$/.test(value)
+  if (period === 'weekly') return /^\d{4}-W\d{2}$/.test(value)
+  return /^\d{4}-\d{2}$/.test(value)
+}
+
+/** Migrate hour-timer stamps / legacy date fields into calendar period keys. */
+function normalizePeriodKeys(
+  parsed: Partial<GameState> & {
+    questDate?: string | null
+    questWeek?: string | null
+    questMonth?: string | null
+  },
+): QuestPeriodKeys {
+  const current = freshQuestPeriodKeys()
+  const raw = parsed.questIssuedAt as Partial<Record<QuestPeriod, unknown>> | undefined
+
+  const fromLegacy = {
+    daily: parsed.questDate,
+    weekly: parsed.questWeek,
+    monthly: parsed.questMonth,
   }
+
+  const next: QuestPeriodKeys = { ...current }
+  for (const period of VALID_PERIODS) {
+    const candidate = raw?.[period] ?? fromLegacy[period]
+    if (isPeriodKey(candidate, period)) {
+      next[period] = candidate
+      continue
+    }
+    // Old numeric timestamps → pin to the current calendar period (no mid-day wipe).
+    // Refresh still happens when the day/week/month rolls via refreshQuests.
+    next[period] = currentKeyForPeriod(period)
+  }
+
+  // Sanity: never keep a future-looking garbage key
+  if (next.daily !== todayKey() && !isPeriodKey(next.daily, 'daily')) next.daily = todayKey()
+  if (next.weekly !== weekKey() && !isPeriodKey(next.weekly, 'weekly')) next.weekly = weekKey()
+  if (next.monthly !== monthKey() && !isPeriodKey(next.monthly, 'monthly')) next.monthly = monthKey()
+
+  return next
 }
 
 function normalizeQuests(quests: Quest[] | undefined): Quest[] {

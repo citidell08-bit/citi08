@@ -1,9 +1,13 @@
 import { startTransition, useEffect, useState } from 'react'
-import { generateDailyQuest, generateQuestsForPeriod, PERIOD_LABEL } from '../data/quests'
+import { generateQuestsForPeriod, PERIOD_LABEL } from '../data/quests'
 import { FREE_THEME, themeById, THEMES } from '../data/themes'
 import { COINS_PER_ACHIEVEMENT, coinsForLevelsGained, GAME_COSTS } from '../lib/coins'
 import { todayKey, uid, yesterdayKey } from '../lib/dates'
-import { freshQuestIssuedAt, shouldResetQuestBoard } from '../lib/questReset'
+import {
+  currentKeyForPeriod,
+  freshQuestPeriodKeys,
+  shouldResetQuestBoard,
+} from '../lib/questReset'
 import { levelFromXp } from '../lib/xp'
 import { loadState, saveState } from '../lib/storage'
 import type {
@@ -53,8 +57,8 @@ export function useGameState() {
     const onVis = () => {
       if (document.visibilityState === 'visible') refresh()
     }
-    // Poll so the ~1 hour board timer rolls over while the app is open
-    const interval = window.setInterval(refresh, 15_000)
+    // Poll so day / week / month board rollovers apply while the app is open
+    const interval = window.setInterval(refresh, 30_000)
     window.addEventListener('focus', refresh)
     document.addEventListener('visibilitychange', onVis)
     return () => {
@@ -139,12 +143,10 @@ export function useGameState() {
     let next: GameState = { ...prev, quests }
     let bonusXp = 0
     let bonusCoins = 0
-    const justCompletedIds: string[] = []
 
     for (const q of quests) {
       if (!q.completed && q.progress >= q.target) {
         q.completed = true
-        justCompletedIds.push(q.id)
         bonusXp += q.xpReward
         bonusCoins += q.coinReward ?? 15
       }
@@ -164,10 +166,7 @@ export function useGameState() {
       )
     }
 
-    const issuedAt = { ...next.questIssuedAt }
-    const boardsToRefresh: QuestPeriod[] = []
-
-    // Whole board clear → achievement + full refresh (weekly / monthly / lucky daily sweep)
+    // Full board clear → achievements. Boards stay complete until the calendar period rolls.
     for (const period of PERIODS) {
       const inPeriod = quests.filter((q) => q.period === period)
       if (inPeriod.length === 0) continue
@@ -176,77 +175,17 @@ export function useGameState() {
       if (period === 'daily') next = unlock(next, 'quest_clear')
       if (period === 'weekly') next = unlock(next, 'quest_week')
       if (period === 'monthly') next = unlock(next, 'quest_month')
-      boardsToRefresh.push(period)
 
       queueMicrotask(() =>
-        pushToast(`${PERIOD_LABEL[period]} board complete — refreshing soon…`),
+        pushToast(
+          `${PERIOD_LABEL[period]} board complete — new set ${
+            period === 'daily' ? 'tomorrow' : period === 'weekly' ? 'next week' : 'next month'
+          }.`,
+        ),
       )
     }
 
-    // Daily quests: each completed quest resets into a new one after a short beat
-    const dailyToReplace = justCompletedIds.filter((id) => {
-      const q = quests.find((item) => item.id === id)
-      return q?.period === 'daily'
-    })
-    const replaceIndividuals =
-      dailyToReplace.length > 0 && !boardsToRefresh.includes('daily')
-
-    next = { ...next, quests, questIssuedAt: issuedAt }
-
-    if (boardsToRefresh.length > 0) {
-      window.setTimeout(() => {
-        setState((prev) => {
-          let list = [...prev.quests]
-          const stamps = { ...prev.questIssuedAt }
-          const stampNow = Date.now()
-          let changed = false
-          for (const period of boardsToRefresh) {
-            const inPeriod = list.filter((q) => q.period === period)
-            if (inPeriod.length === 0 || !inPeriod.every((q) => q.completed)) continue
-            list = [...list.filter((q) => q.period !== period), ...generateQuestsForPeriod(period)]
-            stamps[period] = stampNow
-            changed = true
-          }
-          if (!changed) return prev
-          queueMicrotask(() => pushToast('Fresh quest board ready!'))
-          return persist({ ...prev, quests: list, questIssuedAt: stamps })
-        })
-      }, 2800)
-    }
-
-    if (replaceIndividuals) {
-      queueMicrotask(() =>
-        pushToast('Daily quest complete — new one incoming…'),
-      )
-      window.setTimeout(() => {
-        setState((prev) => {
-          let list = [...prev.quests]
-          let changed = false
-          for (const id of dailyToReplace) {
-            const idx = list.findIndex(
-              (q) => q.id === id && q.period === 'daily' && q.completed,
-            )
-            if (idx === -1) continue
-            const busyTypes = new Set(
-              list
-                .filter((q) => q.period === 'daily' && q.id !== id && !q.completed)
-                .map((q) => q.type),
-            )
-            list[idx] = generateDailyQuest(busyTypes)
-            changed = true
-          }
-          if (!changed) return prev
-          queueMicrotask(() => pushToast('New daily quest ready!'))
-          return persist({
-            ...prev,
-            quests: list,
-            questIssuedAt: { ...prev.questIssuedAt, daily: Date.now() },
-          })
-        })
-      }, 2200)
-    }
-
-    return next
+    return { ...next, quests }
   }
 
   function bumpQuest(
@@ -513,23 +452,23 @@ export function useGameState() {
   }
 }
 
-/** Roll boards when their ~1 hour timer elapses (or if a board is missing). */
+/** Roll boards when the calendar day / week / month changes (or if a board is missing). */
 export function refreshQuests(state: GameState): GameState {
-  const now = Date.now()
+  const date = new Date()
   let quests = [...state.quests]
-  const issuedAt = { ...(state.questIssuedAt ?? freshQuestIssuedAt(now)) }
+  const keys = { ...(state.questIssuedAt ?? freshQuestPeriodKeys(date)) }
   let changed = false
 
   for (const period of PERIODS) {
     const hasBoard = quests.some((q) => q.period === period)
-    const issued = typeof issuedAt[period] === 'number' ? issuedAt[period] : 0
-    if (!hasBoard || shouldResetQuestBoard(issued, now)) {
+    const stored = typeof keys[period] === 'string' ? keys[period] : undefined
+    if (!hasBoard || shouldResetQuestBoard(stored, period, date)) {
       quests = [...quests.filter((q) => q.period !== period), ...generateQuestsForPeriod(period)]
-      issuedAt[period] = now
+      keys[period] = currentKeyForPeriod(period, date)
       changed = true
     }
   }
 
   if (!changed) return state
-  return { ...state, quests, questIssuedAt: issuedAt }
+  return { ...state, quests, questIssuedAt: keys }
 }

@@ -179,14 +179,6 @@ export function generateDailyQuests(): Quest[] {
   return pickTemplates(DAILY_POOL, 4).map((t) => fromTemplate(t, 'daily'))
 }
 
-/** One fresh daily quest, preferring types not already on the board. */
-export function generateDailyQuest(excludeTypes: Iterable<QuestType> = []): Quest {
-  const blocked = new Set(excludeTypes)
-  const shuffled = shuffle(DAILY_POOL)
-  const preferred = shuffled.find((t) => !blocked.has(t.type)) ?? shuffled[0]
-  return fromTemplate(preferred, 'daily')
-}
-
 export function generateWeeklyQuests(): Quest[] {
   return pickTemplates(WEEKLY_POOL, 3).map((t) => fromTemplate(t, 'weekly'))
 }

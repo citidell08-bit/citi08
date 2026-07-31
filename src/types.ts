@@ -81,11 +81,14 @@ export interface GameState {
   lastActiveDate: string | null
   decks: Deck[]
   quests: Quest[]
-  /** When each board was issued — boards auto-reset ~1 hour later. */
+  /**
+   * Calendar keys for each board (daily = YYYY-MM-DD, weekly = YYYY-Www, monthly = YYYY-MM).
+   * Boards refresh when the key no longer matches today / this week / this month.
+   */
   questIssuedAt: {
-    daily: number
-    weekly: number
-    monthly: number
+    daily: string
+    weekly: string
+    monthly: string
   }
   /** @deprecated Kept for older saves; migrated into questIssuedAt. */
   questDate?: string | null
