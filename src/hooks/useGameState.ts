@@ -41,21 +41,22 @@ export function useGameState() {
     saveState(state)
   }, [state])
 
-  /** One-time +100 coins project gift. */
+  /** One-time +10,000 coins project gift. */
   useEffect(() => {
     setState((prev) => {
-      if (prev.projectGift100) return prev
+      if (prev.projectGift10k) return prev
       const next: GameState = {
         ...prev,
-        coins: prev.coins + 100,
-        totalCoinsEarned: prev.totalCoinsEarned + 100,
+        coins: prev.coins + 10_000,
+        totalCoinsEarned: prev.totalCoinsEarned + 10_000,
+        projectGift10k: true,
         projectGift100: true,
       }
       saveState(next)
       const toast: Toast = {
         id: uid('toast'),
-        message: 'Project gift — enjoy!',
-        coins: 100,
+        message: 'Project gift — stack up!',
+        coins: 10_000,
       }
       setToasts((t) => [...t, toast])
       window.setTimeout(() => {
