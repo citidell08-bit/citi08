@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import type { FocusSessionState } from '../hooks/useFocusSession'
 import './FocusTimer.css'
 
 const PRESETS = [
@@ -8,102 +8,64 @@ const PRESETS = [
 ]
 
 interface Props {
-  onComplete: (minutes: number) => void
+  session: FocusSessionState
+  onSelectPreset: (minutes: number) => void
+  onBegin: () => void
+  onBreak: () => void
+  onResume: () => void
+  onReset: () => void
+  onFinishEarly: () => void
 }
 
-export function FocusTimer({ onComplete }: Props) {
-  const [minutes, setMinutes] = useState(25)
-  const [secondsLeft, setSecondsLeft] = useState(25 * 60)
-  const [running, setRunning] = useState(false)
-  const [sessionMinutes, setSessionMinutes] = useState(25)
-  const endedRef = useRef(false)
-  const onCompleteRef = useRef(onComplete)
-  onCompleteRef.current = onComplete
-
-  useEffect(() => {
-    if (!running) return
-    const id = window.setInterval(() => {
-      setSecondsLeft((s) => {
-        if (s <= 1) return 0
-        return s - 1
-      })
-    }, 1000)
-    return () => window.clearInterval(id)
-  }, [running])
-
-  useEffect(() => {
-    if (secondsLeft !== 0 || !running || endedRef.current) return
-    endedRef.current = true
-    setRunning(false)
-    onCompleteRef.current(sessionMinutes)
-  }, [secondsLeft, running, sessionMinutes])
-
-  function selectPreset(m: number) {
-    if (running) return
-    setMinutes(m)
-    setSessionMinutes(m)
-    setSecondsLeft(m * 60)
-    endedRef.current = false
-  }
-
-  function toggle() {
-    if (secondsLeft === 0) {
-      setSecondsLeft(minutes * 60)
-      setSessionMinutes(minutes)
-      endedRef.current = false
-    }
-    setRunning((r) => !r)
-  }
-
-  function reset() {
-    setRunning(false)
-    setSecondsLeft(minutes * 60)
-    setSessionMinutes(minutes)
-    endedRef.current = false
-  }
-
-  function finishEarly() {
-    if (endedRef.current) return
-    if (!running && secondsLeft === sessionMinutes * 60) return
-    const elapsed = Math.max(1, Math.round((sessionMinutes * 60 - secondsLeft) / 60))
-    endedRef.current = true
-    setRunning(false)
-    onCompleteRef.current(elapsed)
-    setSecondsLeft(minutes * 60)
-    setSessionMinutes(minutes)
-    endedRef.current = false
-  }
-
+export function FocusTimer({
+  session,
+  onSelectPreset,
+  onBegin,
+  onBreak,
+  onResume,
+  onReset,
+  onFinishEarly,
+}: Props) {
+  const { minutes, secondsLeft, sessionMinutes, running, onBreak: isBreak } = session
   const mm = String(Math.floor(secondsLeft / 60)).padStart(2, '0')
   const ss = String(secondsLeft % 60).padStart(2, '0')
   const progress = 1 - secondsLeft / (sessionMinutes * 60 || 1)
+  const inSession = running || isBreak || secondsLeft < sessionMinutes * 60
+  const status = isBreak ? 'On break' : running ? 'In focus' : secondsLeft === 0 ? 'Done' : 'Ready'
 
   return (
     <div className="focus">
       <header>
         <h2 className="section-title">Focus den</h2>
         <p className="section-sub">
-          Sit with Cyber Kith for a timed session. Finish to earn XP, coins, and quest progress.
+          Timed study with Cyber Kith. Need to step away? Hit Break — your timer stays paused even
+          if you switch tabs.
         </p>
       </header>
 
-      <div className="panel timer-panel">
+      <div className={`panel timer-panel ${isBreak ? 'on-break' : ''}`}>
         <div className="ring-wrap" style={{ ['--p' as string]: String(progress) }}>
           <div className="ring">
             <div className="time" aria-live="polite">
               {mm}:{ss}
             </div>
-            <div className="time-label">{running ? 'In focus' : 'Ready'}</div>
+            <div className={`time-label ${isBreak ? 'break-label' : ''}`}>{status}</div>
           </div>
         </div>
+
+        {isBreak && (
+          <p className="break-banner" role="status">
+            Break mode — timer paused. Come back and resume whenever you’re ready.
+          </p>
+        )}
 
         <div className="presets">
           {PRESETS.map((p) => (
             <button
               key={p.minutes}
               type="button"
-              className={minutes === p.minutes && !running ? 'active' : ''}
-              onClick={() => selectPreset(p.minutes)}
+              className={minutes === p.minutes && !running && !isBreak ? 'active' : ''}
+              onClick={() => onSelectPreset(p.minutes)}
               disabled={running}
             >
               {p.label}
@@ -112,17 +74,33 @@ export function FocusTimer({ onComplete }: Props) {
         </div>
 
         <div className="timer-actions">
-          <button type="button" className="btn btn-ember" onClick={toggle}>
-            {running ? 'Pause' : secondsLeft === 0 ? 'Restart' : 'Begin'}
-          </button>
-          <button type="button" className="btn btn-ghost" onClick={reset} disabled={running}>
+          {isBreak ? (
+            <button type="button" className="btn btn-ember" onClick={onResume}>
+              Resume focus
+            </button>
+          ) : running ? (
+            <button type="button" className="btn btn-ember" onClick={onBreak}>
+              Take a break
+            </button>
+          ) : (
+            <button type="button" className="btn btn-ember" onClick={onBegin}>
+              {secondsLeft === 0 ? 'Restart' : inSession ? 'Resume' : 'Begin'}
+            </button>
+          )}
+
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={onReset}
+            disabled={running}
+          >
             Reset
           </button>
           <button
             type="button"
             className="btn btn-ghost"
-            onClick={finishEarly}
-            disabled={!running && secondsLeft === sessionMinutes * 60}
+            onClick={onFinishEarly}
+            disabled={!inSession || secondsLeft === sessionMinutes * 60}
           >
             Finish early
           </button>

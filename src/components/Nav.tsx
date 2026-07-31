@@ -6,6 +6,7 @@ const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: 'cards', label: 'Cards', icon: '▤' },
   { id: 'play', label: 'Play', icon: '◈' },
   { id: 'quests', label: 'Quests', icon: '✧' },
+  { id: 'store', label: 'Themes', icon: '✦' },
 ]
 
 const GAME_ICONS: Record<MiniGameId, { icon: string; label: string }> = {
@@ -18,18 +19,20 @@ const GAME_ICONS: Record<MiniGameId, { icon: string; label: string }> = {
 interface Props {
   tab: Tab
   playingGame?: MiniGameId | null
+  onBreak?: boolean
   onChange: (tab: Tab) => void
 }
 
-export function Nav({ tab, playingGame = null, onChange }: Props) {
+export function Nav({ tab, playingGame = null, onBreak = false, onChange }: Props) {
   return (
     <nav className="nav-dock" aria-label="Main">
       {TABS.map((t) => {
         const isActive = tab === t.id
         const inGame = t.id === 'play' && playingGame != null
+        const focusBreak = t.id === 'focus' && onBreak
         const game = inGame ? GAME_ICONS[playingGame] : null
-        const icon = game?.icon ?? t.icon
-        const label = game?.label ?? t.label
+        const icon = focusBreak ? '॥' : (game?.icon ?? t.icon)
+        const label = focusBreak ? 'Break' : (game?.label ?? t.label)
         return (
           <button
             key={t.id}
@@ -38,12 +41,19 @@ export function Nav({ tab, playingGame = null, onChange }: Props) {
               isActive ? 'active' : '',
               inGame ? 'playing' : '',
               isActive && inGame ? 'playing-active' : '',
+              focusBreak ? 'on-break' : '',
             ]
               .filter(Boolean)
               .join(' ')}
             onClick={() => onChange(t.id)}
             aria-current={isActive ? 'page' : undefined}
-            aria-label={inGame ? `${label} — in game` : t.label}
+            aria-label={
+              focusBreak
+                ? 'Focus — on break'
+                : inGame
+                  ? `${label} — in game`
+                  : t.label
+            }
           >
             <span className="nav-icon" aria-hidden="true">
               {icon}

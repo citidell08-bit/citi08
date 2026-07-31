@@ -5,8 +5,9 @@ import {
   generateMonthlyQuests,
   generateWeeklyQuests,
 } from '../data/quests'
+import { FREE_THEME, VALID_THEMES } from '../data/themes'
 import { SAMPLE_DECK } from '../data/sampleDecks'
-import type { GameState, MiniGameId, Quest, QuestPeriod } from '../types'
+import type { GameState, MiniGameId, Quest, QuestPeriod, ThemeId } from '../types'
 import { freshQuestIssuedAt, type QuestIssuedAt } from './questReset'
 
 const VALID_GAMES: MiniGameId[] = ['memory', 'math', 'glow', 'dash']
@@ -23,6 +24,8 @@ export function createInitialState(): GameState {
     totalCoinsEarned: STARTER_COINS,
     starterGranted: true,
     ownedGames: [],
+    ownedThemes: [FREE_THEME],
+    activeTheme: FREE_THEME,
     totalFocusMinutes: 0,
     totalSessions: 0,
     totalCardsReviewed: 0,
@@ -63,6 +66,8 @@ export function loadState(): GameState {
           : STARTER_COINS,
       starterGranted: Boolean(parsed.starterGranted),
       ownedGames: normalizeOwnedGames(parsed.ownedGames),
+      ownedThemes: normalizeOwnedThemes(parsed.ownedThemes),
+      activeTheme: normalizeActiveTheme(parsed.activeTheme, parsed.ownedThemes),
       achievements: mergeAchievements(parsed.achievements),
       quests: normalizeQuests(parsed.quests),
       questIssuedAt: normalizeIssuedAt(parsed.questIssuedAt),
@@ -91,6 +96,21 @@ export function saveState(state: GameState): void {
 function normalizeOwnedGames(owned: unknown): MiniGameId[] {
   if (!Array.isArray(owned)) return []
   return [...new Set(owned.filter((id): id is MiniGameId => VALID_GAMES.includes(id as MiniGameId)))]
+}
+
+function normalizeOwnedThemes(owned: unknown): ThemeId[] {
+  const list = Array.isArray(owned)
+    ? owned.filter((id): id is ThemeId => VALID_THEMES.includes(id as ThemeId))
+    : []
+  return [...new Set<ThemeId>([FREE_THEME, ...list])]
+}
+
+function normalizeActiveTheme(active: unknown, owned: unknown): ThemeId {
+  const ownedThemes = normalizeOwnedThemes(owned)
+  if (typeof active === 'string' && ownedThemes.includes(active as ThemeId)) {
+    return active as ThemeId
+  }
+  return FREE_THEME
 }
 
 function mergeAchievements(

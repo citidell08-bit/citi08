@@ -1,5 +1,6 @@
 import { startTransition, useEffect, useState } from 'react'
 import { generateQuestsForPeriod, PERIOD_LABEL } from '../data/quests'
+import { FREE_THEME, themeById, THEMES } from '../data/themes'
 import { COINS_PER_ACHIEVEMENT, coinsForLevelsGained, GAME_COSTS } from '../lib/coins'
 import { todayKey, uid, yesterdayKey } from '../lib/dates'
 import { freshQuestIssuedAt, shouldResetQuestBoard } from '../lib/questReset'
@@ -14,6 +15,7 @@ import type {
   MiniGameResult,
   Quest,
   QuestPeriod,
+  ThemeId,
   Toast,
 } from '../types'
 
@@ -27,6 +29,13 @@ export function useGameState() {
   useEffect(() => {
     saveState(state)
   }, [state])
+
+  useEffect(() => {
+    const theme = themeById(state.activeTheme)
+    const root = document.documentElement
+    for (const t of THEMES) root.classList.remove(t.className)
+    root.classList.add(theme.className)
+  }, [state.activeTheme])
 
   /** Flush immediately so level clears / best scores persist even if the tab closes. */
   function persist(next: GameState): GameState {
@@ -291,13 +300,46 @@ export function useGameState() {
       }
       allowed = true
       queueMicrotask(() => pushToast('Game unlocked', { coins: -cost }))
-      return {
+      return persist({
         ...prev,
         coins: prev.coins - cost,
         ownedGames: [...prev.ownedGames, gameId],
-      }
+      })
     })
     return allowed
+  }
+
+  function buyTheme(themeId: ThemeId): boolean {
+    let allowed = false
+    setState((prev) => {
+      if (prev.ownedThemes.includes(themeId) || themeId === FREE_THEME) {
+        allowed = true
+        return persist({ ...prev, activeTheme: themeId })
+      }
+      const theme = themeById(themeId)
+      if (prev.coins < theme.cost) {
+        allowed = false
+        return prev
+      }
+      allowed = true
+      queueMicrotask(() => pushToast(`${theme.title} unlocked`, { coins: -theme.cost }))
+      return persist({
+        ...prev,
+        coins: prev.coins - theme.cost,
+        ownedThemes: [...prev.ownedThemes, themeId],
+        activeTheme: themeId,
+      })
+    })
+    return allowed
+  }
+
+  function equipTheme(themeId: ThemeId) {
+    setState((prev) => {
+      if (!prev.ownedThemes.includes(themeId) && themeId !== FREE_THEME) return prev
+      const theme = themeById(themeId)
+      queueMicrotask(() => pushToast(`${theme.title} equipped`))
+      return persist({ ...prev, activeTheme: themeId })
+    })
   }
 
   function completeMiniGame(result: MiniGameResult) {
@@ -388,6 +430,8 @@ export function useGameState() {
     completeFocusSession,
     reviewCard,
     spendCoinsForGame,
+    buyTheme,
+    equipTheme,
     completeMiniGame,
     createDeck,
     renameCompanion,

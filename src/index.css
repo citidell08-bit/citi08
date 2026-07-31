@@ -332,7 +332,7 @@ a {
   border: 1px solid rgba(56, 189, 248, 0.22);
   backdrop-filter: blur(16px);
   box-shadow: var(--shadow);
-  width: min(540px, calc(100% - 1.25rem));
+  width: min(620px, calc(100% - 1.25rem));
 }
 
 .nav-dock button {
@@ -407,6 +407,11 @@ a {
 .nav-dock button.playing-active .nav-icon {
   transform: scale(1.28);
   color: #a5f3fc;
+}
+
+.nav-dock button.on-break .nav-icon {
+  color: var(--ember);
+  animation: nav-pulse 1.4s ease-in-out infinite;
 }
 
 @keyframes nav-pulse {

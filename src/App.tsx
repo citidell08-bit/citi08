@@ -5,6 +5,8 @@ import { Games } from './components/Games'
 import { Home } from './components/Home'
 import { Nav } from './components/Nav'
 import { Quests } from './components/Quests'
+import { ThemeStore } from './components/ThemeStore'
+import { useFocusSession } from './hooks/useFocusSession'
 import { useGameState } from './hooks/useGameState'
 import type { MiniGameId, Tab } from './types'
 import { Companion } from './components/Companion'
@@ -21,12 +23,16 @@ function App() {
     completeFocusSession,
     reviewCard,
     spendCoinsForGame,
+    buyTheme,
+    equipTheme,
     completeMiniGame,
     createDeck,
     renameCompanion,
     dismissLevelUp,
     resetProgress,
   } = useGameState()
+
+  const focus = useFocusSession(completeFocusSession)
 
   const changeTab = useCallback((next: Tab) => {
     setTab(next)
@@ -51,7 +57,17 @@ function App() {
           onReset={resetProgress}
         />
       )}
-      {tab === 'focus' && <FocusTimer onComplete={completeFocusSession} />}
+      {tab === 'focus' && (
+        <FocusTimer
+          session={focus.session}
+          onSelectPreset={focus.selectPreset}
+          onBegin={focus.begin}
+          onBreak={focus.takeBreak}
+          onResume={focus.resume}
+          onReset={focus.reset}
+          onFinishEarly={focus.finishEarly}
+        />
+      )}
       {tab === 'cards' && (
         <Flashcards decks={state.decks} onReview={reviewCard} onCreateDeck={createDeck} />
       )}
@@ -65,8 +81,16 @@ function App() {
         />
       )}
       {tab === 'quests' && <Quests state={state} />}
+      {tab === 'store' && (
+        <ThemeStore state={state} onBuy={buyTheme} onEquip={equipTheme} />
+      )}
 
-      <Nav tab={tab} playingGame={tab === 'play' ? playingGame : null} onChange={changeTab} />
+      <Nav
+        tab={tab}
+        playingGame={tab === 'play' ? playingGame : null}
+        onBreak={focus.session.onBreak}
+        onChange={changeTab}
+      />
 
       <div className="toast-stack" aria-live="polite">
         {toasts.map((t) => (

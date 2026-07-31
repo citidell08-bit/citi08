@@ -1,6 +1,15 @@
-export type Tab = 'home' | 'focus' | 'cards' | 'play' | 'quests'
+export type Tab = 'home' | 'focus' | 'cards' | 'play' | 'quests' | 'store'
 
 export type MiniGameId = 'memory' | 'math' | 'glow' | 'dash'
+
+export type ThemeId =
+  | 'neon-blue'
+  | 'neon-cyan'
+  | 'neon-pink'
+  | 'neon-lime'
+  | 'neon-violet'
+  | 'neon-amber'
+  | 'cyber-grid'
 
 export interface Flashcard {
   id: string
@@ -54,6 +63,10 @@ export interface GameState {
   starterGranted: boolean
   /** Games purchased once — replay is free forever. */
   ownedGames: MiniGameId[]
+  /** Background themes purchased once. */
+  ownedThemes: ThemeId[]
+  /** Currently equipped background theme. */
+  activeTheme: ThemeId
   totalFocusMinutes: number
   totalSessions: number
   totalCardsReviewed: number

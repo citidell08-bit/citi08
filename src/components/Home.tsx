@@ -23,16 +23,15 @@ export function Home({ state, onNavigate, onRename, onReset }: Props) {
           <p className="eyebrow">Gamified study companion</p>
           <h1 className="brand-mark">Cyber Kith</h1>
           <p className="lede">
-            Clear daily, weekly, and monthly quests for coins — boards refresh when finished or
-            about every hour — then spend coins in the arcade with{' '}
-            {state.companionName}.
+            Clear quests for coins, take a break mid-focus, then customize neon backgrounds in the
+            theme store with {state.companionName}.
           </p>
           <div className="hero-actions">
             <button type="button" className="btn btn-primary" onClick={() => onNavigate('focus')}>
               Start focus
             </button>
-            <button type="button" className="btn btn-ghost" onClick={() => onNavigate('play')}>
-              Play games
+            <button type="button" className="btn btn-ghost" onClick={() => onNavigate('store')}>
+              Theme store
             </button>
           </div>
         </div>
