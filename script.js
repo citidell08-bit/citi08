@@ -249,6 +249,14 @@ const QUESTIONS = {
     bookTitle: "",
     difficulty: "easy",
     playerName: "Scholar",
+    session: {
+      totalSec: 25 * 60,
+      remaining: 25 * 60,
+      done: false,
+      canLeave: false,
+      notified: false,
+      keepPlaying: false,
+    },
     level: 1,
     kp: 0,
     questsDone: 0,
@@ -335,8 +343,18 @@ const QUESTIONS = {
   function selectedBook() {
     const subject = $("subject-select").value;
     const grade = parseInt($("grade-select").value, 10);
+    const custom = ($("custom-book") && $("custom-book").value.trim()) || "";
     const id = $("book-select").value;
-    return booksFor(subject, grade).find((b) => b.id === id) || booksFor(subject, grade)[0] || null;
+    const preset = booksFor(subject, grade).find((b) => b.id === id) || null;
+    if (custom) {
+      return {
+        id: preset && preset.title === custom ? preset.id : "custom",
+        title: custom,
+        grades: [grade],
+        topics: preset && preset.title === custom ? preset.topics : "your study book",
+      };
+    }
+    return preset || booksFor(subject, grade)[0] || null;
   }
 
   function selectBook(bookId) {
@@ -346,12 +364,13 @@ const QUESTIONS = {
     const book = list.find((b) => b.id === bookId) || list[0];
     if (!book) return;
     $("book-select").value = book.id;
+    if ($("custom-book")) $("custom-book").value = book.title;
     $("book-list").querySelectorAll(".book-option").forEach((btn) => {
       const on = btn.getAttribute("data-book-id") === book.id;
       btn.classList.toggle("selected", on);
       btn.setAttribute("aria-checked", on ? "true" : "false");
     });
-    $("book-hint").textContent = `Selected: ${book.title}. Topics: ${book.topics}. Grade ${grade}.`;
+    $("book-hint").textContent = `Book: ${book.title}. Topics: ${book.topics}. Grade ${grade}.`;
   }
 
   function refreshBookSelect() {
@@ -360,6 +379,7 @@ const QUESTIONS = {
     const list = booksFor(subject, grade);
     const box = $("book-list");
     const prev = $("book-select").value;
+    const typed = $("custom-book") ? $("custom-book").value.trim() : "";
     box.innerHTML = "";
     list.forEach((b) => {
       const btn = document.createElement("button");
@@ -371,8 +391,128 @@ const QUESTIONS = {
       btn.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); selectBook(b.id); });
       box.appendChild(btn);
     });
-    const keep = list.some((b) => b.id === prev) ? prev : list[0].id;
-    selectBook(keep);
+    if (typed) {
+      // Keep their typed book; only highlight if it matches a suggestion
+      const match = list.find((b) => b.title === typed);
+      $("book-select").value = match ? match.id : "";
+      $("book-list").querySelectorAll(".book-option").forEach((btn) => {
+        const on = match && btn.getAttribute("data-book-id") === match.id;
+        btn.classList.toggle("selected", on);
+        btn.setAttribute("aria-checked", on ? "true" : "false");
+      });
+      $("book-hint").textContent = `Book: ${typed}. Grade ${grade}.`;
+    } else {
+      const keep = list.some((b) => b.id === prev) ? prev : list[0].id;
+      selectBook(keep);
+    }
+    if ($("timer-auto") && $("timer-auto").checked) suggestSessionMinutes(true);
+  }
+
+  function formatClock(totalSec) {
+    const s = Math.max(0, Math.ceil(totalSec));
+    const m = Math.floor(s / 60);
+    const r = s % 60;
+    return `${m}:${String(r).padStart(2, "0")}`;
+  }
+
+  function suggestedMinutesForSetup() {
+    const grade = parseInt(($("grade-select") || {}).value || "8", 10);
+    const difficulty = (document.querySelector('input[name="difficulty"]:checked') || {}).value || "easy";
+    let mins = 25;
+    if (grade <= 5) mins = 15;
+    else if (grade <= 8) mins = 25;
+    else if (grade <= 10) mins = 45;
+    else mins = 60;
+    if (difficulty === "hard") mins = Math.min(180, mins + 10);
+    if (difficulty === "raid") mins = Math.min(180, mins + 15);
+    // Sometimes auto-pick a nearby preset for variety
+    const presets = [15, 25, 45, 60];
+    if (Math.random() < 0.35) {
+      const nearby = presets.filter((p) => Math.abs(p - mins) <= 20);
+      mins = nearby[Math.floor(Math.random() * nearby.length)] || mins;
+    }
+    return mins;
+  }
+
+  function setTimerMinutes(mins, { fromAuto = false } = {}) {
+    mins = Math.max(1, Math.min(180, Math.round(Number(mins) || 25)));
+    if ($("timer-minutes")) $("timer-minutes").value = String(mins);
+    document.querySelectorAll(".timer-preset").forEach((btn) => {
+      btn.classList.toggle("active", parseInt(btn.getAttribute("data-mins"), 10) === mins);
+    });
+    if ($("timer-hint")) {
+      $("timer-hint").textContent = fromAuto
+        ? `Auto-suggested: ${mins} minutes — change it anytime.`
+        : `Study session: ${mins} minutes. Leave unlocks when time is up.`;
+    }
+  }
+
+  function suggestSessionMinutes(force = false) {
+    if (!force && $("timer-auto") && !$("timer-auto").checked) return;
+    setTimerMinutes(suggestedMinutesForSetup(), { fromAuto: true });
+  }
+
+  function updateLeaveControls() {
+    const canLeave = !!(state.session && state.session.canLeave);
+    const quit = $("btn-quit");
+    const hint = $("quit-timer-hint");
+    if (quit) {
+      quit.disabled = !canLeave;
+      quit.textContent = canLeave ? "Leave to Menu" : "Leave (locked)";
+      quit.title = canLeave ? "Study timer finished — you can leave" : "Finish your study timer first";
+    }
+    if (hint) {
+      if (canLeave) {
+        hint.textContent = "Timer complete — you can leave whenever you want.";
+        hint.classList.add("ready");
+      } else if (state.session) {
+        hint.textContent = `Study timer still running — ${formatClock(state.session.remaining)} left.`;
+        hint.classList.remove("ready");
+      }
+    }
+  }
+
+  function updateSessionTimerUI() {
+    const el = $("hud-timer");
+    if (!el || !state.session) return;
+    el.textContent = state.session.done ? "DONE" : formatClock(state.session.remaining);
+    el.classList.toggle("timer-low", !state.session.done && state.session.remaining <= 60);
+    el.classList.toggle("timer-done", !!state.session.done);
+    updateLeaveControls();
+  }
+
+  function onSessionTimerComplete() {
+    if (!state.session || state.session.notified) return;
+    state.session.done = true;
+    state.session.canLeave = true;
+    state.session.remaining = 0;
+    state.session.notified = true;
+    updateSessionTimerUI();
+    showToast("Study time complete! You can leave now.");
+    if (!state.session.keepPlaying) {
+      state.paused = true;
+      if ($("session-body")) {
+        $("session-body").textContent =
+          `Nice work, ${state.playerName}! You studied ${state.bookTitle} for ${Math.round(state.session.totalSec / 60)} minutes. Leave to the menu, or keep exploring.`;
+      }
+      openModal("session-modal");
+    }
+  }
+
+  function tickSessionTimer(dt) {
+    if (!state.running || !state.session || state.session.done) return;
+    // Pause timer during quizzes / menus
+    if (state.paused) return;
+    if (modalIsOpen("quest-modal") || modalIsOpen("boss-modal") || modalIsOpen("result-modal") || modalIsOpen("dungeon-modal") || modalIsOpen("map-modal") || modalIsOpen("inventory-modal") || modalIsOpen("settings-modal") || modalIsOpen("session-modal")) {
+      return;
+    }
+    state.session.remaining -= dt;
+    if (state.session.remaining <= 0) {
+      state.session.remaining = 0;
+      onSessionTimerComplete();
+    } else if (Math.floor(state.session.remaining) !== Math.floor(state.session.remaining + dt)) {
+      updateSessionTimerUI();
+    }
   }
 
   function hash2(x, y, seed = state.seed) {
@@ -1467,7 +1607,8 @@ const QUESTIONS = {
     $("hud-kp").textContent = String(state.kp);
     const px = Math.floor(state.player.x), py = Math.floor(state.player.y);
     $("hud-coords").textContent = `${px}, ${py}`;
-    $("hud-study").textContent = `G${state.grade} · ${state.bookTitle}`;
+    $("hud-study").textContent = `${state.playerName} · G${state.grade} · ${state.bookTitle}`;
+    updateSessionTimerUI();
     updateDungeonUI();
     recalcHp();
   }
@@ -3265,7 +3406,11 @@ const QUESTIONS = {
     state.animT += dt;
     if (state.running && !state.paused) {
       updatePlayer(dt);
+      tickSessionTimer(dt);
       updateHUD();
+    } else if (state.running) {
+      // Still tick UI clock display while paused overlays are up
+      updateSessionTimerUI();
     }
     if (state.running) draw();
     if (state.running && isMapOpen() && (Math.floor(state.animT * 4) !== Math.floor((state.animT - dt) * 4))) {
@@ -3313,6 +3458,15 @@ const QUESTIONS = {
     state.player = { x: 8.5, y: 8.5, facing: 0 };
     state.paused = false;
     state.running = true;
+    const mins = Math.max(1, Math.min(180, Math.round(Number(cfg.timerMinutes) || 25)));
+    state.session = {
+      totalSec: mins * 60,
+      remaining: mins * 60,
+      done: false,
+      canLeave: false,
+      notified: false,
+      keepPlaying: false,
+    };
     state.bossFight = null;
     state.hitCd = 0;
     state.hurtCd = 0;
@@ -3349,15 +3503,21 @@ const QUESTIONS = {
     requestAnimationFrame(() => {
       resizeCanvas();
       draw();
-      showToast(`Grade ${state.grade} · ${state.bookTitle}. Hotbar 1-9 · I bag · M map · grind gear!`);
+      showToast(`${state.playerName} · ${state.bookTitle} · ${Math.round(state.session.totalSec / 60)}m timer. Leave unlocks when done!`);
+      updateSessionTimerUI();
     });
   }
 
   function quitToMenu() {
+    if (state.running && state.session && !state.session.canLeave) {
+      showToast(`Timer still running — ${formatClock(state.session.remaining)} left.`, true);
+      updateLeaveControls();
+      return;
+    }
     state.running = false;
     state.paused = false;
     state.dungeon = null;
-    ["settings-modal", "inventory-modal", "map-modal", "quest-modal", "boss-modal", "result-modal", "dungeon-modal"].forEach(closeModal);
+    ["settings-modal", "inventory-modal", "map-modal", "quest-modal", "boss-modal", "result-modal", "dungeon-modal", "session-modal"].forEach(closeModal);
     $("game-screen").classList.remove("active");
     $("start-screen").classList.add("active");
     $("combat-hint").classList.add("hidden");
@@ -3372,22 +3532,103 @@ const QUESTIONS = {
   }
 
   $("subject-select").addEventListener("change", refreshBookSelect);
-  $("grade-select").addEventListener("change", refreshBookSelect);
+  $("grade-select").addEventListener("change", () => {
+    refreshBookSelect();
+    if ($("timer-auto") && $("timer-auto").checked) suggestSessionMinutes(true);
+  });
+  document.querySelectorAll('input[name="difficulty"]').forEach((el) => {
+    el.addEventListener("change", () => {
+      if ($("timer-auto") && $("timer-auto").checked) suggestSessionMinutes(true);
+    });
+  });
+  if ($("timer-auto")) {
+    $("timer-auto").addEventListener("change", () => {
+      if ($("timer-auto").checked) suggestSessionMinutes(true);
+      else if ($("timer-hint")) $("timer-hint").textContent = "Manual timer — type minutes or tap a preset.";
+    });
+  }
+  document.querySelectorAll(".timer-preset").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      if ($("timer-auto")) $("timer-auto").checked = false;
+      setTimerMinutes(btn.getAttribute("data-mins"), { fromAuto: false });
+    });
+  });
+  if ($("timer-minutes")) {
+    $("timer-minutes").addEventListener("input", () => {
+      if ($("timer-auto")) $("timer-auto").checked = false;
+      setTimerMinutes($("timer-minutes").value, { fromAuto: false });
+    });
+  }
+  if ($("custom-book")) {
+    $("custom-book").addEventListener("input", () => {
+      const typed = $("custom-book").value.trim();
+      const subject = $("subject-select").value;
+      const grade = parseInt($("grade-select").value, 10);
+      const match = booksFor(subject, grade).find((b) => b.title === typed);
+      $("book-select").value = match ? match.id : "";
+      $("book-list").querySelectorAll(".book-option").forEach((btn) => {
+        const on = match && btn.getAttribute("data-book-id") === match.id;
+        btn.classList.toggle("selected", on);
+        btn.setAttribute("aria-checked", on ? "true" : "false");
+      });
+      if ($("book-hint")) {
+        $("book-hint").textContent = typed
+          ? `Book: ${typed}. Grade ${grade}.`
+          : "Type your book name above (required), or pick a suggestion.";
+      }
+    });
+  }
   refreshBookSelect();
+  suggestSessionMinutes(true);
 
   $("start-form").addEventListener("submit", (e) => {
     e.preventDefault();
-    const name = $("player-name").value.trim() || "Scholar";
-    const subject = $("subject-select").value;
-    const grade = parseInt($("grade-select").value, 10);
-    const book = selectedBook();
-    if (!book) {
-      alert("Please select a textbook.");
+    const name = $("player-name").value.trim();
+    if (!name) {
+      alert("Please type your name.");
+      $("player-name").focus();
       return;
     }
+    const subject = $("subject-select").value;
+    const grade = parseInt($("grade-select").value, 10);
+    const bookTitle = ($("custom-book") && $("custom-book").value.trim()) || "";
+    if (!bookTitle) {
+      alert("Please type the book / textbook you are using.");
+      if ($("custom-book")) $("custom-book").focus();
+      return;
+    }
+    const book = selectedBook();
     const difficulty = (document.querySelector('input[name="difficulty"]:checked') || {}).value || "easy";
-    startGame({ name, subject, grade, bookId: book.id, bookTitle: book.title, difficulty });
+    const timerMinutes = Math.max(1, Math.min(180, parseInt(($("timer-minutes") || {}).value || "25", 10) || 25));
+    startGame({
+      name,
+      subject,
+      grade,
+      bookId: book ? book.id : "custom",
+      bookTitle,
+      difficulty,
+      timerMinutes,
+    });
   });
+
+  if ($("btn-session-leave")) {
+    $("btn-session-leave").addEventListener("click", () => {
+      closeModal("session-modal");
+      state.session.canLeave = true;
+      quitToMenu();
+    });
+  }
+  if ($("btn-session-keep")) {
+    $("btn-session-keep").addEventListener("click", () => {
+      closeModal("session-modal");
+      state.session.keepPlaying = true;
+      state.session.canLeave = true;
+      state.paused = false;
+      updateLeaveControls();
+      showToast("Keep exploring — Leave is unlocked in Settings (Esc).");
+    });
+  }
 
   function handleGameKeyDown(e) {
     // Always track movement keys (code + key for layout safety)
@@ -3463,7 +3704,14 @@ const QUESTIONS = {
       if (modalIsOpen("settings-modal")) {
         closeModal("settings-modal");
         state.paused = false;
+      } else if (modalIsOpen("session-modal")) {
+        closeModal("session-modal");
+        state.session.keepPlaying = true;
+        state.session.canLeave = true;
+        state.paused = false;
+        updateLeaveControls();
       } else {
+        updateLeaveControls();
         openModal("settings-modal");
         state.paused = true;
       }
@@ -3482,7 +3730,7 @@ const QUESTIONS = {
   window.addEventListener("keydown", handleGameKeyDown, true);
   window.addEventListener("keyup", handleGameKeyUp, true);
 
-  $("btn-settings").addEventListener("click", () => { openModal("settings-modal"); state.paused = true; });
+  $("btn-settings").addEventListener("click", () => { updateLeaveControls(); openModal("settings-modal"); state.paused = true; });
   $("btn-inventory").addEventListener("click", () => { updateInventoryUI(); openModal("inventory-modal"); state.paused = true; });
   function onMapButton(ev) {
     if (ev) { ev.preventDefault(); ev.stopPropagation(); }

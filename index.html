@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=map3" />
+  <link rel="stylesheet" href="style.css?v=timer1" />
 </head>
 <body>
   <div id="app">
@@ -22,7 +22,7 @@
         <form id="start-form" class="start-form">
           <label class="field">
             <span>Your name</span>
-            <input type="text" id="player-name" maxlength="16" placeholder="Scholar" autocomplete="off" required />
+            <input type="text" id="player-name" maxlength="24" placeholder="Type your name" autocomplete="off" required />
           </label>
 
           <div class="field-row">
@@ -55,11 +55,36 @@
           </div>
 
           <fieldset class="book-field">
-            <legend>Book / textbook you are using</legend>
+            <legend>Your book</legend>
+            <label class="field">
+              <span>Book / textbook name</span>
+              <input type="text" id="custom-book" maxlength="48" placeholder="Type the book you are using" autocomplete="off" required />
+            </label>
+            <p class="book-pick-label muted">Or tap a suggested book to fill it in:</p>
             <input type="hidden" id="book-select" name="book" value="" />
-            <div id="book-list" class="book-list" role="radiogroup" aria-label="Textbook"></div>
+            <div id="book-list" class="book-list" role="radiogroup" aria-label="Suggested textbooks"></div>
           </fieldset>
-          <p id="book-hint" class="book-hint">Pick your subject and grade, then tap a book below.</p>
+          <p id="book-hint" class="book-hint">Type your book name above (required), or pick a suggestion.</p>
+
+          <fieldset class="timer-field">
+            <legend>Study timer</legend>
+            <p class="timer-help muted">Play until the timer ends — then you can leave.</p>
+            <label class="toggle-field timer-auto-toggle">
+              <input type="checkbox" id="timer-auto" checked />
+              <span>Auto-suggest time for my grade</span>
+            </label>
+            <div class="timer-presets" id="timer-presets" role="group" aria-label="Quick times">
+              <button type="button" class="timer-preset" data-mins="15">15m</button>
+              <button type="button" class="timer-preset" data-mins="25">25m</button>
+              <button type="button" class="timer-preset" data-mins="45">45m</button>
+              <button type="button" class="timer-preset" data-mins="60">60m</button>
+            </div>
+            <label class="field timer-manual">
+              <span>Minutes (set manually)</span>
+              <input type="number" id="timer-minutes" min="1" max="180" step="1" value="25" required />
+            </label>
+            <p id="timer-hint" class="book-hint">Suggested: 25 minutes — change it anytime.</p>
+          </fieldset>
 
           <fieldset class="difficulty-field">
             <legend>Difficulty</legend>
@@ -98,7 +123,7 @@
           <button type="submit" class="btn primary" id="btn-start">Enter the Ruins</button>
         </form>
 
-        <p class="hint-keys">Move: WASD · Interact: E · Attack: LMB · Inventory: I · Heal: H · Esc: Menu</p>
+        <p class="hint-keys">Move: WASD · Interact: E · Attack: LMB · Inventory: I · Map: M · Heal: H · Esc: Menu</p>
       </div>
     </section>
 
@@ -124,6 +149,10 @@
             <div class="hud-stat" title="Power from tools">
               <span class="hud-label">PWR</span>
               <span id="hud-pwr">0</span>
+            </div>
+            <div class="hud-stat" title="Study session timer">
+              <span class="hud-label">TIME</span>
+              <span id="hud-timer">25:00</span>
             </div>
             <div class="hud-stat hidden" id="hud-floor-wrap" title="Dungeon floor">
               <span class="hud-label">FLOOR</span>
@@ -233,7 +262,8 @@
           </label>
           <div class="settings-actions">
             <button type="button" class="btn ghost" id="btn-resume">Resume</button>
-            <button type="button" class="btn danger" id="btn-quit">Quit to Menu</button>
+            <button type="button" class="btn danger" id="btn-quit" disabled title="Finish your study timer first">Leave (locked)</button>
+            <p id="quit-timer-hint" class="quit-timer-hint muted">Study timer still running — leave unlocks when time is up.</p>
           </div>
         </div>
       </div>
@@ -419,6 +449,18 @@
       </div>
     </div>
 
+    <!-- SESSION COMPLETE / LEAVE -->
+    <div id="session-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="session-title">
+      <div class="modal-panel result-panel">
+        <h2 id="session-title">Study time complete!</h2>
+        <p id="session-body">Your timer is done. Great work — you can leave the ruins now.</p>
+        <div class="settings-actions session-actions">
+          <button type="button" class="btn ghost" id="btn-session-keep">Keep exploring</button>
+          <button type="button" class="btn primary" id="btn-session-leave">Leave to menu</button>
+        </div>
+      </div>
+    </div>
+
     <!-- RESULT OVERLAY -->
     <div id="result-modal" class="modal hidden" role="dialog" aria-modal="true">
       <div class="modal-panel result-panel">
@@ -429,7 +471,7 @@
     </div>
   </div>
 
-  <script src="script.js?v=map3"></script>
+  <script src="script.js?v=timer1"></script>
   <script>
     // Fallback only — skips if main script already handled the key/button
     (function () {

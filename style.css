@@ -822,6 +822,94 @@ select {
   margin-bottom: 0.45rem;
 }
 
+.book-pick-label {
+  margin: 0.55rem 0 0.35rem;
+  font-size: 0.95rem;
+}
+
+.timer-field {
+  margin: 0;
+  padding: 0.75rem 0 0;
+  border: none;
+  border-top: 1px solid rgba(255, 224, 96, 0.2);
+}
+
+.timer-field legend {
+  font-family: var(--font-display);
+  font-size: 0.55rem;
+  color: var(--sand);
+  letter-spacing: 0.04em;
+  margin-bottom: 0.35rem;
+}
+
+.timer-help {
+  margin: 0 0 0.55rem;
+  font-size: 0.95rem;
+}
+
+.timer-auto-toggle {
+  margin-bottom: 0.55rem;
+}
+
+.timer-presets {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.4rem;
+  margin-bottom: 0.55rem;
+}
+
+.timer-preset {
+  font-family: var(--font-display);
+  font-size: 0.42rem;
+  padding: 0.5rem 0.25rem;
+  border: 2px solid var(--sand-dim);
+  background: var(--bg-deep);
+  color: var(--ash);
+  cursor: pointer;
+}
+
+.timer-preset:hover {
+  border-color: var(--gold);
+}
+
+.timer-preset.active {
+  border-color: var(--moss-bright);
+  color: var(--moss-bright);
+  background: #24301e;
+}
+
+.timer-manual {
+  margin-bottom: 0.25rem;
+}
+
+.quit-timer-hint {
+  width: 100%;
+  margin: 0.25rem 0 0;
+  font-size: 0.95rem;
+  text-align: center;
+}
+
+.quit-timer-hint.ready {
+  color: var(--moss-bright);
+}
+
+#btn-quit:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+#hud-timer.timer-low {
+  color: #ff9060;
+}
+
+#hud-timer.timer-done {
+  color: var(--moss-bright);
+}
+
+.session-actions {
+  margin-top: 0.5rem;
+}
+
 .book-list {
   display: flex;
   flex-direction: column;
