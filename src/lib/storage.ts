@@ -19,13 +19,13 @@ const VALID_GAMES: MiniGameId[] = ['memory', 'math', 'glow', 'dash']
 const VALID_PERIODS: QuestPeriod[] = ['daily', 'weekly', 'monthly']
 
 const STORAGE_KEY = 'kith.game.v1'
-const STARTER_COINS = 100
 
 export function createInitialState(): GameState {
   return {
     xp: 0,
-    coins: STARTER_COINS,
-    totalCoinsEarned: STARTER_COINS,
+    coins: 0,
+    totalCoinsEarned: 0,
+    /** Legacy flag — starter packs are no longer granted. Fresh saves start at 0. */
     starterGranted: true,
     ownedGames: [],
     ownedThemes: [FREE_THEME],
@@ -63,12 +63,11 @@ export function loadState(): GameState {
     const base: GameState = {
       ...createInitialState(),
       ...parsed,
-      coins: typeof parsed.coins === 'number' ? Math.max(0, parsed.coins) : STARTER_COINS,
+      xp: typeof parsed.xp === 'number' ? Math.max(0, parsed.xp) : 0,
+      coins: typeof parsed.coins === 'number' ? Math.max(0, parsed.coins) : 0,
       totalCoinsEarned:
-        typeof parsed.totalCoinsEarned === 'number'
-          ? Math.max(0, parsed.totalCoinsEarned)
-          : STARTER_COINS,
-      starterGranted: Boolean(parsed.starterGranted),
+        typeof parsed.totalCoinsEarned === 'number' ? Math.max(0, parsed.totalCoinsEarned) : 0,
+      starterGranted: true,
       ownedGames: normalizeOwnedGames(parsed.ownedGames),
       ownedThemes: normalizeOwnedThemes(parsed.ownedThemes),
       activeTheme: normalizeActiveTheme(parsed.activeTheme, parsed.ownedThemes),
@@ -79,12 +78,6 @@ export function loadState(): GameState {
         Array.isArray(parsed.decks) && parsed.decks.length > 0
           ? parsed.decks
           : createInitialState().decks,
-    }
-
-    if (!base.starterGranted) {
-      base.coins += STARTER_COINS
-      base.totalCoinsEarned += STARTER_COINS
-      base.starterGranted = true
     }
 
     return base

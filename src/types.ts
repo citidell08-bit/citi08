@@ -60,7 +60,7 @@ export interface GameState {
   xp: number
   coins: number
   totalCoinsEarned: number
-  /** One-time starter pack so players can open the arcade immediately. */
+  /** Legacy field (starter packs removed — new players begin at 0 coins / XP). */
   starterGranted: boolean
   /** Games purchased once — replay is free forever. */
   ownedGames: MiniGameId[]

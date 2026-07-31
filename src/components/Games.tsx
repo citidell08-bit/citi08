@@ -153,7 +153,7 @@ export function Games({ state, onComplete, onSpend, onNavigate, onActiveChange }
       <header>
         <h2 className="section-title">Cyber Arcade</h2>
         <p className="section-sub">
-          Buy once, play free forever. Personal bests save on this device.
+          Earn coins from quests and level-ups, then buy games once — replay free forever.
         </p>
       </header>
 
@@ -165,7 +165,7 @@ export function Games({ state, onComplete, onSpend, onNavigate, onActiveChange }
           <p>
             {arcadeUnlocked
               ? 'Owned games never charge again. Win rounds for a small coin bonus.'
-              : 'Clear at least one daily quest to unlock play. Level-ups also mint coins.'}
+              : 'Start from zero — clear a daily quest to unlock the arcade, then grind coins to buy games.'}
           </p>
         </div>
         {!arcadeUnlocked && (

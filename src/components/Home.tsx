@@ -20,8 +20,8 @@ export function Home({ state, onNavigate, onRename }: Props) {
           <p className="eyebrow">Gamified study companion</p>
           <h1 className="brand-mark">Cyber Kith</h1>
           <p className="lede">
-            Clear quests for coins, take a break mid-focus, then customize neon backgrounds in the
-            theme store with {state.companionName}.
+            You start with nothing — grind focus, cards, and quests for XP and coins, then unlock
+            arcade games and neon themes with {state.companionName}.
           </p>
           <div className="hero-actions">
             <button type="button" className="btn btn-primary" onClick={() => onNavigate('focus')}>
