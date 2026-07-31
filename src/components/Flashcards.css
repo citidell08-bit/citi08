@@ -31,7 +31,7 @@
 
 .deck-select button.active {
   background: var(--glow-soft);
-  border-color: rgba(94, 234, 212, 0.35);
+  border-color: rgba(56, 189, 248, 0.35);
   color: var(--ink);
 }
 
@@ -80,7 +80,7 @@
   backface-visibility: hidden;
   border: 1px solid var(--line);
   background:
-    radial-gradient(500px 200px at 20% 0%, rgba(94, 234, 212, 0.12), transparent 60%),
+    radial-gradient(500px 200px at 20% 0%, rgba(56, 189, 248, 0.12), transparent 60%),
     rgba(8, 28, 24, 0.9);
   text-align: left;
 }
@@ -88,7 +88,7 @@
 .face.back {
   transform: rotateY(180deg);
   background:
-    radial-gradient(500px 200px at 80% 0%, rgba(240, 180, 41, 0.14), transparent 60%),
+    radial-gradient(500px 200px at 80% 0%, rgba(34, 211, 238, 0.14), transparent 60%),
     rgba(8, 28, 24, 0.9);
 }
 

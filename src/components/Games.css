@@ -36,7 +36,7 @@
 
 .score-pill {
   color: var(--ember) !important;
-  border-color: rgba(240, 180, 41, 0.35) !important;
+  border-color: rgba(34, 211, 238, 0.35) !important;
 }
 
 .dash-score-badge {
@@ -45,7 +45,7 @@
   border-radius: 18px;
   text-align: center;
   background: var(--ember-soft);
-  border: 1px solid rgba(240, 180, 41, 0.35);
+  border: 1px solid rgba(34, 211, 238, 0.35);
 }
 
 .dash-score-badge strong {
@@ -73,7 +73,7 @@
   padding: 1.25rem;
   min-height: 280px;
   background:
-    radial-gradient(600px 240px at 50% 0%, rgba(94, 234, 212, 0.12), transparent 60%),
+    radial-gradient(600px 240px at 50% 0%, rgba(56, 189, 248, 0.16), transparent 60%),
     var(--bg-panel);
 }
 
@@ -142,6 +142,11 @@
   color: var(--ember);
   font-size: 0.85rem;
   font-weight: 600;
+}
+
+.game-card.owned {
+  border-color: rgba(56, 189, 248, 0.35);
+  box-shadow: 0 0 24px rgba(56, 189, 248, 0.12);
 }
 
 .game-catalog {
@@ -288,7 +293,7 @@
 }
 
 .math-panel.ok {
-  box-shadow: 0 0 0 1px rgba(94, 234, 212, 0.35), var(--shadow);
+  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.35), var(--shadow);
 }
 
 .math-panel.bad {
@@ -329,7 +334,7 @@
 
 .glow-cell.lit {
   background: radial-gradient(circle at 40% 35%, #f0b429, #3d8b6e 70%);
-  box-shadow: 0 0 28px rgba(94, 234, 212, 0.45), 0 0 18px rgba(240, 180, 41, 0.35);
+  box-shadow: 0 0 28px rgba(56, 189, 248, 0.45), 0 0 18px rgba(34, 211, 238, 0.35);
   transform: scale(1.04);
   animation: glow-pop 180ms ease;
 }

@@ -221,13 +221,20 @@ export function useGameState() {
     })
   }
 
+  /** Buy a game once; if already owned, play is free. */
   function spendCoinsForGame(gameId: MiniGameId): boolean {
+    if (state.ownedGames.includes(gameId)) return true
     const cost = GAME_COSTS[gameId]
     if (state.coins < cost) return false
     setState((prev) => {
+      if (prev.ownedGames.includes(gameId)) return prev
       if (prev.coins < cost) return prev
-      queueMicrotask(() => pushToast('Arcade entry', { coins: -cost }))
-      return { ...prev, coins: prev.coins - cost }
+      queueMicrotask(() => pushToast('Game unlocked', { coins: -cost }))
+      return {
+        ...prev,
+        coins: prev.coins - cost,
+        ownedGames: [...prev.ownedGames, gameId],
+      }
     })
     return true
   }

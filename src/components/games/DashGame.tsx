@@ -227,13 +227,13 @@ export function DashGame({ onFinish, onBack }: Props) {
 
       // sky
       const grad = ctx.createLinearGradient(0, 0, 0, H)
-      grad.addColorStop(0, '#071816')
-      grad.addColorStop(1, '#0c2420')
+      grad.addColorStop(0, '#020617')
+      grad.addColorStop(1, '#0b1a33')
       ctx.fillStyle = grad
       ctx.fillRect(0, 0, W, H)
 
       // parallax grid
-      ctx.strokeStyle = 'rgba(94, 234, 212, 0.06)'
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.08)'
       ctx.lineWidth = 1
       const gridOff = (st.distance * 0.35) % 40
       for (let x = -gridOff; x < W; x += 40) {
@@ -244,13 +244,13 @@ export function DashGame({ onFinish, onBack }: Props) {
       }
 
       // ground
-      ctx.fillStyle = '#16362f'
+      ctx.fillStyle = '#0f2748'
       ctx.fillRect(0, H - GROUND, W, GROUND)
-      ctx.fillStyle = '#f0b429'
+      ctx.fillStyle = '#38bdf8'
       ctx.fillRect(0, H - GROUND, W, 3)
 
       // ground dashes
-      ctx.fillStyle = 'rgba(240, 180, 41, 0.35)'
+      ctx.fillStyle = 'rgba(56, 189, 248, 0.4)'
       const dashOff = st.distance % 50
       for (let x = -dashOff; x < W; x += 50) {
         ctx.fillRect(x, H - GROUND + 14, 26, 4)
@@ -260,7 +260,7 @@ export function DashGame({ onFinish, onBack }: Props) {
       for (const o of st.obstacles) {
         const oy = H - GROUND - o.h
         if (o.kind === 'spike') {
-          ctx.fillStyle = '#e07a5f'
+          ctx.fillStyle = '#fb7185'
           ctx.beginPath()
           ctx.moveTo(o.x, H - GROUND)
           ctx.lineTo(o.x + o.w / 2, oy)
@@ -270,13 +270,13 @@ export function DashGame({ onFinish, onBack }: Props) {
           ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)'
           ctx.stroke()
         } else {
-          ctx.fillStyle = o.kind === 'double' ? '#3d8b6e' : '#2a6b55'
+          ctx.fillStyle = o.kind === 'double' ? '#1d4ed8' : '#0369a1'
           roundRect(ctx, o.x, oy, o.w, o.h, 6)
           ctx.fill()
-          ctx.strokeStyle = 'rgba(94, 234, 212, 0.45)'
+          ctx.strokeStyle = 'rgba(56, 189, 248, 0.55)'
           ctx.stroke()
           // hazard stripe
-          ctx.fillStyle = 'rgba(240, 180, 41, 0.55)'
+          ctx.fillStyle = 'rgba(34, 211, 238, 0.65)'
           ctx.fillRect(o.x + 6, oy + 8, o.w - 12, 4)
         }
       }
@@ -286,14 +286,14 @@ export function DashGame({ onFinish, onBack }: Props) {
         ctx.save()
         ctx.translate(PLAYER_X + PLAYER_SIZE / 2, st.y + PLAYER_SIZE / 2)
         ctx.rotate(st.rot)
-        ctx.fillStyle = '#5eead4'
+        ctx.fillStyle = '#38bdf8'
         roundRect(ctx, -PLAYER_SIZE / 2, -PLAYER_SIZE / 2, PLAYER_SIZE, PLAYER_SIZE, 7)
         ctx.fill()
-        ctx.strokeStyle = '#f0b429'
+        ctx.strokeStyle = '#22d3ee'
         ctx.lineWidth = 2
         ctx.stroke()
         // eye
-        ctx.fillStyle = '#061412'
+        ctx.fillStyle = '#020617'
         ctx.beginPath()
         ctx.arc(4, -2, 3.2, 0, Math.PI * 2)
         ctx.fill()
@@ -303,7 +303,7 @@ export function DashGame({ onFinish, onBack }: Props) {
       // particles
       for (const p of st.particles) {
         ctx.globalAlpha = Math.max(0, p.life)
-        ctx.fillStyle = '#5eead4'
+        ctx.fillStyle = '#38bdf8'
         ctx.fillRect(p.x, p.y, 4, 4)
       }
       ctx.globalAlpha = 1

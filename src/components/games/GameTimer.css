@@ -14,7 +14,7 @@
     var(--ember) calc(var(--ratio) * 1turn),
     rgba(255, 255, 255, 0.08) 0
   );
-  box-shadow: 0 0 24px rgba(240, 180, 41, 0.18);
+  box-shadow: 0 0 24px rgba(34, 211, 238, 0.18);
 }
 
 .game-timer-core {
@@ -24,7 +24,7 @@
   display: grid;
   place-content: center;
   text-align: center;
-  background: radial-gradient(circle at 40% 30%, #1a3d35, #071816 75%);
+  background: radial-gradient(circle at 40% 30%, #0f2748, #020617 75%);
   border: 1px solid var(--line);
 }
 

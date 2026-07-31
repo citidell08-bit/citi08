@@ -48,6 +48,8 @@ export interface GameState {
   totalCoinsEarned: number
   /** One-time starter pack so players can open the arcade immediately. */
   starterGranted: boolean
+  /** Games purchased once — replay is free forever. */
+  ownedGames: MiniGameId[]
   totalFocusMinutes: number
   totalSessions: number
   totalCardsReviewed: number

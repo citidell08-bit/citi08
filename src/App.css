@@ -15,11 +15,11 @@ button:disabled {
   gap: 0.35rem;
   padding: 0.45rem 0.8rem;
   border-radius: 999px;
-  background: rgba(8, 24, 21, 0.88);
-  border: 1px solid rgba(240, 180, 41, 0.35);
+  background: rgba(8, 20, 48, 0.9);
+  border: 1px solid rgba(56, 189, 248, 0.45);
   color: var(--ember);
   font-weight: 700;
-  box-shadow: var(--shadow);
+  box-shadow: 0 0 24px rgba(56, 189, 248, 0.2), var(--shadow);
   backdrop-filter: blur(12px);
 }
 

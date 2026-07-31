@@ -13,6 +13,7 @@ export function createInitialState(): GameState {
     coins: STARTER_COINS,
     totalCoinsEarned: STARTER_COINS,
     starterGranted: true,
+    ownedGames: [],
     totalFocusMinutes: 0,
     totalSessions: 0,
     totalCardsReviewed: 0,
@@ -45,6 +46,7 @@ export function loadState(): GameState {
       coins: parsed.coins ?? 0,
       totalCoinsEarned: parsed.totalCoinsEarned ?? 0,
       starterGranted: Boolean(parsed.starterGranted),
+      ownedGames: Array.isArray(parsed.ownedGames) ? parsed.ownedGames : [],
       achievements: mergeAchievements(parsed.achievements),
       quests: normalizeQuests(parsed.quests),
     }

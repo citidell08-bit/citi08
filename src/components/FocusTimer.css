@@ -28,7 +28,7 @@
   width: 100%;
   height: 100%;
   border-radius: 50%;
-  background: radial-gradient(circle at 40% 35%, #16362f, #0a1c18 70%);
+  background: radial-gradient(circle at 40% 35%, #0f2748, #020617 70%);
   display: grid;
   place-content: center;
   text-align: center;
@@ -65,7 +65,7 @@
 
 .presets button.active {
   background: var(--glow-soft);
-  border-color: rgba(94, 234, 212, 0.35);
+  border-color: rgba(56, 189, 248, 0.35);
   color: var(--ink);
 }
 
@@ -84,9 +84,9 @@
 @keyframes ring-pulse {
   0%,
   100% {
-    filter: drop-shadow(0 0 0 rgba(240, 180, 41, 0));
+    filter: drop-shadow(0 0 0 rgba(34, 211, 238, 0));
   }
   50% {
-    filter: drop-shadow(0 0 18px rgba(240, 180, 41, 0.18));
+    filter: drop-shadow(0 0 18px rgba(34, 211, 238, 0.18));
   }
 }

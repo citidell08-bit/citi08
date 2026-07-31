@@ -58,6 +58,7 @@ export function Games({ state, onComplete, onSpend, onNavigate }: Props) {
 
   const questsDone = state.quests.filter((q) => q.completed).length
   const arcadeUnlocked = questsDone > 0 || state.totalCoinsEarned > 0
+  const owned = new Set(state.ownedGames)
 
   const handleFinish = useCallback(
     (result: MiniGameResult) => {
@@ -76,15 +77,20 @@ export function Games({ state, onComplete, onSpend, onNavigate }: Props) {
       setError('Complete a daily quest first to unlock the arcade.')
       return
     }
+
+    const alreadyOwned = owned.has(gameId)
     const cost = GAME_COSTS[gameId]
-    if (state.coins < cost) {
-      setError(`Need ${cost} coins to play. Finish quests or level up to earn more.`)
+
+    if (!alreadyOwned && state.coins < cost) {
+      setError(`Need ${cost} coins to buy this game. Finish quests or level up to earn more.`)
       return
     }
+
     if (!onSpend(gameId)) {
-      setError(`Need ${cost} coins to play.`)
+      setError(alreadyOwned ? 'Could not start game.' : `Need ${cost} coins to buy this game.`)
       return
     }
+
     setActive(gameId)
   }
 
@@ -113,7 +119,7 @@ export function Games({ state, onComplete, onSpend, onNavigate }: Props) {
       <header>
         <h2 className="section-title">Cyber Arcade</h2>
         <p className="section-sub">
-          Spend coins to play. Every game tracks a live score — Spike Dash is the big runner.
+          Buy a game once with coins — then play it free anytime. Scores save forever.
         </p>
       </header>
 
@@ -124,7 +130,7 @@ export function Games({ state, onComplete, onSpend, onNavigate }: Props) {
           </strong>
           <p>
             {arcadeUnlocked
-              ? 'Arcade unlocked — jump into Spike Dash or a brain-break game.'
+              ? 'Buy to unlock. Owned games never charge you again.'
               : 'Clear at least one daily quest to unlock play. Level-ups also mint coins.'}
           </p>
         </div>
@@ -139,6 +145,10 @@ export function Games({ state, onComplete, onSpend, onNavigate }: Props) {
         <div className="stat">
           <strong>{state.coins}</strong>
           <span>Coins</span>
+        </div>
+        <div className="stat">
+          <strong>{state.ownedGames.length}</strong>
+          <span>Owned</span>
         </div>
         <div className="stat">
           <strong>{state.bestDashScore}</strong>
@@ -156,10 +166,6 @@ export function Games({ state, onComplete, onSpend, onNavigate }: Props) {
           <strong>{state.bestMemoryMoves ?? '—'}</strong>
           <span>Best memory</span>
         </div>
-        <div className="stat">
-          <strong>{state.totalGamesWon}</strong>
-          <span>Wins</span>
-        </div>
       </div>
 
       {error && <p className="games-error">{error}</p>}
@@ -167,25 +173,34 @@ export function Games({ state, onComplete, onSpend, onNavigate }: Props) {
       <ul className={`game-catalog ${arcadeUnlocked ? '' : 'locked'}`}>
         {CATALOG.map((game) => {
           const cost = GAME_COSTS[game.id]
+          const isOwned = owned.has(game.id)
           const canAfford = state.coins >= cost
           const best = state[game.bestKey]
           return (
-            <li key={game.id} className="panel game-card">
+            <li key={game.id} className={`panel game-card ${isOwned ? 'owned' : ''}`}>
               <div>
                 <em>{game.badge}</em>
                 <strong>{game.title}</strong>
                 <p>{game.blurb}</p>
                 <span className="game-cost">
-                  Entry {cost} coins · Best {bestLabel(game.id, best)}
+                  {isOwned
+                    ? `Owned · Play free · Best ${bestLabel(game.id, best)}`
+                    : `Buy once ${cost} coins · Best ${bestLabel(game.id, best)}`}
                 </span>
               </div>
               <button
                 type="button"
                 className="btn btn-primary"
                 onClick={() => tryPlay(game.id)}
-                disabled={!arcadeUnlocked || !canAfford}
+                disabled={!arcadeUnlocked || (!isOwned && !canAfford)}
               >
-                {!arcadeUnlocked ? 'Locked' : canAfford ? `Play · ${cost}` : `Need ${cost}`}
+                {!arcadeUnlocked
+                  ? 'Locked'
+                  : isOwned
+                    ? 'Play'
+                    : canAfford
+                      ? `Buy · ${cost}`
+                      : `Need ${cost}`}
               </button>
             </li>
           )

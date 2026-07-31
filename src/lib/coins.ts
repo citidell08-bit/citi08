@@ -6,7 +6,7 @@ export const COINS_PER_LEVEL = 25
 /** Coins awarded when unlocking an achievement. */
 export const COINS_PER_ACHIEVEMENT = 10
 
-/** Entry fee to start each mini-game. */
+/** One-time purchase price to unlock each mini-game forever. */
 export const GAME_COSTS: Record<MiniGameId, number> = {
   memory: 15,
   math: 10,

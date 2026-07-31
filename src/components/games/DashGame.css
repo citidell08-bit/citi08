@@ -20,7 +20,7 @@
   border-radius: 18px;
   text-align: center;
   background: var(--ember-soft);
-  border: 1px solid rgba(240, 180, 41, 0.35);
+  border: 1px solid rgba(34, 211, 238, 0.35);
 }
 
 .dash-score-badge strong {
@@ -41,5 +41,5 @@
 
 .score-pill {
   color: var(--ember) !important;
-  border-color: rgba(240, 180, 41, 0.35) !important;
+  border-color: rgba(34, 211, 238, 0.35) !important;
 }
