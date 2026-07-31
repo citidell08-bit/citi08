@@ -13,19 +13,29 @@ Cyber Kith is a browser study companion that turns focus sessions and flashcard 
 - **Achievements & streaks** — Milestones and consecutive study days
 - **Local save** — Progress persists in `localStorage`
 
-## Run locally
+## Play by opening a file (no server)
+
+1. Download / clone this repo
+2. Double-click **`play/index.html`**  
+   (or open root `index.html` — it redirects to the playable build)
+3. Cyber Kith loads in your browser
+
+The `play/` folder is a single-file offline build (`base: './'`), so it works over `file://` without a blank page.
+
+## Develop locally
 
 ```bash
 npm install
 npm run dev
 ```
 
-Build for production:
+Rebuild the offline playable file:
 
 ```bash
 npm run build
-npm run preview
 ```
+
+That refreshes `play/index.html`.
 
 ## Stack
 

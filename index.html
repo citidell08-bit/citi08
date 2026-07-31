@@ -15,9 +15,26 @@
       rel="stylesheet"
     />
     <title>Cyber Kith — Gamified Study Companion</title>
+    <script>
+      // Opening this file directly (file://) would show a blank page with Vite modules.
+      // Send downloaders to the offline single-file build instead.
+      (function () {
+        if (location.protocol !== 'file:') return
+        var path = (location.pathname || '').replace(/\\/g, '/')
+        if (path.indexOf('/play/') !== -1 || /\/play\/index\.html$/i.test(path)) return
+        var dir = path.substring(0, path.lastIndexOf('/') + 1)
+        location.replace(dir + 'play/index.html')
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>
+    <noscript>
+      <p style="color: #e8f2ed; font-family: sans-serif; padding: 2rem">
+        Cyber Kith needs JavaScript. If you opened the project folder directly, open
+        <strong>play/index.html</strong> instead.
+      </p>
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
