@@ -5,7 +5,7 @@ import type { GameState, Tab } from '../types'
 
 const PREF_KEY = 'kith.assistant.llm.v1'
 
-export type LlmProvider = 'auto' | 'openai' | 'groq' | 'free'
+export type LlmProvider = 'auto' | 'openai' | 'groq' | 'chatgpt'
 
 export interface LlmPrefs {
   provider: LlmProvider
@@ -14,7 +14,7 @@ export interface LlmPrefs {
 }
 
 const DEFAULT_PREFS: LlmPrefs = {
-  provider: 'auto',
+  provider: 'chatgpt',
   openaiKey: '',
   groqKey: '',
 }
@@ -23,9 +23,16 @@ export function loadLlmPrefs(): LlmPrefs {
   try {
     const raw = localStorage.getItem(PREF_KEY)
     if (!raw) return { ...DEFAULT_PREFS }
-    const parsed = JSON.parse(raw) as Partial<LlmPrefs>
+    const parsed = JSON.parse(raw) as Record<string, unknown>
+    const rawProvider = String(parsed.provider ?? 'chatgpt')
+    const provider: LlmProvider =
+      rawProvider === 'free' || rawProvider === 'chatgpt'
+        ? 'chatgpt'
+        : rawProvider === 'openai' || rawProvider === 'groq' || rawProvider === 'auto'
+          ? rawProvider
+          : 'chatgpt'
     return {
-      provider: parsed.provider ?? 'auto',
+      provider,
       openaiKey: typeof parsed.openaiKey === 'string' ? parsed.openaiKey : '',
       groqKey: typeof parsed.groqKey === 'string' ? parsed.groqKey : '',
     }
@@ -56,7 +63,7 @@ function resolveEndpoint(prefs: LlmPrefs): Endpoint[] {
   const groqKey = prefs.groqKey.trim()
 
   const openai: Endpoint = {
-    label: 'OpenAI',
+    label: 'ChatGPT (OpenAI)',
     url: 'https://api.openai.com/v1/chat/completions',
     model: 'gpt-4o',
     headers: {
@@ -65,7 +72,7 @@ function resolveEndpoint(prefs: LlmPrefs): Endpoint[] {
     },
   }
   const groq: Endpoint = {
-    label: 'Groq',
+    label: 'ChatGPT-class (Groq)',
     url: 'https://api.groq.com/openai/v1/chat/completions',
     model: 'llama-3.3-70b-versatile',
     headers: {
@@ -73,21 +80,21 @@ function resolveEndpoint(prefs: LlmPrefs): Endpoint[] {
       Authorization: `Bearer ${groqKey}`,
     },
   }
-  const free: Endpoint = {
-    label: 'Cyber cloud',
+  /** Free ChatGPT-compatible cloud — no key required. */
+  const chatgptCloud: Endpoint = {
+    label: 'ChatGPT',
     url: 'https://text.pollinations.ai/openai',
     model: 'openai',
     headers: { 'Content-Type': 'application/json' },
   }
 
-  if (prefs.provider === 'openai' && openaiKey) return [openai, free]
-  if (prefs.provider === 'groq' && groqKey) return [groq, free]
-  if (prefs.provider === 'free') return [free]
+  if (prefs.provider === 'openai' && openaiKey) return [openai, chatgptCloud]
+  if (prefs.provider === 'groq' && groqKey) return [groq, chatgptCloud]
+  if (prefs.provider === 'chatgpt') return [chatgptCloud, ...(openaiKey ? [openai] : [])]
 
-  // auto
   if (openaiKey) chain.push(openai)
   if (groqKey) chain.push(groq)
-  chain.push(free)
+  chain.push(chatgptCloud)
   return chain
 }
 
@@ -96,40 +103,40 @@ function buildSystemPrompt(state: GameState): string {
   const { current, needed } = progressToNextLevel(state.xp)
   const daily = state.quests
     .filter((q) => q.period === 'daily')
-    .map((q) => `${q.custom ? '[Yours] ' : ''}${q.title}: ${q.progress}/${q.target}${q.completed ? ' ✓' : ''}`)
+    .map(
+      (q) =>
+        `${q.custom ? '[Yours] ' : ''}${q.title}: ${q.progress}/${q.target}${q.completed ? ' ✓' : ''}`,
+    )
     .join('; ')
   const owned = state.ownedGames.join(', ') || 'none'
 
-  return `You are ${state.companionName}, the Cyber Kith — a warm, sharp, ChatGPT-level AI study companion inside a gamified study app.
+  return `You are ${state.companionName}, Cyber Kith's AI — you fetch answers the way ChatGPT would, then deliver them clearly to the player.
 
-Personality: helpful, concise but complete, encouraging, a little playful neon cyber vibe. Never say you are "just a script" or "offline rules". You are a real assistant.
+When the user asks a question:
+1) Use ChatGPT-quality knowledge to figure out the answer.
+2) Give them the answer directly in plain language.
+3) If it's about this app, use the facts below. If it's school/study/life, answer like ChatGPT.
 
-App facts (always respect these):
-- Tabs: Home, Focus (timer), Cards (flashcards), Play (arcade), Quests, Themes store.
-- New players start at 0 coins and 0 XP — grind focus/cards/quests.
-- Coins: quests, +25 per level-up, +10 per achievement, arcade bonuses/pickups.
-- Arcade unlocks after first progress; games cost once (${GAME_COSTS.math}–${GAME_COSTS.dash} ◉) then free forever: Spike Dash, Memory Nest, Quick Sum (+3s per correct), Glow Catch (clear level → 5s pause → harder; miss resets to Lv1).
-- Quests: daily board refreshes when fully cleared AND at midnight; weekly Mon; monthly 1st. Players can Add custom quests (max 8).
-- Day streak: play/study today = 1; return tomorrow = 2; miss a day = reset.
-- Home has Reset progress to wipe everything.
-- Music toggle mutes BGM.
+Personality: warm, sharp, encouraging, lightly cyber. Never say you are a fake script.
 
-Player snapshot:
-- Companion: ${state.companionName}
-- Level ${level} (${current}/${needed} XP to next), total XP ${state.xp}
-- Coins: ${state.coins} (lifetime earned ${state.totalCoinsEarned})
-- Streak: ${state.streak} (best ${state.longestStreak})
-- Focus minutes: ${state.totalFocusMinutes}, sessions: ${state.totalSessions}
-- Cards reviewed: ${state.totalCardsReviewed}
-- Games played: ${state.totalGamesPlayed}, owned: ${owned}
+App facts:
+- Tabs: Home, Focus, Cards, Play, Quests, Themes.
+- Start at 0 coins/XP; grind focus, cards, quests.
+- Coins from quests, +25/level, +10/achievement, arcade pickups.
+- Games cost once (${GAME_COSTS.math}–${GAME_COSTS.dash} ◉): Spike Dash, Memory Nest, Quick Sum, Glow Catch.
+- Daily quests refresh when cleared + at midnight; custom quests exist (max 8).
+- Day streak grows if you return tomorrow; resets if you skip a day.
+- Home → Reset progress wipes the save.
+
+Player now:
+- ${state.companionName}, Lv ${level} (${current}/${needed} XP), ${state.xp} XP total
+- ${state.coins} ◉, streak ${state.streak} (best ${state.longestStreak})
+- Focus ${state.totalFocusMinutes}m / ${state.totalSessions} sessions, ${state.totalCardsReviewed} cards, games owned: ${owned}
 - Daily quests: ${daily || 'none'}
 
-How to answer:
-- Be ChatGPT-quality: clear structure, concrete steps, study tactics when asked, app guidance when asked.
-- Use short paragraphs or tight bullets — not walls of text.
-- If recommending an in-app destination, end your message with exactly one tag on its own line:
-  [[go:focus|Open Focus]] or cards|play|quests|store|home with a short button label.
-- Only use [[go:...]] when navigation helps. Valid tabs: home, focus, cards, play, quests, store.`
+Format:
+- Lead with the answer. Short paragraphs or bullets.
+- Optional single nav tag at the very end only: [[go:focus|Open Focus]] (tabs: home, focus, cards, play, quests, store).`
 }
 
 const GO_RE = /\[\[go:(home|focus|cards|play|quests|store)\|([^\]]+)\]\]\s*$/i
@@ -148,6 +155,50 @@ export function parseGoTag(text: string): {
   }
 }
 
+async function completeChat(
+  endpoint: Endpoint,
+  system: string,
+  history: ChatTurn[],
+  signal?: AbortSignal,
+): Promise<string> {
+  const res = await fetch(endpoint.url, {
+    method: 'POST',
+    headers: endpoint.headers,
+    signal,
+    body: JSON.stringify({
+      model: endpoint.model,
+      stream: false,
+      temperature: 0.7,
+      max_tokens: 900,
+      messages: [{ role: 'system', content: system }, ...history],
+    }),
+  })
+
+  const raw = await res.text()
+  if (!res.ok) {
+    throw new Error(`${endpoint.label} ${res.status}: ${raw.slice(0, 160)}`)
+  }
+
+  // Some proxies return plain text
+  const trimmed = raw.trim()
+  if (trimmed && !trimmed.startsWith('{') && !trimmed.startsWith('data:')) {
+    return trimmed
+  }
+
+  const data = JSON.parse(trimmed) as {
+    choices?: { message?: { content?: string | null } }[]
+    content?: string
+    text?: string
+  }
+  const text =
+    data.choices?.[0]?.message?.content?.trim() ||
+    data.content?.trim() ||
+    data.text?.trim() ||
+    ''
+  if (!text) throw new Error(`${endpoint.label}: empty ChatGPT reply`)
+  return text
+}
+
 async function streamChat(
   endpoint: Endpoint,
   system: string,
@@ -163,7 +214,7 @@ async function streamChat(
       model: endpoint.model,
       stream: true,
       temperature: 0.7,
-      max_tokens: 700,
+      max_tokens: 900,
       messages: [{ role: 'system', content: system }, ...history],
     }),
   })
@@ -173,12 +224,9 @@ async function streamChat(
     throw new Error(`${endpoint.label} ${res.status}: ${errText.slice(0, 160)}`)
   }
 
-  // Non-stream JSON fallback (some providers ignore stream:true)
   const ctype = res.headers.get('content-type') ?? ''
   if (ctype.includes('application/json') && !ctype.includes('event-stream')) {
-    // Peek: if body starts with "data:" it's still SSE mislabeled
-    const clone = res.clone()
-    const peek = await clone.text()
+    const peek = await res.text()
     if (!peek.trimStart().startsWith('data:')) {
       const data = JSON.parse(peek) as {
         choices?: { message?: { content?: string } }[]
@@ -187,7 +235,6 @@ async function streamChat(
       if (text) onDelta(text)
       return text
     }
-    // Fall through and parse peek as SSE below via synthetic stream
     const encoder = new TextEncoder()
     const synthetic = new ReadableStream({
       start(controller) {
@@ -245,13 +292,18 @@ export interface LiveReply extends AssistantReply {
   source: string
 }
 
-/** ChatGPT-style live reply with streaming; falls back to local helper if all endpoints fail. */
+/**
+ * Ask ChatGPT-class models for an answer, then return it.
+ * Prefers a full fetched answer (get → give), with stream as a fast path.
+ */
 export async function askLiveAssistant(
   question: string,
   state: GameState,
   history: ChatTurn[],
   onDelta: (chunk: string) => void,
   signal?: AbortSignal,
+  onStatus?: (status: string) => void,
+  onClear?: () => void,
 ): Promise<LiveReply> {
   const prefs = loadLlmPrefs()
   const system = buildSystemPrompt(state)
@@ -260,29 +312,46 @@ export async function askLiveAssistant(
   let lastError = ''
 
   for (const endpoint of endpoints) {
+    onClear?.()
+    onStatus?.(`Asking ${endpoint.label}…`)
     try {
-      const raw = await streamChat(endpoint, system, turns, onDelta, signal)
-      if (!raw.trim()) throw new Error('empty reply')
-      const parsed = parseGoTag(raw)
-      return {
-        text: parsed.clean,
-        goTo: parsed.goTo,
-        goLabel: parsed.goLabel,
-        source: endpoint.label,
+      // 1) Fetch a complete answer (ChatGPT-style request → response)
+      try {
+        const full = await completeChat(endpoint, system, turns, signal)
+        onClear?.()
+        onDelta(full)
+        const parsed = parseGoTag(full)
+        onStatus?.(`Answer from ${endpoint.label}`)
+        return {
+          text: parsed.clean,
+          goTo: parsed.goTo,
+          goLabel: parsed.goLabel,
+          source: endpoint.label,
+        }
+      } catch (completeErr) {
+        // 2) Stream fallback if non-stream failed
+        onClear?.()
+        onStatus?.(`Streaming from ${endpoint.label}…`)
+        const raw = await streamChat(endpoint, system, turns, onDelta, signal)
+        if (!raw.trim()) throw completeErr
+        const parsed = parseGoTag(raw)
+        onStatus?.(`Answer from ${endpoint.label}`)
+        return {
+          text: parsed.clean,
+          goTo: parsed.goTo,
+          goLabel: parsed.goLabel,
+          source: endpoint.label,
+        }
       }
     } catch (err) {
       lastError = err instanceof Error ? err.message : String(err)
     }
   }
 
-  // Local fallback so the assistant never fully dies offline
+  onClear?.()
+  onStatus?.('ChatGPT unreachable — onboard help')
   const local = replyAsAssistant(question, state)
-  onDelta(
-    `${local.text}\n\n_(Live AI unreachable${lastError ? ` — ${lastError.slice(0, 80)}` : ''}. Using onboard help.)_`,
-  )
-  return {
-    ...local,
-    text: `${local.text}\n\n_(Live AI unreachable. Using onboard help.)_`,
-    source: 'onboard',
-  }
+  const text = `${local.text}\n\n_(Couldn't reach ChatGPT right now${lastError ? ` (${lastError.slice(0, 72)})` : ''}. Here's onboard help.)_`
+  onDelta(text)
+  return { ...local, text, source: 'onboard' }
 }

@@ -15,6 +15,10 @@ export interface ChatMessage {
   text: string
   goTo?: Tab
   goLabel?: string
+  /** Where the answer came from, e.g. ChatGPT */
+  source?: string
+  /** In-flight status while waiting on ChatGPT */
+  status?: string
 }
 
 function normalize(text: string): string {
