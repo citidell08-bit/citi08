@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { Flashcards } from './components/Flashcards'
 import { FocusTimer } from './components/FocusTimer'
 import { Games } from './components/Games'
@@ -6,13 +6,14 @@ import { Home } from './components/Home'
 import { Nav } from './components/Nav'
 import { Quests } from './components/Quests'
 import { useGameState } from './hooks/useGameState'
-import type { Tab } from './types'
+import type { MiniGameId, Tab } from './types'
 import { Companion } from './components/Companion'
 import { COINS_PER_LEVEL } from './lib/coins'
 import './App.css'
 
 function App() {
   const [tab, setTab] = useState<Tab>('home')
+  const [playingGame, setPlayingGame] = useState<MiniGameId | null>(null)
   const {
     state,
     toasts,
@@ -27,6 +28,15 @@ function App() {
     resetProgress,
   } = useGameState()
 
+  const changeTab = useCallback((next: Tab) => {
+    setTab(next)
+    if (next !== 'play') setPlayingGame(null)
+  }, [])
+
+  const onActiveGame = useCallback((gameId: MiniGameId | null) => {
+    setPlayingGame(gameId)
+  }, [])
+
   return (
     <div className="app-shell">
       <div className="coin-chip" aria-label={`${state.coins} coins`}>
@@ -36,7 +46,7 @@ function App() {
       {tab === 'home' && (
         <Home
           state={state}
-          onNavigate={setTab}
+          onNavigate={changeTab}
           onRename={renameCompanion}
           onReset={resetProgress}
         />
@@ -50,12 +60,13 @@ function App() {
           state={state}
           onComplete={completeMiniGame}
           onSpend={spendCoinsForGame}
-          onNavigate={setTab}
+          onNavigate={changeTab}
+          onActiveChange={onActiveGame}
         />
       )}
       {tab === 'quests' && <Quests state={state} />}
 
-      <Nav tab={tab} onChange={setTab} />
+      <Nav tab={tab} playingGame={tab === 'play' ? playingGame : null} onChange={changeTab} />
 
       <div className="toast-stack" aria-live="polite">
         {toasts.map((t) => (

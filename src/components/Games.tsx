@@ -1,5 +1,6 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { GAME_COSTS } from '../lib/coins'
+import { unlockAudio } from '../lib/sfx'
 import type { GameState, MiniGameId, MiniGameResult, Tab } from '../types'
 import { DashGame } from './games/DashGame'
 import { GlowGame } from './games/GlowGame'
@@ -55,12 +56,18 @@ interface Props {
   onComplete: (result: MiniGameResult) => void
   onSpend: (gameId: MiniGameId) => boolean
   onNavigate: (tab: Tab) => void
+  onActiveChange?: (gameId: MiniGameId | null) => void
 }
 
-export function Games({ state, onComplete, onSpend, onNavigate }: Props) {
+export function Games({ state, onComplete, onSpend, onNavigate, onActiveChange }: Props) {
   const [active, setActive] = useState<MiniGameId | null>(null)
   const [error, setError] = useState<string | null>(null)
   const rewardedRef = useRef(new Set<string>())
+
+  useEffect(() => {
+    onActiveChange?.(active)
+    return () => onActiveChange?.(null)
+  }, [active, onActiveChange])
 
   const questsDone = state.quests.filter((q) => q.completed).length
   const arcadeUnlocked =
@@ -80,6 +87,7 @@ export function Games({ state, onComplete, onSpend, onNavigate }: Props) {
 
   function tryPlay(gameId: MiniGameId) {
     setError(null)
+    unlockAudio()
     if (!arcadeUnlocked) {
       setError('Complete a daily quest first to unlock the arcade.')
       return

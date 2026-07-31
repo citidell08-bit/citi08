@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { isJumpKey } from '../../lib/gameInput'
+import { playCrashSfx, playJumpSfx, playRestartSfx, playWinSfx, unlockAudio } from '../../lib/sfx'
 import type { MiniGameResult } from '../../types'
 import './DashGame.css'
 
@@ -140,6 +141,7 @@ export function DashGame({ onFinish, onBack }: Props) {
         st.onGround = false
         st.groundedUntil = 0
         st.jumpBufferedUntil = 0
+        playJumpSfx()
         return true
       }
       // Buffer the press so landing a few ms later still jumps instantly
@@ -148,7 +150,9 @@ export function DashGame({ onFinish, onBack }: Props) {
     }
 
     function restartOrJump() {
+      unlockAudio()
       if (st.dead) {
+        playRestartSfx()
         resetRun()
         return
       }
@@ -251,6 +255,7 @@ export function DashGame({ onFinish, onBack }: Props) {
       st.dead = true
       st.shake = 10
       st.jumpBufferedUntil = 0
+      playCrashSfx()
       for (let i = 0; i < 18; i++) {
         st.particles.push({
           x: PLAYER_X + PLAYER_SIZE / 2,
@@ -268,10 +273,12 @@ export function DashGame({ onFinish, onBack }: Props) {
       }
       if (!reportedRef.current) {
         reportedRef.current = true
+        const won = sc >= WIN_SCORE
+        if (won) playWinSfx()
         const xp = Math.max(8, Math.floor(sc / 3))
         onFinishRef.current({
           gameId: 'dash',
-          won: sc >= WIN_SCORE,
+          won,
           score: sc,
           xp,
           label: `Spike Dash · ${sc} pts`,
@@ -405,6 +412,7 @@ export function DashGame({ onFinish, onBack }: Props) {
         }
 
         if (st.jumpBufferedUntil > now && (st.onGround || now <= st.groundedUntil)) {
+          // Buffered jump — SFX plays inside tryJump when it actually fires
           tryJump(now)
         }
 

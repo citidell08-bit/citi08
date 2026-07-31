@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { progressToNextLevel } from '../lib/xp'
 import type { GameState, Tab } from '../types'
 import { Companion } from './Companion'
@@ -11,6 +12,7 @@ interface Props {
 }
 
 export function Home({ state, onNavigate, onRename, onReset }: Props) {
+  const [confirmReset, setConfirmReset] = useState(false)
   const { level, current, needed, ratio } = progressToNextLevel(state.xp)
   const unlocked = state.achievements.filter((a) => a.unlockedAt).length
 
@@ -121,9 +123,41 @@ export function Home({ state, onNavigate, onRename, onReset }: Props) {
             </li>
           ))}
         </ul>
-        <button type="button" className="btn btn-ghost reset-btn" onClick={onReset}>
-          Reset progress
-        </button>
+        {!confirmReset ? (
+          <button
+            type="button"
+            className="btn btn-ghost reset-btn"
+            onClick={() => setConfirmReset(true)}
+          >
+            Reset progress
+          </button>
+        ) : (
+          <div className="reset-confirm panel" role="alertdialog" aria-label="Confirm reset">
+            <p>
+              Reset wipes XP, coins, quests, and scores. This cannot be undone.
+              <strong> One more chance — keep your progress?</strong>
+            </p>
+            <div className="reset-confirm-actions">
+              <button
+                type="button"
+                className="btn btn-ember"
+                onClick={() => setConfirmReset(false)}
+              >
+                Keep progress
+              </button>
+              <button
+                type="button"
+                className="btn btn-ghost reset-btn"
+                onClick={() => {
+                  setConfirmReset(false)
+                  onReset()
+                }}
+              >
+                Yes, reset everything
+              </button>
+            </div>
+          </div>
+        )}
       </section>
     </div>
   )

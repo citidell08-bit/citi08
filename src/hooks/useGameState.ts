@@ -28,6 +28,12 @@ export function useGameState() {
     saveState(state)
   }, [state])
 
+  /** Flush immediately so level clears / best scores persist even if the tab closes. */
+  function persist(next: GameState): GameState {
+    saveState(next)
+    return next
+  }
+
   useEffect(() => {
     const refresh = () => {
       startTransition(() => {
@@ -251,7 +257,7 @@ export function useGameState() {
       next = bumpQuest(next, 'focus_minutes', minutes)
       next = bumpQuest(next, 'sessions', 1)
       next = checkAchievements(next)
-      return next
+      return persist(next)
     })
   }
 
@@ -266,7 +272,7 @@ export function useGameState() {
       next = awardXp(next, xpGain, knewIt ? 'Card mastered' : 'Card practiced')
       next = bumpQuest(next, 'cards_reviewed', 1)
       next = checkAchievements(next)
-      return next
+      return persist(next)
     })
   }
 
@@ -332,7 +338,7 @@ export function useGameState() {
       )
       next = bumpQuest(next, 'games_played', 1)
       next = checkAchievements(next)
-      return next
+      return persist(next)
     })
   }
 
@@ -371,7 +377,7 @@ export function useGameState() {
       decks,
       achievements: createInitialState().achievements,
     })
-    setState(initial)
+    setState(persist(initial))
     pushToast('Progress reset — fresh start!')
   }
 
