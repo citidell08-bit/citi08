@@ -332,79 +332,102 @@ const QUESTIONS = {
   const SFX = (() => {
     let ac = null;
     let master = null;
+    let pendingVol = 0.75;
+
+    function applyMasterGain() {
+      if (!master) return;
+      const on = state.settings.sound !== false;
+      const v = Math.max(0, Math.min(1, pendingVol));
+      master.gain.value = on ? 0.6 * v : 0;
+    }
 
     function ensure() {
-      if (!ac) {
-        const AC = window.AudioContext || window.webkitAudioContext;
-        if (!AC) return null;
-        ac = new AC();
-        master = ac.createGain();
-        master.gain.value = 0.6;
-        master.connect(ac.destination);
+      try {
+        if (!ac) {
+          const AC = window.AudioContext || window.webkitAudioContext;
+          if (!AC) return null;
+          ac = new AC();
+          master = ac.createGain();
+          applyMasterGain();
+          master.connect(ac.destination);
+        }
+        if (ac.state === "suspended") {
+          ac.resume().catch(() => {});
+        }
+        return ac;
+      } catch (_) {
+        return null;
       }
-      if (ac.state === "suspended") {
-        ac.resume().catch(() => {});
-      }
-      return ac;
     }
 
     function unlock() { ensure(); }
 
     function enabled() {
-      return !!(state.settings.sound && (state.settings.sfxVolume ?? 0.75) > 0.01);
+      return !!(state.settings.sound && (state.settings.sfxVolume ?? pendingVol) > 0.01);
     }
 
     function level() {
-      return Math.max(0, Math.min(1, state.settings.sfxVolume ?? 0.75));
+      return Math.max(0, Math.min(1, state.settings.sfxVolume ?? pendingVol));
     }
 
     function setVolume(v) {
-      if (master) master.gain.value = 0.6 * Math.max(0, Math.min(1, v));
+      pendingVol = Math.max(0, Math.min(1, Number(v) || 0));
+      state.settings.sfxVolume = pendingVol;
+      applyMasterGain();
+    }
+
+    function setEnabled(on) {
+      state.settings.sound = !!on;
+      applyMasterGain();
     }
 
     function tone(freq, dur, type, gain, delay = 0, freqEnd = null) {
-      const ctx = ensure();
-      if (!ctx || !enabled() || !master) return;
-      const t0 = ctx.currentTime + delay;
-      const o = ctx.createOscillator();
-      const g = ctx.createGain();
-      o.type = type || "square";
-      o.frequency.setValueAtTime(Math.max(1, freq), t0);
-      if (freqEnd != null) {
-        o.frequency.exponentialRampToValueAtTime(Math.max(1, freqEnd), t0 + Math.max(0.01, dur));
-      }
-      const v = Math.max(0.0001, gain * level());
-      g.gain.setValueAtTime(0.0001, t0);
-      g.gain.exponentialRampToValueAtTime(v, t0 + 0.012);
-      g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-      o.connect(g);
-      g.connect(master);
-      o.start(t0);
-      o.stop(t0 + dur + 0.03);
+      try {
+        const ctx = ensure();
+        if (!ctx || !enabled() || !master) return;
+        const t0 = ctx.currentTime + delay;
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.type = type || "square";
+        o.frequency.setValueAtTime(Math.max(1, freq), t0);
+        if (freqEnd != null) {
+          o.frequency.exponentialRampToValueAtTime(Math.max(1, freqEnd), t0 + Math.max(0.01, dur));
+        }
+        const v = Math.max(0.0001, gain * level());
+        g.gain.setValueAtTime(0.0001, t0);
+        g.gain.exponentialRampToValueAtTime(v, t0 + 0.012);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+        o.connect(g);
+        g.connect(master);
+        o.start(t0);
+        o.stop(t0 + dur + 0.03);
+      } catch (_) { /* never break gameplay for audio */ }
     }
 
     function noiseBurst(dur, gain, filterFreq = 1800, delay = 0) {
-      const ctx = ensure();
-      if (!ctx || !enabled() || !master) return;
-      const n = Math.max(1, Math.floor(ctx.sampleRate * dur));
-      const buf = ctx.createBuffer(1, n, ctx.sampleRate);
-      const data = buf.getChannelData(0);
-      for (let i = 0; i < n; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / n);
-      const src = ctx.createBufferSource();
-      src.buffer = buf;
-      const filt = ctx.createBiquadFilter();
-      filt.type = "bandpass";
-      filt.frequency.value = filterFreq;
-      filt.Q.value = 1.1;
-      const g = ctx.createGain();
-      const t0 = ctx.currentTime + delay;
-      g.gain.setValueAtTime(Math.max(0.0001, gain * level()), t0);
-      g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-      src.connect(filt);
-      filt.connect(g);
-      g.connect(master);
-      src.start(t0);
-      src.stop(t0 + dur + 0.02);
+      try {
+        const ctx = ensure();
+        if (!ctx || !enabled() || !master) return;
+        const n = Math.max(1, Math.floor(ctx.sampleRate * Math.max(0.01, dur)));
+        const buf = ctx.createBuffer(1, n, ctx.sampleRate);
+        const data = buf.getChannelData(0);
+        for (let i = 0; i < n; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / n);
+        const src = ctx.createBufferSource();
+        src.buffer = buf;
+        const filt = ctx.createBiquadFilter();
+        filt.type = "bandpass";
+        filt.frequency.value = filterFreq;
+        filt.Q.value = 1.1;
+        const g = ctx.createGain();
+        const t0 = ctx.currentTime + delay;
+        g.gain.setValueAtTime(Math.max(0.0001, gain * level()), t0);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + Math.max(0.01, dur));
+        src.connect(filt);
+        filt.connect(g);
+        g.connect(master);
+        src.start(t0);
+        src.stop(t0 + Math.max(0.01, dur) + 0.02);
+      } catch (_) { /* never break gameplay for audio */ }
     }
 
     function swordSlash() {
@@ -481,12 +504,12 @@ const QUESTIONS = {
     }
 
     return {
-      unlock, setVolume, swordSlash, swordHit, fist, bow,
+      unlock, setVolume, setEnabled, swordSlash, swordHit, fist, bow,
       footstep, drinkGulp, healChime, potionPop, hurt, mine, ui,
     };
   })();
 
-  function unlockAudio() { SFX.unlock(); }
+  function unlockAudio() { try { SFX.unlock(); } catch (_) {} }
 
   const mapView = {
     zoom: "mid",
@@ -2659,7 +2682,11 @@ const QUESTIONS = {
     state.mineAnim = 0.25;
     state.mineTarget.progress += dt;
     if (Math.random() < 0.08) spawnParticles(wx + 0.5, wy + 0.5, 2, "dust");
-    if (Math.random() < 0.12) SFX.mine();
+    state.mineSfxCd = (state.mineSfxCd || 0) - dt;
+    if (state.mineSfxCd <= 0) {
+      SFX.mine();
+      state.mineSfxCd = 0.18;
+    }
     if (state.mineTarget.progress >= state.mineTarget.need) {
       const tile = getTile(wx, wy);
       setTile(wx, wy, tile === TILES.RUIN ? TILES.DIRT : TILES.DIRT);
@@ -4681,21 +4708,54 @@ const QUESTIONS = {
   bindRange("setting-speed", "speed", "speed-value", (v) => v.toFixed(1));
   $("setting-minimap").addEventListener("change", (e) => { state.settings.minimap = e.target.checked; });
   $("setting-particles").addEventListener("change", (e) => { state.settings.particles = e.target.checked; });
-  $("setting-sound").addEventListener("change", (e) => {
-    state.settings.sound = e.target.checked;
-    SFX.unlock();
-    if (e.target.checked) SFX.ui();
-  });
-  bindRange("setting-sfx-volume", "sfxVolume", "sfx-volume-value", (v) => {
-    SFX.setVolume(v);
-    return v.toFixed(2);
-  });
-  $("setting-sfx-volume").addEventListener("change", () => { SFX.unlock(); SFX.ui(); });
-  $("setting-mobile").addEventListener("change", (e) => { state.settings.forceMobile = e.target.checked; applyMobileVisibility(); });
+  if ($("setting-sound")) {
+    $("setting-sound").addEventListener("change", (e) => {
+      SFX.unlock();
+      SFX.setEnabled(e.target.checked);
+      if (e.target.checked) SFX.ui();
+    });
+  }
+  if ($("setting-sfx-volume")) {
+    bindRange("setting-sfx-volume", "sfxVolume", "sfx-volume-value", (v) => {
+      SFX.setVolume(v);
+      return Number(v).toFixed(2);
+    });
+    $("setting-sfx-volume").addEventListener("change", () => { SFX.unlock(); SFX.ui(); });
+  }
+  if ($("setting-mobile")) {
+    $("setting-mobile").addEventListener("change", (e) => { state.settings.forceMobile = e.target.checked; applyMobileVisibility(); });
+  }
 
   // Browsers require a gesture before AudioContext can play
   window.addEventListener("pointerdown", unlockAudio, { passive: true });
   window.addEventListener("keydown", unlockAudio);
+
+  // Optional QA hooks: open index.html?debug=1
+  if (typeof location !== "undefined" && /(?:\?|&)debug=1(?:&|$)/.test(location.search || "")) {
+    window.__RUIN__ = {
+      get state() { return state; },
+      SFX,
+      setDayTime(t) {
+        state.dayTime = ((Number(t) % 1) + 1) % 1;
+        state.wasNight = isNight();
+        updateDayNightUI();
+      },
+      hurt(n) { playerHurt(n || 20); },
+      swing() { return performMeleeSwing(); },
+      heal() { drinkHandPotion(); },
+      giveSword() {
+        const blade = LOOT_TABLE.find((x) => x.slot === "weapon");
+        if (!blade) return null;
+        const item = { ...blade, uid: uid(), slot: null };
+        if (!addItem(item)) return null;
+        const idx = state.slots.findIndex((s) => s && s.uid === item.uid);
+        if (idx >= 0 && idx < 9) state.hotbarSel = idx;
+        updateInventoryUI();
+        updateHotbarUI();
+        return item;
+      },
+    };
+  }
 
   const setDir = (dir, down) => {
     const map = { up: "ArrowUp", down: "ArrowDown", left: "ArrowLeft", right: "ArrowRight" };
