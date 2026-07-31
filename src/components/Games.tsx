@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { setBgmTrack } from '../lib/bgm'
 import { GAME_COSTS } from '../lib/coins'
 import { playStartSfx, unlockAudio } from '../lib/sfx'
 import type { GameState, MiniGameId, MiniGameResult, Tab } from '../types'
@@ -73,6 +74,12 @@ export function Games({ state, onComplete, onSpend, onNavigate, onActiveChange }
     onActiveChange?.(active)
     return () => onActiveChange?.(null)
   }, [active, onActiveChange])
+
+  // Per-game soundtrack — restore hub music when leaving a run
+  useEffect(() => {
+    setBgmTrack(active ?? 'hub')
+    return () => setBgmTrack('hub')
+  }, [active])
 
   const questsDone = state.quests.filter((q) => q.completed).length
   const arcadeUnlocked =

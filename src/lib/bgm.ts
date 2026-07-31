@@ -1,13 +1,29 @@
 /**
- * Cyber Kith background music — procedural neon ambient, zero asset files.
- * Soft A-minor pulse + pad + sparse arp that sits under the UI.
+ * Cyber Kith background music — procedural, zero asset files.
+ * Hub ambient + per-game tracks (dash / glow / math / memory).
  */
 
+import type { MiniGameId } from '../types'
 import { getAudioGraph, unlockAudio } from './sfx'
 
 const MUSIC_PREF_KEY = 'kith.music.on'
-const BPM = 72
-const BEAT = 60 / BPM
+
+export type BgmTrack = 'hub' | MiniGameId
+
+type TrackConfig = {
+  bpm: number
+  /** Master bus target while this track plays (0–1+). */
+  volume: number
+  bars: number
+}
+
+const TRACK: Record<BgmTrack, TrackConfig> = {
+  hub: { bpm: 72, volume: 1.15, bars: 4 },
+  dash: { bpm: 148, volume: 1.25, bars: 4 },
+  glow: { bpm: 110, volume: 1.1, bars: 4 },
+  math: { bpm: 132, volume: 1.2, bars: 4 },
+  memory: { bpm: 88, volume: 1.05, bars: 4 },
+}
 
 let musicBus: GainNode | null = null
 let running = false
@@ -16,12 +32,7 @@ let timer: number | null = null
 let nextNoteTime = 0
 let step = 0
 let startedHook = false
-
-/** A minor cyber palette (Hz). */
-const PAD_ROOT = 110 // A2
-const PAD_FIFTH = 164.81 // E3
-const BASS = 55 // A1
-const ARP = [220, 261.63, 329.63, 392, 440, 392, 329.63, 261.63] // A3…A4 wave
+let track: BgmTrack = 'hub'
 
 function loadMusicPref(): boolean {
   try {
@@ -37,6 +48,10 @@ export function isMusicEnabled(): boolean {
   return enabled
 }
 
+export function getBgmTrack(): BgmTrack {
+  return track
+}
+
 export function setMusicEnabled(on: boolean): void {
   enabled = on
   try {
@@ -49,6 +64,20 @@ export function setMusicEnabled(on: boolean): void {
     startBgm()
   } else {
     stopBgm()
+  }
+}
+
+/** Switch soundtrack — use 'hub' outside games. */
+export function setBgmTrack(next: BgmTrack): void {
+  if (track === next) return
+  track = next
+  step = 0
+  const graph = getAudioGraph()
+  if (graph && running && enabled) {
+    nextNoteTime = graph.ac.currentTime + 0.05
+    fadeMusic(TRACK[next].volume, 0.35)
+  } else if (enabled) {
+    startBgm()
   }
 }
 
@@ -106,72 +135,304 @@ function toneAt(
   osc.stop(when + dur + release)
 }
 
-function scheduleBar(ac: AudioContext, bus: GainNode, start: number) {
-  // Warm pad bed
-  toneAt(ac, bus, PAD_ROOT, start, BEAT * 8, {
+function noiseTick(
+  ac: AudioContext,
+  dest: AudioNode,
+  when: number,
+  dur: number,
+  gainPeak: number,
+  filterFreq: number,
+) {
+  const frames = Math.max(1, Math.floor(ac.sampleRate * dur))
+  const buffer = ac.createBuffer(1, frames, ac.sampleRate)
+  const data = buffer.getChannelData(0)
+  for (let i = 0; i < frames; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / frames)
+  const src = ac.createBufferSource()
+  src.buffer = buffer
+  const filter = ac.createBiquadFilter()
+  filter.type = 'bandpass'
+  filter.frequency.setValueAtTime(filterFreq, when)
+  filter.Q.value = 1.2
+  const gain = ac.createGain()
+  gain.gain.setValueAtTime(0.0001, when)
+  gain.gain.linearRampToValueAtTime(gainPeak, when + 0.003)
+  gain.gain.linearRampToValueAtTime(0.0001, when + dur)
+  src.connect(filter)
+  filter.connect(gain)
+  gain.connect(dest)
+  src.start(when)
+  src.stop(when + dur + 0.02)
+}
+
+/** Default lobby / app ambient — louder neon pad bed. */
+function scheduleHub(ac: AudioContext, bus: GainNode, start: number, beat: number) {
+  const padRoot = 110
+  const padFifth = 164.81
+  const bass = 55
+  const arp = [220, 261.63, 329.63, 392, 440, 392, 329.63, 261.63]
+
+  toneAt(ac, bus, padRoot, start, beat * 8, {
     type: 'sawtooth',
-    gain: 0.028,
-    attack: 0.35,
-    release: 0.5,
-    filterFreq: 420,
+    gain: 0.07,
+    attack: 0.3,
+    filterFreq: 520,
   })
-  toneAt(ac, bus, PAD_FIFTH, start + 0.02, BEAT * 8, {
+  toneAt(ac, bus, padFifth, start + 0.02, beat * 8, {
     type: 'triangle',
-    gain: 0.022,
-    attack: 0.4,
-    release: 0.5,
-    filterFreq: 620,
+    gain: 0.055,
+    attack: 0.35,
+    filterFreq: 780,
   })
-  // Soft fifth shimmer an octave up
-  toneAt(ac, bus, PAD_FIFTH * 2, start + BEAT * 2, BEAT * 5, {
+  toneAt(ac, bus, padFifth * 2, start + beat * 2, beat * 5, {
     type: 'sine',
-    gain: 0.012,
-    attack: 0.5,
-    filterFreq: 2400,
+    gain: 0.032,
+    attack: 0.4,
+    filterFreq: 2600,
   })
 
-  // Heartbeat bass every other beat
   for (let i = 0; i < 8; i += 2) {
-    const t = start + i * BEAT
-    toneAt(ac, bus, BASS, t, BEAT * 0.7, {
+    toneAt(ac, bus, bass, start + i * beat, beat * 0.7, {
       type: 'sine',
-      gain: 0.055,
+      gain: 0.12,
       attack: 0.01,
-      release: 0.2,
-      filterFreq: 180,
-      slideTo: BASS * 0.92,
+      filterFreq: 200,
+      slideTo: bass * 0.92,
     })
   }
 
-  // Sparse neon arp
   for (let i = 0; i < 8; i++) {
-    const t = start + i * (BEAT / 2)
-    const freq = ARP[i % ARP.length]
-    // Leave breathing room — skip every 4th hit occasionally
     if (i % 4 === 3 && step % 2 === 1) continue
-    toneAt(ac, bus, freq, t, BEAT * 0.42, {
+    const t = start + i * (beat / 2)
+    const freq = arp[i % arp.length]
+    toneAt(ac, bus, freq, t, beat * 0.42, {
       type: 'triangle',
-      gain: 0.018,
+      gain: 0.045,
       attack: 0.005,
-      filterFreq: 2200,
+      filterFreq: 2400,
     })
-    // Quiet echo
-    toneAt(ac, bus, freq, t + BEAT * 0.28, BEAT * 0.3, {
+    toneAt(ac, bus, freq, t + beat * 0.28, beat * 0.3, {
       type: 'sine',
-      gain: 0.008,
+      gain: 0.02,
       attack: 0.01,
-      filterFreq: 1800,
+      filterFreq: 2000,
     })
   }
 
-  // Occasional high neon sparkle
   if (step % 4 === 0) {
-    toneAt(ac, bus, 880, start + BEAT * 5.5, BEAT * 1.2, {
+    toneAt(ac, bus, 880, start + beat * 5.5, beat * 1.2, {
       type: 'sine',
-      gain: 0.014,
+      gain: 0.035,
       attack: 0.08,
+      filterFreq: 4200,
+    })
+  }
+}
+
+/** Spike Dash — high-thrill runner drive. */
+function scheduleDash(ac: AudioContext, bus: GainNode, start: number, beat: number) {
+  const root = 146.83 // D3
+  const power = [146.83, 174.61, 220, 293.66] // D F A D
+  const lead = [293.66, 349.23, 440, 523.25, 587.33, 523.25, 440, 349.23]
+
+  // Driving saw bass
+  for (let i = 0; i < 8; i++) {
+    const t = start + i * (beat / 2)
+    toneAt(ac, bus, root * (i % 4 === 2 ? 1.5 : 1), t, beat * 0.42, {
+      type: 'sawtooth',
+      gain: 0.1,
+      attack: 0.005,
+      filterFreq: 380 + (i % 2) * 120,
+      slideTo: root * 0.9,
+    })
+  }
+
+  // Punchy kick-ish hits
+  for (let i = 0; i < 8; i += 1) {
+    const t = start + i * beat
+    toneAt(ac, bus, 70, t, beat * 0.28, {
+      type: 'sine',
+      gain: 0.16,
+      attack: 0.002,
+      filterFreq: 140,
+      slideTo: 40,
+    })
+    noiseTick(ac, bus, t, 0.04, 0.05, 1800)
+  }
+
+  // Thrill lead
+  for (let i = 0; i < 8; i++) {
+    const t = start + i * (beat / 2)
+    toneAt(ac, bus, lead[i % lead.length], t, beat * 0.35, {
+      type: 'square',
+      gain: 0.055,
+      attack: 0.004,
+      filterFreq: 3200,
+    })
+  }
+
+  // Power chord stabs
+  if (step % 2 === 0) {
+    for (const f of power) {
+      toneAt(ac, bus, f, start + beat * 2, beat * 1.4, {
+        type: 'sawtooth',
+        gain: 0.04,
+        attack: 0.02,
+        filterFreq: 900,
+      })
+    }
+  }
+}
+
+/** Glow Catch — ticking timer tension. */
+function scheduleGlow(ac: AudioContext, bus: GainNode, start: number, beat: number) {
+  const tickHigh = 1760
+  const tickLow = 880
+  const pad = 196 // G3
+
+  toneAt(ac, bus, pad, start, beat * 8, {
+    type: 'triangle',
+    gain: 0.05,
+    attack: 0.25,
+    filterFreq: 700,
+  })
+  toneAt(ac, bus, pad * 1.5, start + 0.03, beat * 8, {
+    type: 'sine',
+    gain: 0.03,
+    attack: 0.3,
+    filterFreq: 1400,
+  })
+
+  // Clock ticks — every 16th feels like a timer
+  for (let i = 0; i < 16; i++) {
+    const t = start + i * (beat / 4)
+    const accent = i % 4 === 0
+    noiseTick(ac, bus, t, accent ? 0.035 : 0.02, accent ? 0.08 : 0.045, accent ? 2400 : 1800)
+    toneAt(ac, bus, accent ? tickHigh : tickLow, t, 0.04, {
+      type: 'sine',
+      gain: accent ? 0.055 : 0.03,
+      attack: 0.001,
       filterFreq: 4000,
     })
+  }
+
+  // Rising tension blip each bar
+  toneAt(ac, bus, 440, start + beat * 3, beat * 0.9, {
+    type: 'square',
+    gain: 0.04,
+    attack: 0.01,
+    filterFreq: 2200,
+    slideTo: 660,
+  })
+}
+
+/** Quick Sum — urgent math-sprint thrill. */
+function scheduleMath(ac: AudioContext, bus: GainNode, start: number, beat: number) {
+  // Bright “calculator” fifths + racing arp
+  const scale = [261.63, 293.66, 329.63, 349.23, 392, 440, 493.88, 523.25] // C major run
+  const bass = [130.81, 146.83, 164.81, 174.61]
+
+  for (let i = 0; i < 8; i++) {
+    const t = start + i * (beat / 2)
+    toneAt(ac, bus, bass[i % bass.length], t, beat * 0.4, {
+      type: 'square',
+      gain: 0.08,
+      attack: 0.004,
+      filterFreq: 500,
+    })
+  }
+
+  for (let i = 0; i < 16; i++) {
+    const t = start + i * (beat / 4)
+    const freq = scale[(i + step) % scale.length]
+    toneAt(ac, bus, freq, t, beat * 0.22, {
+      type: 'triangle',
+      gain: 0.05,
+      attack: 0.002,
+      filterFreq: 2800,
+    })
+    // Soft “click” like key presses
+    if (i % 2 === 0) noiseTick(ac, bus, t, 0.015, 0.03, 3200)
+  }
+
+  // High thrill stab
+  toneAt(ac, bus, 784, start + beat * 2, beat * 0.5, {
+    type: 'sawtooth',
+    gain: 0.045,
+    attack: 0.01,
+    filterFreq: 2400,
+    slideTo: 988,
+  })
+  toneAt(ac, bus, 1046.5, start + beat * 3.2, beat * 0.55, {
+    type: 'square',
+    gain: 0.035,
+    attack: 0.008,
+    filterFreq: 3600,
+  })
+}
+
+/** Memory Nest — calm puzzle / memory-game vibe. */
+function scheduleMemory(ac: AudioContext, bus: GainNode, start: number, beat: number) {
+  const soft = [196, 246.94, 293.66, 392, 349.23, 293.66, 246.94, 220] // G-ish lullaby loop
+  const pad = 98
+
+  toneAt(ac, bus, pad, start, beat * 8, {
+    type: 'sine',
+    gain: 0.07,
+    attack: 0.5,
+    filterFreq: 400,
+  })
+  toneAt(ac, bus, pad * 1.5, start + 0.05, beat * 8, {
+    type: 'triangle',
+    gain: 0.04,
+    attack: 0.55,
+    filterFreq: 900,
+  })
+
+  for (let i = 0; i < 8; i++) {
+    const t = start + i * beat
+    toneAt(ac, bus, soft[i % soft.length], t, beat * 0.85, {
+      type: 'sine',
+      gain: 0.055,
+      attack: 0.04,
+      filterFreq: 1800,
+    })
+    // Soft chime echo — “card flip” atmosphere
+    toneAt(ac, bus, soft[i % soft.length] * 2, t + beat * 0.35, beat * 0.5, {
+      type: 'triangle',
+      gain: 0.025,
+      attack: 0.02,
+      filterFreq: 2600,
+    })
+  }
+
+  if (step % 2 === 0) {
+    toneAt(ac, bus, 523.25, start + beat * 6, beat * 1.5, {
+      type: 'sine',
+      gain: 0.03,
+      attack: 0.1,
+      filterFreq: 3000,
+    })
+  }
+}
+
+function scheduleBar(ac: AudioContext, bus: GainNode, start: number) {
+  const cfg = TRACK[track]
+  const beat = 60 / cfg.bpm
+  switch (track) {
+    case 'dash':
+      scheduleDash(ac, bus, start, beat)
+      break
+    case 'glow':
+      scheduleGlow(ac, bus, start, beat)
+      break
+    case 'math':
+      scheduleMath(ac, bus, start, beat)
+      break
+    case 'memory':
+      scheduleMemory(ac, bus, start, beat)
+      break
+    default:
+      scheduleHub(ac, bus, start, beat)
   }
 }
 
@@ -181,11 +442,14 @@ function scheduler() {
   if (!graph || !bus || !running || !enabled) return
 
   const { ac } = graph
-  const horizon = ac.currentTime + 0.35
+  const cfg = TRACK[track]
+  const beat = 60 / cfg.bpm
+  const barLen = beat * cfg.bars
+  const horizon = ac.currentTime + 0.4
 
   while (nextNoteTime < horizon) {
     scheduleBar(ac, bus, nextNoteTime)
-    nextNoteTime += BEAT * 4
+    nextNoteTime += barLen
     step += 1
   }
 }
@@ -201,18 +465,20 @@ function fadeMusic(to: number, seconds = 0.9) {
 }
 
 export function startBgm(): void {
-  if (!enabled || running) return
+  if (!enabled) return
   const graph = getAudioGraph()
   const bus = ensureMusicBus()
   if (!graph || !bus) return
 
-  running = true
-  nextNoteTime = graph.ac.currentTime + 0.08
-  step = 0
-  fadeMusic(0.55, 1.2)
+  if (!running) {
+    running = true
+    nextNoteTime = graph.ac.currentTime + 0.08
+    step = 0
+    if (timer != null) window.clearInterval(timer)
+    timer = window.setInterval(scheduler, 80)
+  }
+  fadeMusic(TRACK[track].volume, 0.8)
   scheduler()
-  if (timer != null) window.clearInterval(timer)
-  timer = window.setInterval(scheduler, 100)
 }
 
 export function stopBgm(): void {
