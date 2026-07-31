@@ -1,0 +1,98 @@
+.quests {
+  display: grid;
+  gap: 1rem;
+}
+
+.quest-summary {
+  padding: 1rem 1.2rem;
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+}
+
+.quest-summary strong {
+  font-family: var(--font-display);
+  letter-spacing: -0.03em;
+}
+
+.quest-summary span {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.quest-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.quest-item {
+  padding: 1.1rem 1.15rem;
+}
+
+.quest-item.done {
+  border-color: rgba(94, 234, 212, 0.35);
+}
+
+.quest-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.85rem;
+}
+
+.quest-top strong {
+  display: block;
+  font-size: 1.05rem;
+}
+
+.quest-top p {
+  margin: 0.25rem 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.quest-top em {
+  font-style: normal;
+  color: var(--ember);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.quest-meta {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.55rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.recent-xp {
+  padding: 1.15rem;
+}
+
+.recent-xp ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.recent-xp li {
+  display: flex;
+  gap: 0.65rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.16);
+  border: 1px solid var(--line);
+}
+
+.recent-xp .amt {
+  color: var(--ember);
+  font-weight: 700;
+  min-width: 2.5rem;
+}
