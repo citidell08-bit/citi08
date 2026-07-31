@@ -5,12 +5,14 @@ import type { GameState, Quest } from '../types'
 import { todayKey, uid } from './dates'
 
 const STORAGE_KEY = 'kith.game.v1'
+const STARTER_COINS = 100
 
 export function createInitialState(): GameState {
   return {
     xp: 0,
-    coins: 0,
-    totalCoinsEarned: 0,
+    coins: STARTER_COINS,
+    totalCoinsEarned: STARTER_COINS,
+    starterGranted: true,
     totalFocusMinutes: 0,
     totalSessions: 0,
     totalCardsReviewed: 0,
@@ -36,15 +38,25 @@ export function loadState(): GameState {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return createInitialState()
-    const parsed = JSON.parse(raw) as GameState
-    return {
+    const parsed = JSON.parse(raw) as Partial<GameState>
+    const base = {
       ...createInitialState(),
       ...parsed,
       coins: parsed.coins ?? 0,
       totalCoinsEarned: parsed.totalCoinsEarned ?? 0,
+      starterGranted: Boolean(parsed.starterGranted),
       achievements: mergeAchievements(parsed.achievements),
       quests: normalizeQuests(parsed.quests),
     }
+
+    // Existing saves: grant a one-time 100-coin starter pack for testing / first arcade visit
+    if (!base.starterGranted) {
+      base.coins += STARTER_COINS
+      base.totalCoinsEarned += STARTER_COINS
+      base.starterGranted = true
+    }
+
+    return base
   } catch {
     return createInitialState()
   }

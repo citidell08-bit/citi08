@@ -46,6 +46,8 @@ export interface GameState {
   xp: number
   coins: number
   totalCoinsEarned: number
+  /** One-time starter pack so players can open the arcade immediately. */
+  starterGranted: boolean
   totalFocusMinutes: number
   totalSessions: number
   totalCardsReviewed: number
