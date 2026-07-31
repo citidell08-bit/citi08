@@ -7,6 +7,7 @@ import {
   type LlmPrefs,
   type LlmProvider,
 } from '../lib/llm'
+import { ensurePuter } from '../lib/puterAi'
 import { unlockAudio } from '../lib/sfx'
 import { uid } from '../lib/dates'
 import type { GameState, Tab } from '../types'
@@ -29,8 +30,8 @@ export function Assistant({ state, open, onOpenChange, onNavigate, hidden = fals
     {
       id: 'welcome',
       role: 'assistant',
-      text: `Hey — I'm ${state.companionName}. Ask me anything and I'll get the answer from ChatGPT, then bring it back to you — homework help, study tips, or how Cyber Kith works.`,
-      source: 'ChatGPT',
+      text: `Hey — I'm ${state.companionName}. Ask me anything and I'll get a real ChatGPT (GPT-4o) answer, then bring it back to you — homework, study tips, or how Cyber Kith works.`,
+      source: 'ChatGPT (GPT-4o)',
     },
   ])
   const listRef = useRef<HTMLDivElement>(null)
@@ -56,6 +57,10 @@ export function Assistant({ state, open, onOpenChange, onNavigate, hidden = fals
   useEffect(() => {
     if (!open) return
     const id = window.setTimeout(() => inputRef.current?.focus(), 80)
+    // Warm ChatGPT (GPT-4o) so the first ask is faster
+    void ensurePuter().catch(() => {
+      /* optional preload */
+    })
     return () => window.clearTimeout(id)
   }, [open])
 
@@ -80,7 +85,7 @@ export function Assistant({ state, open, onOpenChange, onNavigate, hidden = fals
       id: ansId,
       role: 'assistant',
       text: '',
-      status: 'Asking ChatGPT…',
+      status: 'Asking ChatGPT (GPT-4o)…',
     }
 
     setMessages((m) => [...m, userMsg, placeholder].slice(-40))
@@ -202,7 +207,7 @@ export function Assistant({ state, open, onOpenChange, onNavigate, hidden = fals
               <div>
                 <h2 className="assistant-title">Ask ChatGPT</h2>
                 <p className="assistant-sub">
-                  {state.companionName} fetches from ChatGPT, then gives you the answer
+                  Real GPT-4o answers — {state.companionName} asks ChatGPT, then shows you the reply
                 </p>
               </div>
               <div className="assistant-head-actions">
@@ -226,8 +231,8 @@ export function Assistant({ state, open, onOpenChange, onNavigate, hidden = fals
             {showSettings ? (
               <div className="assistant-settings">
                 <p className="section-sub">
-                  Default: ask ChatGPT (free, no key). Paste an OpenAI key to use official GPT-4o —
-                  keys stay only on this device.
+                  Default uses real <strong>ChatGPT GPT-4o</strong> (via Puter — you may be asked to
+                  sign in once). Optional OpenAI/Groq keys are backups; keys stay on this device only.
                 </p>
                 <label className="quest-field">
                   <span>Provider</span>
@@ -238,10 +243,10 @@ export function Assistant({ state, open, onOpenChange, onNavigate, hidden = fals
                       setPrefs((p) => ({ ...p, provider: e.target.value as LlmProvider }))
                     }
                   >
-                    <option value="chatgpt">ChatGPT (free cloud)</option>
-                    <option value="openai">Official OpenAI GPT-4o (needs key)</option>
-                    <option value="groq">Groq (needs key)</option>
-                    <option value="auto">Auto (best available)</option>
+                    <option value="chatgpt">ChatGPT GPT-4o (recommended)</option>
+                    <option value="openai">Official OpenAI key (GPT-4o)</option>
+                    <option value="groq">Groq key</option>
+                    <option value="auto">Auto (try everything)</option>
                   </select>
                 </label>
                 <label className="quest-field">

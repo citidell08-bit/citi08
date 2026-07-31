@@ -1,6 +1,7 @@
 import { GAME_COSTS } from './coins'
 import { levelFromXp, progressToNextLevel } from './xp'
 import { replyAsAssistant, type AssistantReply } from './assistant'
+import { askPuterChatGpt } from './puterAi'
 import type { GameState, Tab } from '../types'
 
 const PREF_KEY = 'kith.assistant.llm.v1'
@@ -110,14 +111,11 @@ function buildSystemPrompt(state: GameState): string {
     .join('; ')
   const owned = state.ownedGames.join(', ') || 'none'
 
-  return `You are ${state.companionName}, Cyber Kith's AI — you fetch answers the way ChatGPT would, then deliver them clearly to the player.
+  return `You are ${state.companionName}, Cyber Kith's AI powered by ChatGPT-level GPT-4o.
 
-When the user asks a question:
-1) Use ChatGPT-quality knowledge to figure out the answer.
-2) Give them the answer directly in plain language.
-3) If it's about this app, use the facts below. If it's school/study/life, answer like ChatGPT.
+When the user asks something, answer exactly like ChatGPT would: accurate, clear, helpful, and complete — then tie it back to studying or Cyber Kith when relevant.
 
-Personality: warm, sharp, encouraging, lightly cyber. Never say you are a fake script.
+Personality: warm, sharp, encouraging, lightly cyber. Never claim you are a fake script or keyword bot.
 
 App facts:
 - Tabs: Home, Focus, Cards, Play, Quests, Themes.
@@ -293,8 +291,8 @@ export interface LiveReply extends AssistantReply {
 }
 
 /**
- * Ask ChatGPT-class models for an answer, then return it.
- * Prefers a full fetched answer (get → give), with stream as a fast path.
+ * Ask real ChatGPT (GPT-4o via Puter) first, then optional API keys / cloud fallbacks.
+ * Flow: get answer from the model → give it to the player.
  */
 export async function askLiveAssistant(
   question: string,
@@ -308,14 +306,34 @@ export async function askLiveAssistant(
   const prefs = loadLlmPrefs()
   const system = buildSystemPrompt(state)
   const turns = history.slice(-12)
-  const endpoints = resolveEndpoint(prefs)
+  const messages = [{ role: 'system' as const, content: system }, ...turns]
   let lastError = ''
 
+  // 1) Real ChatGPT-level GPT-4o through Puter (no developer key)
+  if (prefs.provider === 'chatgpt' || prefs.provider === 'auto') {
+    onClear?.()
+    onStatus?.('Asking ChatGPT (GPT-4o)…')
+    try {
+      const raw = await askPuterChatGpt(messages, onDelta, signal)
+      const parsed = parseGoTag(raw)
+      onStatus?.('Answer from ChatGPT (GPT-4o)')
+      return {
+        text: parsed.clean,
+        goTo: parsed.goTo,
+        goLabel: parsed.goLabel,
+        source: 'ChatGPT (GPT-4o)',
+      }
+    } catch (err) {
+      lastError = err instanceof Error ? err.message : String(err)
+    }
+  }
+
+  // 2) User API keys + free cloud proxies
+  const endpoints = resolveEndpoint(prefs)
   for (const endpoint of endpoints) {
     onClear?.()
     onStatus?.(`Asking ${endpoint.label}…`)
     try {
-      // 1) Fetch a complete answer (ChatGPT-style request → response)
       try {
         const full = await completeChat(endpoint, system, turns, signal)
         onClear?.()
@@ -329,7 +347,6 @@ export async function askLiveAssistant(
           source: endpoint.label,
         }
       } catch (completeErr) {
-        // 2) Stream fallback if non-stream failed
         onClear?.()
         onStatus?.(`Streaming from ${endpoint.label}…`)
         const raw = await streamChat(endpoint, system, turns, onDelta, signal)
