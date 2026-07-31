@@ -41,6 +41,7 @@ export function DashGame({ onFinish, onBack }: Props) {
   const reportedRef = useRef(false)
   const onFinishRef = useRef(onFinish)
   const lastScoreRef = useRef(0)
+  const restartRef = useRef<() => void>(() => {})
   onFinishRef.current = onFinish
 
   const stateRef = useRef({
@@ -119,15 +120,28 @@ export function DashGame({ onFinish, onBack }: Props) {
       }
     }
 
+    function restartOrJump() {
+      if (st.dead) {
+        resetRun()
+        return
+      }
+      jump()
+    }
+
+    restartRef.current = () => {
+      if (!active) return
+      resetRun()
+    }
+
     function onKey(e: KeyboardEvent) {
-      if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') {
+      if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW' || e.code === 'Enter') {
         e.preventDefault()
-        jump()
+        restartOrJump()
       }
     }
 
     function onPointer() {
-      jump()
+      restartOrJump()
     }
 
     window.addEventListener('keydown', onKey)
@@ -405,7 +419,7 @@ export function DashGame({ onFinish, onBack }: Props) {
         <div>
           <h2 className="section-title">Spike Dash</h2>
           <p className="section-sub">
-            Tap / click / Space to jump. Clear spikes and blocks — don&apos;t crash.
+            Tap / click / Space to jump. After a crash, tap the track again to restart.
           </p>
         </div>
         <div className="dash-score-badge" aria-live="polite">
@@ -421,19 +435,28 @@ export function DashGame({ onFinish, onBack }: Props) {
           width={W}
           height={H}
           role="img"
-          aria-label="Spike Dash playfield. Tap or press Space to jump."
+          aria-label="Spike Dash playfield. Tap to jump, or tap again after a crash to restart."
         />
-        <p className="play-hint">Controls: Space / ↑ / tap anywhere on the track</p>
+        <p className="play-hint">
+          {alive
+            ? 'Controls: Space / ↑ / tap the track to jump'
+            : 'Crashed — tap the track (or press Space) to play again'}
+        </p>
 
-        {finalScore != null && (
+        {finalScore != null && !alive && (
           <div className="mini-end overlay-end">
             <p>
               Final score <strong>{finalScore}</strong>
-              {finalScore >= WIN_SCORE ? ' — run cleared!' : '. Jump earlier next time.'}
+              {finalScore >= WIN_SCORE ? ' — run cleared!' : '. Tap the track to try again.'}
             </p>
-            <button type="button" className="btn btn-primary" onClick={onBack}>
-              Back to arcade
-            </button>
+            <div className="dash-end-actions">
+              <button type="button" className="btn btn-ember" onClick={() => restartRef.current()}>
+                Play again
+              </button>
+              <button type="button" className="btn btn-ghost" onClick={onBack}>
+                Back to arcade
+              </button>
+            </div>
           </div>
         )}
       </div>

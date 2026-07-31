@@ -43,3 +43,10 @@
   color: var(--ember) !important;
   border-color: rgba(34, 211, 238, 0.35) !important;
 }
+
+.dash-end-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  justify-content: center;
+}
