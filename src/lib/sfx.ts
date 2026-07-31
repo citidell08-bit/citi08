@@ -8,6 +8,7 @@ let master: GainNode | null = null
 let clickBound = false
 let lastClickKey = ''
 let lastClickAt = 0
+let resumePromise: Promise<void> | null = null
 
 function getCtx(): AudioContext | null {
   if (typeof window === 'undefined') return null
@@ -18,22 +19,50 @@ function getCtx(): AudioContext | null {
   if (!ctx) {
     ctx = new AC()
     master = ctx.createGain()
-    master.gain.value = 0.85
+    // Keep headroom; individual tones set their own peaks.
+    master.gain.value = 1
     master.connect(ctx.destination)
   }
-  if (ctx.state === 'suspended') void ctx.resume()
   return ctx
 }
 
-function bus(): GainNode | null {
+function ensureRunning(): AudioContext | null {
   const ac = getCtx()
+  if (!ac) return null
+  if (ac.state === 'suspended') {
+    resumePromise ??= ac
+      .resume()
+      .catch(() => {})
+      .finally(() => {
+        resumePromise = null
+      })
+  }
+  return ac
+}
+
+function bus(): GainNode | null {
+  const ac = ensureRunning()
   if (!ac || !master) return null
   return master
 }
 
-/** Unlock / resume audio from any user gesture. */
+/** Unlock / resume audio from any user gesture. Safe to call often. */
 export function unlockAudio(): void {
-  getCtx()
+  const ac = ensureRunning()
+  if (!ac || !master) return
+  // Warm the graph so the first real SFX isn't dropped on some browsers.
+  try {
+    const osc = ac.createOscillator()
+    const g = ac.createGain()
+    g.gain.value = 0.00001
+    osc.connect(g)
+    g.connect(master)
+    const t = ac.currentTime
+    osc.start(t)
+    osc.stop(t + 0.01)
+  } catch {
+    // ignore
+  }
 }
 
 function tone(
@@ -47,13 +76,13 @@ function tone(
     attack?: number
   },
 ) {
-  const ac = getCtx()
+  const ac = ensureRunning()
   const out = bus()
   if (!ac || !out) return
 
   const start = ac.currentTime + (opts?.delay ?? 0)
   const attack = opts?.attack ?? 0.004
-  const peak = opts?.gain ?? 0.08
+  const peak = opts?.gain ?? 0.1
   const osc = ac.createOscillator()
   const gain = ac.createGain()
 
@@ -66,7 +95,6 @@ function tone(
     )
   }
 
-  // Linear ramps — reliable for very short UI clicks (exp ramps from ~0 can glitch)
   gain.gain.setValueAtTime(0.0001, start)
   gain.gain.linearRampToValueAtTime(peak, start + attack)
   gain.gain.linearRampToValueAtTime(0.0001, start + duration)
@@ -81,7 +109,7 @@ function noiseBurst(
   duration: number,
   opts?: { gain?: number; delay?: number; filterFreq?: number },
 ) {
-  const ac = getCtx()
+  const ac = ensureRunning()
   const out = bus()
   if (!ac || !out) return
 
@@ -90,7 +118,6 @@ function noiseBurst(
   const buffer = ac.createBuffer(1, frames, ac.sampleRate)
   const data = buffer.getChannelData(0)
   for (let i = 0; i < frames; i++) {
-    // Soft noise envelope in the buffer itself
     const env = 1 - i / frames
     data[i] = (Math.random() * 2 - 1) * env
   }
@@ -102,7 +129,7 @@ function noiseBurst(
   filter.frequency.setValueAtTime(opts?.filterFreq ?? 900, start)
   filter.frequency.linearRampToValueAtTime(140, start + duration)
   const gain = ac.createGain()
-  const peak = opts?.gain ?? 0.05
+  const peak = opts?.gain ?? 0.06
   gain.gain.setValueAtTime(0.0001, start)
   gain.gain.linearRampToValueAtTime(peak, start + 0.008)
   gain.gain.linearRampToValueAtTime(0.0001, start + duration)
@@ -117,82 +144,94 @@ function noiseBurst(
 /** Sharp UI click — one press, one tick. */
 export function playClickSfx(): void {
   unlockAudio()
-  // Transient tick (matches finger/mouse down)
-  tone(2400, 0.018, { type: 'sine', gain: 0.055, attack: 0.001, slideTo: 1800 })
-  tone(1100, 0.028, { type: 'triangle', gain: 0.035, attack: 0.002, slideTo: 700 })
+  tone(2400, 0.02, { type: 'sine', gain: 0.07, attack: 0.001, slideTo: 1800 })
+  tone(1100, 0.03, { type: 'triangle', gain: 0.045, attack: 0.002, slideTo: 700 })
+}
+
+/** Short cue when a mini-game starts. */
+export function playStartSfx(): void {
+  unlockAudio()
+  tone(520, 0.05, { type: 'square', gain: 0.07, attack: 0.002, slideTo: 780 })
+  tone(780, 0.07, { type: 'triangle', gain: 0.05, delay: 0.04, slideTo: 1040 })
 }
 
 export function playJumpSfx(): void {
   unlockAudio()
-  tone(480, 0.08, { type: 'square', gain: 0.085, attack: 0.003, slideTo: 920 })
-  tone(760, 0.055, { type: 'triangle', gain: 0.04, delay: 0.015, slideTo: 1180 })
+  tone(480, 0.085, { type: 'square', gain: 0.11, attack: 0.003, slideTo: 920 })
+  tone(760, 0.06, { type: 'triangle', gain: 0.055, delay: 0.015, slideTo: 1180 })
 }
 
 /** Short percussive crash — dies often, so keep it snappy. */
 export function playCrashSfx(): void {
   unlockAudio()
-  noiseBurst(0.09, { gain: 0.055, filterFreq: 700 })
-  tone(190, 0.1, { type: 'sawtooth', gain: 0.08, slideTo: 70, attack: 0.002 })
-  tone(95, 0.12, { type: 'triangle', gain: 0.05, delay: 0.02, slideTo: 45 })
+  noiseBurst(0.1, { gain: 0.07, filterFreq: 720 })
+  tone(190, 0.11, { type: 'sawtooth', gain: 0.1, slideTo: 70, attack: 0.002 })
+  tone(95, 0.13, { type: 'triangle', gain: 0.065, delay: 0.02, slideTo: 45 })
 }
 
 /** Access denied + sad whomp-whomp (level / gate fails). */
 export function playAccessDeniedSfx(): void {
   unlockAudio()
-  tone(210, 0.14, { type: 'sawtooth', gain: 0.095, slideTo: 85 })
-  tone(130, 0.18, { type: 'square', gain: 0.06, slideTo: 50, delay: 0.03 })
-  noiseBurst(0.16, { gain: 0.045, filterFreq: 550 })
-  // Whomp… whomp…
-  tone(155, 0.24, { type: 'triangle', gain: 0.12, slideTo: 68, delay: 0.2 })
-  tone(125, 0.3, { type: 'triangle', gain: 0.11, slideTo: 48, delay: 0.46 })
-  tone(290, 0.07, { type: 'square', gain: 0.045, delay: 0.76 })
-  tone(230, 0.12, { type: 'square', gain: 0.045, delay: 0.88 })
+  tone(210, 0.14, { type: 'sawtooth', gain: 0.11, slideTo: 85 })
+  tone(130, 0.18, { type: 'square', gain: 0.07, slideTo: 50, delay: 0.03 })
+  noiseBurst(0.16, { gain: 0.055, filterFreq: 550 })
+  tone(155, 0.24, { type: 'triangle', gain: 0.13, slideTo: 68, delay: 0.2 })
+  tone(125, 0.3, { type: 'triangle', gain: 0.12, slideTo: 48, delay: 0.46 })
+  tone(290, 0.07, { type: 'square', gain: 0.055, delay: 0.76 })
+  tone(230, 0.12, { type: 'square', gain: 0.055, delay: 0.88 })
 }
 
 /** Crisp correct hit (Glow / Quick Sum). */
 export function playHitSfx(): void {
   unlockAudio()
-  tone(880, 0.04, { type: 'square', gain: 0.05, attack: 0.001, slideTo: 1200 })
-  tone(1320, 0.055, { type: 'triangle', gain: 0.035, delay: 0.02, slideTo: 1600 })
+  tone(880, 0.05, { type: 'square', gain: 0.075, attack: 0.001, slideTo: 1240 })
+  tone(1320, 0.07, { type: 'triangle', gain: 0.05, delay: 0.02, slideTo: 1680 })
 }
 
 /** Soft miss / wrong tap. */
 export function playMissSfx(): void {
   unlockAudio()
-  tone(220, 0.07, { type: 'triangle', gain: 0.05, slideTo: 110 })
-  noiseBurst(0.05, { gain: 0.03, filterFreq: 400 })
+  tone(220, 0.08, { type: 'triangle', gain: 0.07, slideTo: 110 })
+  noiseBurst(0.06, { gain: 0.04, filterFreq: 420 })
 }
 
 /** Memory tile flip. */
 export function playFlipSfx(): void {
   unlockAudio()
-  tone(620, 0.035, { type: 'triangle', gain: 0.04, attack: 0.001, slideTo: 820 })
+  tone(620, 0.04, { type: 'triangle', gain: 0.06, attack: 0.001, slideTo: 860 })
 }
 
 /** Memory pair match. */
 export function playMatchSfx(): void {
   unlockAudio()
-  tone(660, 0.05, { type: 'square', gain: 0.05 })
-  tone(880, 0.07, { type: 'triangle', gain: 0.045, delay: 0.05 })
-  tone(1175, 0.09, { type: 'sine', gain: 0.04, delay: 0.1 })
+  tone(660, 0.055, { type: 'square', gain: 0.07 })
+  tone(880, 0.08, { type: 'triangle', gain: 0.055, delay: 0.05 })
+  tone(1175, 0.1, { type: 'sine', gain: 0.05, delay: 0.1 })
 }
 
 /** Memory mismatch. */
 export function playMismatchSfx(): void {
   unlockAudio()
-  tone(340, 0.06, { type: 'square', gain: 0.045, slideTo: 180 })
-  tone(260, 0.08, { type: 'triangle', gain: 0.035, delay: 0.04, slideTo: 140 })
+  tone(340, 0.07, { type: 'square', gain: 0.06, slideTo: 180 })
+  tone(260, 0.09, { type: 'triangle', gain: 0.045, delay: 0.04, slideTo: 140 })
+}
+
+/** Soft ping when a Glow cell lights up. */
+export function playGlowSfx(): void {
+  unlockAudio()
+  tone(740, 0.06, { type: 'sine', gain: 0.055, attack: 0.002, slideTo: 980 })
+  tone(1100, 0.05, { type: 'triangle', gain: 0.03, delay: 0.03 })
 }
 
 /** Access granted / level-up fanfare. */
 export function playAccessGrantedSfx(): void {
   unlockAudio()
-  tone(440, 0.07, { type: 'square', gain: 0.055 })
-  tone(554, 0.07, { type: 'square', gain: 0.055, delay: 0.07 })
-  tone(659, 0.09, { type: 'triangle', gain: 0.065, delay: 0.14 })
-  tone(880, 0.16, { type: 'triangle', gain: 0.08, delay: 0.25 })
-  tone(1175, 0.2, { type: 'sine', gain: 0.055, delay: 0.38 })
-  tone(1760, 0.12, { type: 'sine', gain: 0.028, delay: 0.5 })
+  tone(440, 0.07, { type: 'square', gain: 0.07 })
+  tone(554, 0.07, { type: 'square', gain: 0.07, delay: 0.07 })
+  tone(659, 0.09, { type: 'triangle', gain: 0.08, delay: 0.14 })
+  tone(880, 0.16, { type: 'triangle', gain: 0.095, delay: 0.25 })
+  tone(1175, 0.2, { type: 'sine', gain: 0.065, delay: 0.38 })
+  tone(1760, 0.12, { type: 'sine', gain: 0.035, delay: 0.5 })
 }
 
 export function playWinSfx(): void {
@@ -201,14 +240,14 @@ export function playWinSfx(): void {
 
 export function playRestartSfx(): void {
   unlockAudio()
-  tone(420, 0.045, { type: 'square', gain: 0.05, slideTo: 640 })
+  tone(420, 0.05, { type: 'square', gain: 0.065, slideTo: 680 })
 }
 
 /** Bright coin pickup chime. */
 export function playCoinSfx(): void {
   unlockAudio()
-  tone(980, 0.05, { type: 'square', gain: 0.055, attack: 0.002, slideTo: 1400 })
-  tone(1320, 0.08, { type: 'triangle', gain: 0.04, delay: 0.03, slideTo: 1760 })
+  tone(980, 0.055, { type: 'square', gain: 0.08, attack: 0.002, slideTo: 1400 })
+  tone(1320, 0.09, { type: 'triangle', gain: 0.055, delay: 0.03, slideTo: 1760 })
 }
 
 function isClickable(target: EventTarget | null): Element | null {
@@ -238,7 +277,6 @@ export function installClickSfx(): () => void {
     if (!el) return
     if (el instanceof HTMLButtonElement && el.disabled) return
 
-    // Allow rapid clicks; only collapse true duplicate events in the same ms
     const pe = e as PointerEvent
     const key = `${el}-${pe.pointerId ?? 0}-${Math.floor(performance.now())}`
     const now = performance.now()
@@ -250,6 +288,7 @@ export function installClickSfx(): () => void {
 
   const onKey = (e: KeyboardEvent) => {
     if (e.repeat) return
+    unlockAudio()
     if (e.code !== 'Enter' && e.code !== 'Space') return
     const el = isClickable(document.activeElement)
     if (!el) return
@@ -257,11 +296,13 @@ export function installClickSfx(): () => void {
   }
 
   document.addEventListener('pointerdown', unlockAny, true)
+  document.addEventListener('keydown', unlockAny, true)
   document.addEventListener('pointerdown', onPointer, true)
   document.addEventListener('keydown', onKey, true)
 
   return () => {
     document.removeEventListener('pointerdown', unlockAny, true)
+    document.removeEventListener('keydown', unlockAny, true)
     document.removeEventListener('pointerdown', onPointer, true)
     document.removeEventListener('keydown', onKey, true)
     clickBound = false

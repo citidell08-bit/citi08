@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { GAME_COSTS } from '../lib/coins'
-import { unlockAudio } from '../lib/sfx'
+import { playStartSfx, unlockAudio } from '../lib/sfx'
 import type { GameState, MiniGameId, MiniGameResult, Tab } from '../types'
 import { DashGame } from './games/DashGame'
 import { GlowGame } from './games/GlowGame'
@@ -112,6 +112,7 @@ export function Games({ state, onComplete, onSpend, onNavigate, onActiveChange }
       return
     }
 
+    playStartSfx()
     setActive(gameId)
   }
 

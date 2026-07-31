@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { isRestartKey } from '../../lib/gameInput'
-import { playHitSfx, playMissSfx, playRestartSfx, playWinSfx } from '../../lib/sfx'
+import {
+  playHitSfx,
+  playMissSfx,
+  playRestartSfx,
+  playWinSfx,
+  unlockAudio,
+} from '../../lib/sfx'
 import type { MiniGameResult } from '../../types'
 import { GameTimer } from './GameTimer'
 
@@ -125,6 +131,7 @@ export function MathGame({ onFinish, onBack }: Props) {
 
   function submit(e: FormEvent) {
     e.preventDefault()
+    unlockAudio()
     if (!running || finished) return
     const value = Number(input.trim())
     if (Number.isNaN(value) || input.trim() === '') return

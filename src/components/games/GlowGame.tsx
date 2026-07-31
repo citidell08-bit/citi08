@@ -1,6 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { cellFromKey, isRestartKey } from '../../lib/gameInput'
-import { playCoinSfx, playHitSfx, playMissSfx, playRestartSfx, playWinSfx } from '../../lib/sfx'
+import {
+  playCoinSfx,
+  playGlowSfx,
+  playHitSfx,
+  playMissSfx,
+  playRestartSfx,
+  playWinSfx,
+  unlockAudio,
+} from '../../lib/sfx'
 import type { MiniGameResult } from '../../types'
 import { GameTimer } from './GameTimer'
 
@@ -127,6 +135,7 @@ export function GlowGame({ onFinish, onBack }: Props) {
     setHasCoin(coinOnCell)
     setRound(nextRound)
     setWindowRatio(1)
+    playGlowSfx()
     clearTimer()
     clearTick()
 
@@ -174,6 +183,7 @@ export function GlowGame({ onFinish, onBack }: Props) {
   }
 
   function tap(index: number) {
+    unlockAudio()
     if (finishedRef.current) {
       playAgain()
       return

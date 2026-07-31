@@ -6,6 +6,7 @@ import {
   playMismatchSfx,
   playRestartSfx,
   playWinSfx,
+  unlockAudio,
 } from '../../lib/sfx'
 import type { MiniGameResult } from '../../types'
 import { GameTimer } from './GameTimer'
@@ -174,6 +175,7 @@ export function MemoryGame({ onFinish, onBack }: Props) {
   }
 
   function flip(index: number) {
+    unlockAudio()
     const currentTiles = tilesRef.current
     if (
       !runningRef.current ||
