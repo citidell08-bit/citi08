@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react'
 import { FREE_THEME, THEMES } from '../data/themes'
 import type { GameState, ThemeId } from '../types'
 import './ThemeStore.css'
@@ -42,7 +43,12 @@ export function ThemeStore({ state, onBuy, onEquip }: Props) {
             >
               <div
                 className="theme-preview"
-                style={{ background: theme.preview }}
+                style={
+                  {
+                    background: theme.preview,
+                    ['--preview-glow']: theme.glow,
+                  } as CSSProperties
+                }
                 aria-hidden="true"
               />
               <div className="theme-copy">
