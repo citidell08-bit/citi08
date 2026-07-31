@@ -128,11 +128,15 @@ export function playJumpSfx(): void {
   tone(760, 0.055, { type: 'triangle', gain: 0.04, delay: 0.015, slideTo: 1180 })
 }
 
+/** Short percussive crash — dies often, so keep it snappy. */
 export function playCrashSfx(): void {
-  playAccessDeniedSfx()
+  unlockAudio()
+  noiseBurst(0.09, { gain: 0.055, filterFreq: 700 })
+  tone(190, 0.1, { type: 'sawtooth', gain: 0.08, slideTo: 70, attack: 0.002 })
+  tone(95, 0.12, { type: 'triangle', gain: 0.05, delay: 0.02, slideTo: 45 })
 }
 
-/** Access denied + sad whomp-whomp. */
+/** Access denied + sad whomp-whomp (level / gate fails). */
 export function playAccessDeniedSfx(): void {
   unlockAudio()
   tone(210, 0.14, { type: 'sawtooth', gain: 0.095, slideTo: 85 })
@@ -143,6 +147,41 @@ export function playAccessDeniedSfx(): void {
   tone(125, 0.3, { type: 'triangle', gain: 0.11, slideTo: 48, delay: 0.46 })
   tone(290, 0.07, { type: 'square', gain: 0.045, delay: 0.76 })
   tone(230, 0.12, { type: 'square', gain: 0.045, delay: 0.88 })
+}
+
+/** Crisp correct hit (Glow / Quick Sum). */
+export function playHitSfx(): void {
+  unlockAudio()
+  tone(880, 0.04, { type: 'square', gain: 0.05, attack: 0.001, slideTo: 1200 })
+  tone(1320, 0.055, { type: 'triangle', gain: 0.035, delay: 0.02, slideTo: 1600 })
+}
+
+/** Soft miss / wrong tap. */
+export function playMissSfx(): void {
+  unlockAudio()
+  tone(220, 0.07, { type: 'triangle', gain: 0.05, slideTo: 110 })
+  noiseBurst(0.05, { gain: 0.03, filterFreq: 400 })
+}
+
+/** Memory tile flip. */
+export function playFlipSfx(): void {
+  unlockAudio()
+  tone(620, 0.035, { type: 'triangle', gain: 0.04, attack: 0.001, slideTo: 820 })
+}
+
+/** Memory pair match. */
+export function playMatchSfx(): void {
+  unlockAudio()
+  tone(660, 0.05, { type: 'square', gain: 0.05 })
+  tone(880, 0.07, { type: 'triangle', gain: 0.045, delay: 0.05 })
+  tone(1175, 0.09, { type: 'sine', gain: 0.04, delay: 0.1 })
+}
+
+/** Memory mismatch. */
+export function playMismatchSfx(): void {
+  unlockAudio()
+  tone(340, 0.06, { type: 'square', gain: 0.045, slideTo: 180 })
+  tone(260, 0.08, { type: 'triangle', gain: 0.035, delay: 0.04, slideTo: 140 })
 }
 
 /** Access granted / level-up fanfare. */
@@ -176,8 +215,10 @@ function isClickable(target: EventTarget | null): Element | null {
   if (!(target instanceof Element)) return null
   if (target.closest('[data-sfx="off"]')) return null
   if (target.closest('canvas')) return null
+  // Arcade tiles own their SFX — don't double-fire the UI click tick.
+  if (target.closest('.memory-tile, .glow-cell, .dash-canvas')) return null
   return target.closest(
-    'button, a, [role="button"], input[type="submit"], input[type="button"], .nav-dock button, .memory-tile, .glow-cell, .presets button, .deck-select button, .theme-card button',
+    'button, a, [role="button"], input[type="submit"], input[type="button"], .nav-dock button, .presets button, .deck-select button, .theme-card button',
   )
 }
 

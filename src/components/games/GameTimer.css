@@ -43,17 +43,22 @@
   text-transform: uppercase;
 }
 
+.game-timer.pulse .game-timer-ring {
+  animation: timer-pulse 1s ease-in-out infinite;
+}
+
+/* Urgent must win over pulse so the last seconds actually read as danger. */
 .game-timer.urgent .game-timer-ring {
   background: conic-gradient(
     from -90deg,
     var(--danger) calc(var(--ratio) * 1turn),
     rgba(255, 255, 255, 0.08) 0
   );
-  animation: timer-blink 0.7s ease-in-out infinite;
+  animation: timer-blink 0.55s ease-in-out infinite;
 }
 
-.game-timer.pulse .game-timer-ring {
-  animation: timer-pulse 1s ease-in-out infinite;
+.game-timer.urgent.pulse .game-timer-ring {
+  animation: timer-blink 0.55s ease-in-out infinite;
 }
 
 @keyframes timer-blink {

@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { isJumpKey } from '../../lib/gameInput'
+import { isJumpKey, isRestartKey } from '../../lib/gameInput'
 import {
-  playAccessDeniedSfx,
   playCoinSfx,
+  playCrashSfx,
   playJumpSfx,
   playRestartSfx,
   playWinSfx,
@@ -161,11 +161,12 @@ export function DashGame({ onFinish, onBack }: Props) {
         return { x, w: 26, h: 26, kind: 'spike' }
       }
       if (roll < 0.72) {
-        const h = 30 + Math.floor(Math.random() * 12)
+        const h = 28 + Math.floor(Math.random() * 10)
         return { x, w: 30, h, kind: 'block' }
       }
       if (roll < 0.9) {
-        return { x, w: 36, h: 46, kind: 'block' }
+        // Tall enough to demand a clean hop / land-on-top, not a coin-flip clear.
+        return { x, w: 36, h: 42, kind: 'block' }
       }
       return { x, w: 44, h: 26, kind: 'double' }
     }
@@ -203,6 +204,11 @@ export function DashGame({ onFinish, onBack }: Props) {
 
     function onKey(e: KeyboardEvent) {
       if (e.repeat) return
+      if (st.dead && isRestartKey(e.code)) {
+        e.preventDefault()
+        restartOrJump()
+        return
+      }
       if (!isJumpKey(e.code)) return
       e.preventDefault()
       restartOrJump()
@@ -292,7 +298,7 @@ export function DashGame({ onFinish, onBack }: Props) {
       st.dead = true
       st.shake = 10
       st.jumpBufferedUntil = 0
-      playAccessDeniedSfx()
+      playCrashSfx()
       for (let i = 0; i < 18; i++) {
         st.particles.push({
           x: PLAYER_X + PLAYER_SIZE / 2,
@@ -327,6 +333,10 @@ export function DashGame({ onFinish, onBack }: Props) {
       }
     }
 
+    function coinBob(c: CoinPickup) {
+      return Math.sin(st.distance * 0.08 + c.x * 0.05) * 3
+    }
+
     function collectCoins() {
       const px = PLAYER_X + 3
       const py = st.y + 3
@@ -334,7 +344,8 @@ export function DashGame({ onFinish, onBack }: Props) {
       const ph = PLAYER_SIZE - 6
       let gained = 0
       st.coins = st.coins.filter((c) => {
-        const hit = aabb(px, py, pw, ph, c.x - c.r, c.y - c.r, c.r * 2, c.r * 2)
+        const cy = c.y + coinBob(c)
+        const hit = aabb(px, py, pw, ph, c.x - c.r, cy - c.r, c.r * 2, c.r * 2)
         if (!hit) return true
         gained += c.value
         return false
@@ -381,8 +392,7 @@ export function DashGame({ onFinish, onBack }: Props) {
 
       // Floating coins
       for (const c of st.coins) {
-        const bob = Math.sin(st.distance * 0.08 + c.x * 0.05) * 3
-        const cy = c.y + bob
+        const cy = c.y + coinBob(c)
         ctx.beginPath()
         ctx.fillStyle = '#fbbf24'
         ctx.arc(c.x, cy, c.r, 0, Math.PI * 2)
@@ -572,10 +582,9 @@ export function DashGame({ onFinish, onBack }: Props) {
           ← Arcade
         </button>
         <div className="mini-stats">
-          <span className="score-pill">Score {score}</span>
           <span className="score-pill">◉ {coinsGrabbed}</span>
-          <span>Best run goal {WIN_SCORE}</span>
-          <span>{alive ? 'Alive' : 'Crashed'}</span>
+          <span>Clear {WIN_SCORE}</span>
+          <span>{alive ? 'Running' : 'Crashed'}</span>
         </div>
       </div>
 
@@ -583,16 +592,15 @@ export function DashGame({ onFinish, onBack }: Props) {
         <div>
           <h2 className="section-title">Spike Dash</h2>
           <p className="section-sub">
-            Hop spikes and snag golden coins mid-run — they add to your coin count when the run
-            ends.
+            Jump spikes, land on blocks, grab coins. Click / Space to hop — again after a crash.
           </p>
         </div>
         <div className="hud-row">
-          <div className="dash-score-badge" aria-live="polite">
+          <div className="score-badge" aria-live="polite">
             <strong>{score}</strong>
             <span>Score</span>
           </div>
-          <div className="dash-score-badge coin-grab-badge" aria-live="polite">
+          <div className="score-badge coin-grab-badge" aria-live="polite">
             <strong>{coinsGrabbed}</strong>
             <span>Coins</span>
           </div>
@@ -610,27 +618,32 @@ export function DashGame({ onFinish, onBack }: Props) {
         />
         <p className="play-hint">
           {alive
-            ? 'Controls: click · Space · ↑ · W · Enter · Z'
-            : 'Crashed — click the track or press Space / Enter to play again'}
+            ? 'Click · Space · ↑ · W · Enter · Z'
+            : 'Click the track · Space / Enter / R — play again'}
         </p>
 
         {finalScore != null && !alive && (
           <div className="mini-end overlay-end">
             <p>
-              {finalScore != null && finalScore >= WIN_SCORE
-                ? 'Access granted'
-                : 'Access denied'}{' '}
-              — final score <strong>{finalScore}</strong>
+              {finalScore >= WIN_SCORE ? 'Run cleared' : 'Crashed'} —{' '}
+              <strong>{finalScore}</strong> pts
               {coinsGrabbed > 0 ? (
                 <>
                   {' '}
-                  · grabbed <strong>{coinsGrabbed}◉</strong>
+                  · <strong>{coinsGrabbed}◉</strong>
                 </>
               ) : null}
-              {finalScore >= WIN_SCORE ? ' — run cleared!' : '. Click the track to try again.'}
+              {finalScore >= WIN_SCORE ? ' — access granted.' : ` · clear ${WIN_SCORE} to win.`}
             </p>
-            <div className="dash-end-actions">
-              <button type="button" className="btn btn-ember" onClick={() => restartRef.current()}>
+            <div className="game-end-actions">
+              <button
+                type="button"
+                className="btn btn-ember"
+                onClick={() => {
+                  playRestartSfx()
+                  restartRef.current()
+                }}
+              >
                 Play again
               </button>
               <button type="button" className="btn btn-ghost" onClick={onBack}>

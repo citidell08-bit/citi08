@@ -8,7 +8,8 @@ export const JUMP_KEYS = new Set([
   'KeyZ',
 ])
 
-export const RESTART_KEYS = new Set(['Space', 'Enter', 'KeyR', 'KeyW', 'ArrowUp'])
+/** End-screen restart only — keep jump keys out so Math/Glow don't fight typing. */
+export const RESTART_KEYS = new Set(['Space', 'Enter', 'KeyR'])
 
 export function isJumpKey(code: string): boolean {
   return JUMP_KEYS.has(code)

@@ -1,5 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { isRestartKey } from '../../lib/gameInput'
+import {
+  playFlipSfx,
+  playMatchSfx,
+  playMismatchSfx,
+  playRestartSfx,
+  playWinSfx,
+} from '../../lib/sfx'
 import type { MiniGameResult } from '../../types'
 import { GameTimer } from './GameTimer'
 
@@ -29,7 +36,8 @@ const SYMBOL_POOL = [
 
 const PAIR_COUNT = 8
 const DURATION = 60
-const FLIP_REVEAL_MS = 300
+/** Long enough to read a mismatch before cards flip back. */
+const FLIP_REVEAL_MS = 560
 
 interface Tile {
   id: string
@@ -97,6 +105,7 @@ export function MemoryGame({ onFinish, onBack }: Props) {
   focusRef.current = focusIndex
 
   const matchedCount = useMemo(() => tiles.filter((t) => t.matched).length, [tiles])
+  const pairsFound = matchedCount / 2
   const won = done && matchedCount === tiles.length
 
   useEffect(() => {
@@ -133,6 +142,7 @@ export function MemoryGame({ onFinish, onBack }: Props) {
     reportedRef.current = true
     setRunning(false)
     setDone(true)
+    playWinSfx()
     const xp = Math.max(12, 40 - finalMoves + Math.floor(seconds / 4))
     onFinishRef.current({
       gameId: 'memory',
@@ -148,6 +158,7 @@ export function MemoryGame({ onFinish, onBack }: Props) {
       window.clearTimeout(flipTimerRef.current)
       flipTimerRef.current = null
     }
+    playRestartSfx()
     const nextRound = round + 1
     reportedRef.current = false
     movesRef.current = 0
@@ -174,6 +185,7 @@ export function MemoryGame({ onFinish, onBack }: Props) {
       return
     }
 
+    playFlipSfx()
     const nextFlipped = [...flippedRef.current, index]
     flippedRef.current = nextFlipped
     setFlipped(nextFlipped)
@@ -188,6 +200,9 @@ export function MemoryGame({ onFinish, onBack }: Props) {
     lockRef.current = true
     const [a, b] = nextFlipped
     const match = currentTiles[a].symbol === currentTiles[b].symbol
+
+    if (match) playMatchSfx()
+    else playMismatchSfx()
 
     flipTimerRef.current = window.setTimeout(() => {
       flipTimerRef.current = null
@@ -208,7 +223,7 @@ export function MemoryGame({ onFinish, onBack }: Props) {
       setFlipped([])
       lockRef.current = false
       setLock(false)
-    }, FLIP_REVEAL_MS)
+    }, match ? 220 : FLIP_REVEAL_MS)
   }
 
   playAgainRef.current = playAgain
@@ -264,12 +279,11 @@ export function MemoryGame({ onFinish, onBack }: Props) {
           ← Arcade
         </button>
         <div className="mini-stats">
-          <span className="score-pill">Score {(matchedCount / 2) * 100}</span>
-          <span>Round {round}</span>
-          <span>Moves {moves}</span>
+          <span className="score-pill">Moves {moves}</span>
           <span>
-            Pairs {matchedCount / 2}/{PAIR_COUNT}
+            Pairs {pairsFound}/{PAIR_COUNT}
           </span>
+          <span>Board {round}</span>
         </div>
       </div>
 
@@ -277,19 +291,35 @@ export function MemoryGame({ onFinish, onBack }: Props) {
         <div>
           <h2 className="section-title">Memory Nest</h2>
           <p className="section-sub">
-            Click tiles or use arrows + Space/Enter. When done, Space restarts a random board.
+            Match all pairs. Fewer moves is better — your best record saves the lowest clear.
           </p>
         </div>
         <div className="hud-row">
-          <div className="dash-score-badge" aria-live="polite">
-            <strong>{(matchedCount / 2) * 100}</strong>
-            <span>Score</span>
+          <div className="score-badge" aria-live="polite">
+            <strong>{moves}</strong>
+            <span>Moves</span>
+          </div>
+          <div className="score-badge" aria-live="polite">
+            <strong>
+              {pairsFound}/{PAIR_COUNT}
+            </strong>
+            <span>Pairs</span>
           </div>
           <GameTimer seconds={seconds} total={DURATION} pulsing={running && !done} />
         </div>
       </div>
 
-      <div className="panel play-board">
+      <div
+        className={`panel play-board ${done ? 'memory-ended' : ''}`}
+        onPointerDown={
+          done
+            ? (e) => {
+                if ((e.target as HTMLElement).closest('button.btn, .memory-tile')) return
+                playAgain()
+              }
+            : undefined
+        }
+      >
         <div className="memory-grid" aria-label="Memory board" key={`board-${round}`}>
           {tiles.map((tile, index) => {
             const open = flipped.includes(index) || tile.matched
@@ -300,14 +330,12 @@ export function MemoryGame({ onFinish, onBack }: Props) {
                 className={`memory-tile ${open ? 'open' : ''} ${tile.matched ? 'matched' : ''} ${focusIndex === index ? 'focused' : ''}`}
                 onPointerDown={(e) => {
                   e.preventDefault()
-                  if (done) {
-                    playAgain()
-                    return
-                  }
+                  e.stopPropagation()
+                  if (done) return
                   flip(index)
                 }}
                 aria-label={open ? `Tile ${tile.symbol}` : 'Hidden tile'}
-                disabled={!done && lock && !open}
+                disabled={done || (lock && !open)}
               >
                 <span>{open ? tile.symbol : '?'}</span>
               </button>
@@ -319,13 +347,11 @@ export function MemoryGame({ onFinish, onBack }: Props) {
           <div className="mini-end overlay-end">
             <p>
               {won
-                ? `Nest cleared in ${moves} moves!`
-                : 'Time is up — try a new random board.'}
+                ? `Nest cleared in ${moves} moves.`
+                : `Time’s up — ${pairsFound}/${PAIR_COUNT} pairs found.`}
             </p>
-            <p className="section-sub memory-again-hint">
-              Click a tile or press Space / Enter / R for a fresh random board.
-            </p>
-            <div className="dash-end-actions">
+            <p className="section-sub again-hint">Space / Enter / R — new random board</p>
+            <div className="game-end-actions">
               <button type="button" className="btn btn-ember" onClick={playAgain}>
                 Play again
               </button>

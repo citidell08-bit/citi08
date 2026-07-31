@@ -19,34 +19,39 @@ const CATALOG: {
   title: string
   blurb: string
   badge: string
+  goal: string
   bestKey: ScoreKey
 }[] = [
   {
     id: 'dash',
     title: 'Spike Dash',
-    blurb: 'Geometry-dash style runner — jump spikes and blocks. Don’t crash.',
+    blurb: 'Geometry Dash–style runner. Clear spikes, land on blocks, grab coins.',
     badge: 'Runner',
+    goal: 'Clear 120',
     bestKey: 'bestDashScore',
   },
   {
     id: 'memory',
     title: 'Memory Nest',
-    blurb: 'Flip tiles and match pairs before time runs out. Track your score.',
+    blurb: 'Match every pair before the clock. Lower moves is a better record.',
     badge: 'Memory',
+    goal: 'Clear board',
     bestKey: 'bestMemoryMoves',
   },
   {
     id: 'math',
     title: 'Quick Sum',
-    blurb: '30-second arithmetic sprint. Higher score wins more XP.',
+    blurb: '30-second arithmetic sprint. Difficulty ramps as you score.',
     badge: 'Speed',
+    goal: '8+ correct',
     bestKey: 'bestMathScore',
   },
   {
     id: 'glow',
     title: 'Glow Catch',
-    blurb: 'Tap glowing cells before they fade. Score every hit.',
+    blurb: 'Hit lit cells before they fade. Coin cells bank ◉ when you catch them.',
     badge: 'Reflex',
+    goal: '7+ hits',
     bestKey: 'bestGlowScore',
   },
 ]
@@ -76,10 +81,11 @@ export function Games({ state, onComplete, onSpend, onNavigate, onActiveChange }
 
   const handleFinish = useCallback(
     (result: MiniGameResult) => {
-      const dedupe = `${result.gameId}:${result.score}:${result.xp}:${result.won}:${result.coinsEarned ?? 0}`
+      // Dedupe only true double-fires from the same finish event, not same-score retries.
+      const dedupe = `${result.gameId}:${result.score}:${result.xp}:${result.won}:${result.coinsEarned ?? 0}:${result.label}`
       if (rewardedRef.current.has(dedupe)) return
       rewardedRef.current.add(dedupe)
-      window.setTimeout(() => rewardedRef.current.delete(dedupe), 1500)
+      window.setTimeout(() => rewardedRef.current.delete(dedupe), 800)
       onComplete(result)
     },
     [onComplete],
@@ -134,7 +140,7 @@ export function Games({ state, onComplete, onSpend, onNavigate, onActiveChange }
       <header>
         <h2 className="section-title">Cyber Arcade</h2>
         <p className="section-sub">
-          Buy a game once with coins — then play it free anytime. Scores save forever.
+          Buy once, play free forever. Personal bests save on this device.
         </p>
       </header>
 
@@ -145,7 +151,7 @@ export function Games({ state, onComplete, onSpend, onNavigate, onActiveChange }
           </strong>
           <p>
             {arcadeUnlocked
-              ? 'Buy to unlock. Owned games never charge you again.'
+              ? 'Owned games never charge again. Win rounds for a small coin bonus.'
               : 'Clear at least one daily quest to unlock play. Level-ups also mint coins.'}
           </p>
         </div>
@@ -156,30 +162,30 @@ export function Games({ state, onComplete, onSpend, onNavigate, onActiveChange }
         )}
       </div>
 
-      <div className="panel games-scoreboard">
-        <div className="stat">
-          <strong>{state.coins}</strong>
-          <span>Coins</span>
-        </div>
-        <div className="stat">
-          <strong>{state.ownedGames.length}</strong>
-          <span>Owned</span>
-        </div>
+      <div className="panel games-scoreboard" aria-label="Arcade records">
         <div className="stat">
           <strong>{state.bestDashScore}</strong>
-          <span>Best dash</span>
-        </div>
-        <div className="stat">
-          <strong>{state.bestMathScore}</strong>
-          <span>Best sum</span>
-        </div>
-        <div className="stat">
-          <strong>{state.bestGlowScore}</strong>
-          <span>Best glow</span>
+          <span>Dash best</span>
         </div>
         <div className="stat">
           <strong>{state.bestMemoryMoves ?? '—'}</strong>
-          <span>Best memory</span>
+          <span>Memory moves</span>
+        </div>
+        <div className="stat">
+          <strong>{state.bestMathScore}</strong>
+          <span>Sum best</span>
+        </div>
+        <div className="stat">
+          <strong>{state.bestGlowScore}</strong>
+          <span>Glow best</span>
+        </div>
+        <div className="stat">
+          <strong>{state.ownedGames.length}/4</strong>
+          <span>Owned</span>
+        </div>
+        <div className="stat">
+          <strong>{state.totalGamesPlayed}</strong>
+          <span>Played</span>
         </div>
       </div>
 
@@ -197,10 +203,13 @@ export function Games({ state, onComplete, onSpend, onNavigate, onActiveChange }
                 <em>{game.badge}</em>
                 <strong>{game.title}</strong>
                 <p>{game.blurb}</p>
-                <span className="game-cost">
-                  {isOwned
-                    ? `Owned · Play free · Best ${bestLabel(game.id, best)}`
-                    : `Buy once ${cost} coins · Best ${bestLabel(game.id, best)}`}
+                <span className="game-meta">
+                  <span className="game-goal">{game.goal}</span>
+                  <span className="game-cost">
+                    {isOwned
+                      ? `Owned · Best ${bestLabel(game.id, best)}`
+                      : `Buy ${cost}◉ · Best ${bestLabel(game.id, best)}`}
+                  </span>
                 </span>
               </div>
               <button

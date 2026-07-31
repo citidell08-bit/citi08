@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { cellFromKey, isRestartKey } from '../../lib/gameInput'
-import { playCoinSfx } from '../../lib/sfx'
+import { playCoinSfx, playHitSfx, playMissSfx, playRestartSfx, playWinSfx } from '../../lib/sfx'
 import type { MiniGameResult } from '../../types'
 import { GameTimer } from './GameTimer'
 
@@ -12,8 +12,10 @@ interface Props {
 const ROUNDS = 12
 const CELLS = 9
 const DURATION = 45
-/** Chance a lit cell carries a collectible coin. */
 const COIN_CHANCE = 0.38
+const WIN_HITS = 7
+/** Brief lock after a miss so mashing every cell can't cheese the round. */
+const MISS_LOCK_MS = 160
 
 export function GlowGame({ onFinish, onBack }: Props) {
   const [active, setActive] = useState<number | null>(null)
@@ -25,7 +27,8 @@ export function GlowGame({ onFinish, onBack }: Props) {
   const [finished, setFinished] = useState(false)
   const [missFlash, setMissFlash] = useState(false)
   const [seconds, setSeconds] = useState(DURATION)
-  const [windowLeft, setWindowLeft] = useState(0)
+  const [windowRatio, setWindowRatio] = useState(1)
+  const [completedAll, setCompletedAll] = useState(false)
 
   const timerRef = useRef<number | null>(null)
   const tickRef = useRef<number | null>(null)
@@ -38,6 +41,7 @@ export function GlowGame({ onFinish, onBack }: Props) {
   const runningRef = useRef(true)
   const activeRef = useRef<number | null>(null)
   const hasCoinRef = useRef(false)
+  const missLockUntilRef = useRef(0)
   const onFinishRef = useRef(onFinish)
   const spawnRef = useRef<(nextRound: number) => void>(() => {})
   const playAgainRef = useRef<() => void>(() => {})
@@ -70,6 +74,15 @@ export function GlowGame({ onFinish, onBack }: Props) {
     }
   }
 
+  function flashMiss() {
+    setMissFlash(true)
+    clearMiss()
+    missTimerRef.current = window.setTimeout(() => {
+      missTimerRef.current = null
+      setMissFlash(false)
+    }, 140)
+  }
+
   function endGame(completedRounds: boolean) {
     if (reportedRef.current) return
     reportedRef.current = true
@@ -77,25 +90,25 @@ export function GlowGame({ onFinish, onBack }: Props) {
     clearTick()
     setRunning(false)
     setFinished(true)
+    setCompletedAll(completedRounds)
     setActive(null)
     setHasCoin(false)
+    setWindowRatio(0)
     const final = scoreRef.current
     const earned = coinsRef.current
+    const won = final >= WIN_HITS
+    if (won) playWinSfx()
     const xp = Math.max(8, final * 5)
     onFinishRef.current({
       gameId: 'glow',
-      won: final >= 7,
+      won,
       score: final,
       xp,
       coinsEarned: earned,
       label:
         earned > 0
-          ? completedRounds
-            ? `Glow Catch · ${final}/${ROUNDS} · ${earned}◉`
-            : `Glow Catch · ${final} hits · ${earned}◉`
-          : completedRounds
-            ? `Glow Catch · ${final}/${ROUNDS}`
-            : `Glow Catch · ${final} hits`,
+          ? `Glow Catch · ${final} hits · ${earned}◉`
+          : `Glow Catch · ${final} hits`,
     })
   }
 
@@ -113,27 +126,24 @@ export function GlowGame({ onFinish, onBack }: Props) {
     setActive(cell)
     setHasCoin(coinOnCell)
     setRound(nextRound)
-    setWindowLeft(Math.ceil(windowMs / 1000))
+    setWindowRatio(1)
     clearTimer()
     clearTick()
 
     const startedAt = performance.now()
     tickRef.current = window.setInterval(() => {
       const left = Math.max(0, windowMs - (performance.now() - startedAt))
-      setWindowLeft(Math.ceil(left / 1000))
-    }, 200)
+      setWindowRatio(left / windowMs)
+    }, 40)
 
     timerRef.current = window.setTimeout(() => {
       clearTick()
       setActive(null)
       setHasCoin(false)
       hasCoinRef.current = false
-      setMissFlash(true)
-      clearMiss()
-      missTimerRef.current = window.setTimeout(() => {
-        missTimerRef.current = null
-        setMissFlash(false)
-      }, 140)
+      setWindowRatio(0)
+      playMissSfx()
+      flashMiss()
       spawnRef.current(nextRound + 1)
     }, windowMs)
   }
@@ -142,18 +152,21 @@ export function GlowGame({ onFinish, onBack }: Props) {
     clearTimer()
     clearTick()
     clearMiss()
+    playRestartSfx()
     reportedRef.current = false
     scoreRef.current = 0
     coinsRef.current = 0
     roundRef.current = 0
     hasCoinRef.current = false
+    missLockUntilRef.current = 0
     setScore(0)
     setCoinsGrabbed(0)
     setRound(0)
     setActive(null)
     setHasCoin(false)
     setMissFlash(false)
-    setWindowLeft(0)
+    setWindowRatio(1)
+    setCompletedAll(false)
     setFinished(false)
     setSeconds(DURATION)
     setRunning(true)
@@ -166,6 +179,8 @@ export function GlowGame({ onFinish, onBack }: Props) {
       return
     }
     if (!runningRef.current || activeRef.current == null) return
+    if (performance.now() < missLockUntilRef.current) return
+
     if (index === activeRef.current) {
       clearTimer()
       clearTick()
@@ -175,18 +190,18 @@ export function GlowGame({ onFinish, onBack }: Props) {
         coinsRef.current += 1
         setCoinsGrabbed(coinsRef.current)
         playCoinSfx()
+      } else {
+        playHitSfx()
       }
       setActive(null)
       setHasCoin(false)
       hasCoinRef.current = false
+      setWindowRatio(0)
       spawnRef.current(roundRef.current + 1)
     } else {
-      setMissFlash(true)
-      clearMiss()
-      missTimerRef.current = window.setTimeout(() => {
-        missTimerRef.current = null
-        setMissFlash(false)
-      }, 140)
+      playMissSfx()
+      flashMiss()
+      missLockUntilRef.current = performance.now() + MISS_LOCK_MS
     }
   }
 
@@ -242,12 +257,11 @@ export function GlowGame({ onFinish, onBack }: Props) {
           ← Arcade
         </button>
         <div className="mini-stats">
-          <span className="score-pill">Score {score}</span>
           <span className="score-pill">◉ {coinsGrabbed}</span>
           <span>
             Round {Math.min(round, ROUNDS)}/{ROUNDS}
           </span>
-          <span>Glow {windowLeft}s</span>
+          <span>Goal {WIN_HITS}+</span>
         </div>
       </div>
 
@@ -255,15 +269,15 @@ export function GlowGame({ onFinish, onBack }: Props) {
         <div>
           <h2 className="section-title">Glow Catch</h2>
           <p className="section-sub">
-            Tap the lit cell — when a coin glows with it, grab that cell to bank the coin.
+            Tap the lit cell (1–9). Coin cells bank ◉ when you hit them in time.
           </p>
         </div>
         <div className="hud-row">
-          <div className="dash-score-badge" aria-live="polite">
+          <div className="score-badge" aria-live="polite">
             <strong>{score}</strong>
-            <span>Score</span>
+            <span>Hits</span>
           </div>
-          <div className="dash-score-badge coin-grab-badge" aria-live="polite">
+          <div className="score-badge coin-grab-badge" aria-live="polite">
             <strong>{coinsGrabbed}</strong>
             <span>Coins</span>
           </div>
@@ -286,6 +300,19 @@ export function GlowGame({ onFinish, onBack }: Props) {
         tabIndex={finished ? 0 : undefined}
         aria-label={finished ? 'Round over — tap to play again' : undefined}
       >
+        {!finished && (
+          <div
+            className="glow-window"
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round(windowRatio * 100)}
+            aria-label="Glow window remaining"
+          >
+            <div className="glow-window-fill" style={{ transform: `scaleX(${windowRatio})` }} />
+          </div>
+        )}
+
         <div className="glow-grid" aria-label="Glow catch board">
           {Array.from({ length: CELLS }, (_, i) => {
             const lit = active === i
@@ -310,7 +337,11 @@ export function GlowGame({ onFinish, onBack }: Props) {
                         : `Cell ${i + 1}`
                 }
               >
-                {coinLit ? <span className="glow-coin" aria-hidden="true">◉</span> : null}
+                {coinLit ? (
+                  <span className="glow-coin" aria-hidden="true">
+                    ◉
+                  </span>
+                ) : null}
               </button>
             )
           })}
@@ -319,25 +350,22 @@ export function GlowGame({ onFinish, onBack }: Props) {
         {finished && (
           <div className="mini-end overlay-end">
             <p>
-              Caught <strong>{score}</strong> of {ROUNDS}
+              {completedAll ? 'Board clear' : 'Time’s up'} —{' '}
+              <strong>{score}</strong>/{ROUNDS} hits
               {coinsGrabbed > 0 ? (
                 <>
                   {' '}
-                  · grabbed <strong>{coinsGrabbed}◉</strong>
+                  · <strong>{coinsGrabbed}◉</strong>
                 </>
               ) : null}
-              {score >= 7 ? ' — sharp!' : '.'}
+              {score >= WIN_HITS ? ' — sharp.' : ` · need ${WIN_HITS} to win.`}
             </p>
-            <p className="section-sub memory-again-hint">
-              Click the board or press Space / Enter / R for a fresh round.
-            </p>
-            <div className="dash-end-actions">
+            <p className="section-sub again-hint">Space / Enter / R — play again</p>
+            <div className="game-end-actions">
               <button
                 type="button"
                 className="btn btn-ember"
-                onPointerDown={(e) => {
-                  e.stopPropagation()
-                }}
+                onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => {
                   e.stopPropagation()
                   playAgain()
