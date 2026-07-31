@@ -254,6 +254,41 @@ export function playWinSfx(): void {
   playAccessGrantedSfx()
 }
 
+/**
+ * Birthday-party style celebration — short “Happy Birthday”–flavored fanfare
+ * for clearing Memory Nest (and similar full clears).
+ */
+export function playCelebrateSfx(): void {
+  unlockAudio()
+  // Phrase 1: C C D C F E
+  const phrase1: Array<[number, number]> = [
+    [523.25, 0],
+    [523.25, 0.14],
+    [587.33, 0.3],
+    [523.25, 0.5],
+    [698.46, 0.7],
+    [659.25, 0.96],
+  ]
+  // Phrase 2: C C D C G F
+  const phrase2: Array<[number, number]> = [
+    [523.25, 1.28],
+    [523.25, 1.42],
+    [587.33, 1.58],
+    [523.25, 1.78],
+    [783.99, 1.98],
+    [698.46, 2.24],
+  ]
+  for (const [freq, delay] of [...phrase1, ...phrase2]) {
+    tone(freq, 0.16, { type: 'triangle', gain: 0.075, delay, attack: 0.008 })
+    tone(freq * 2, 0.1, { type: 'sine', gain: 0.028, delay: delay + 0.02 })
+  }
+  // Party sparkles / confetti chirps
+  tone(1568, 0.07, { type: 'sine', gain: 0.04, delay: 0.85 })
+  tone(2093, 0.08, { type: 'sine', gain: 0.035, delay: 1.15 })
+  tone(2349, 0.1, { type: 'sine', gain: 0.03, delay: 2.35 })
+  tone(2794, 0.12, { type: 'sine', gain: 0.025, delay: 2.5 })
+}
+
 export function playRestartSfx(): void {
   unlockAudio()
   tone(420, 0.05, { type: 'square', gain: 0.065, slideTo: 680 })

@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { isRestartKey } from '../../lib/gameInput'
 import {
+  playCelebrateSfx,
   playFlipSfx,
   playMatchSfx,
   playMismatchSfx,
   playRestartSfx,
-  playWinSfx,
   unlockAudio,
 } from '../../lib/sfx'
 import type { MiniGameResult } from '../../types'
@@ -33,12 +33,14 @@ const SYMBOL_POOL = [
   '⊕',
   '❄',
   '☾',
-]
+] as const
 
 const PAIR_COUNT = 8
+const TILE_COUNT = PAIR_COUNT * 2
 const DURATION = 60
 /** Long enough to read a mismatch before cards flip back. */
 const FLIP_REVEAL_MS = 560
+const MATCH_HOLD_MS = 220
 
 interface Tile {
   id: string
@@ -74,6 +76,10 @@ function makeBoard(round: number): Tile[] {
   return shuffle(pairs)
 }
 
+function inBounds(index: number, len: number): boolean {
+  return Number.isInteger(index) && index >= 0 && index < len
+}
+
 export function MemoryGame({ onFinish, onBack }: Props) {
   const [round, setRound] = useState(1)
   const [tiles, setTiles] = useState<Tile[]>(() => makeBoard(1))
@@ -81,11 +87,14 @@ export function MemoryGame({ onFinish, onBack }: Props) {
   const [moves, setMoves] = useState(0)
   const [lock, setLock] = useState(false)
   const [done, setDone] = useState(false)
+  const [celebrating, setCelebrating] = useState(false)
   const [seconds, setSeconds] = useState(DURATION)
   const [running, setRunning] = useState(true)
   const [focusIndex, setFocusIndex] = useState(0)
+
   const reportedRef = useRef(false)
   const movesRef = useRef(0)
+  const secondsRef = useRef(DURATION)
   const flipTimerRef = useRef<number | null>(null)
   const doneRef = useRef(false)
   const lockRef = useRef(false)
@@ -96,6 +105,7 @@ export function MemoryGame({ onFinish, onBack }: Props) {
   const onFinishRef = useRef(onFinish)
   const playAgainRef = useRef<() => void>(() => {})
   const flipRef = useRef<(index: number) => void>(() => {})
+  const mountedRef = useRef(true)
 
   onFinishRef.current = onFinish
   doneRef.current = done
@@ -104,16 +114,24 @@ export function MemoryGame({ onFinish, onBack }: Props) {
   tilesRef.current = tiles
   runningRef.current = running
   focusRef.current = focusIndex
+  secondsRef.current = seconds
 
   const matchedCount = useMemo(() => tiles.filter((t) => t.matched).length, [tiles])
   const pairsFound = matchedCount / 2
-  const won = done && matchedCount === tiles.length
+  const won = done && matchedCount === TILE_COUNT
+
+  function clearFlipTimer() {
+    if (flipTimerRef.current != null) {
+      window.clearTimeout(flipTimerRef.current)
+      flipTimerRef.current = null
+    }
+  }
 
   useEffect(() => {
+    mountedRef.current = true
     return () => {
-      if (flipTimerRef.current != null) {
-        window.clearTimeout(flipTimerRef.current)
-      }
+      mountedRef.current = false
+      clearFlipTimer()
     }
   }, [])
 
@@ -122,6 +140,8 @@ export function MemoryGame({ onFinish, onBack }: Props) {
     if (seconds <= 0) {
       setRunning(false)
       setDone(true)
+      doneRef.current = true
+      clearFlipTimer()
       if (!reportedRef.current) {
         reportedRef.current = true
         onFinishRef.current({
@@ -134,17 +154,22 @@ export function MemoryGame({ onFinish, onBack }: Props) {
       }
       return
     }
-    const id = window.setTimeout(() => setSeconds((s) => s - 1), 1000)
+    const id = window.setTimeout(() => setSeconds((s) => Math.max(0, s - 1)), 1000)
     return () => window.clearTimeout(id)
   }, [running, seconds, done])
 
   function finishWin(finalMoves: number) {
-    if (reportedRef.current) return
+    if (reportedRef.current || !mountedRef.current) return
     reportedRef.current = true
+    doneRef.current = true
+    lockRef.current = true
+    clearFlipTimer()
     setRunning(false)
     setDone(true)
-    playWinSfx()
-    const xp = Math.max(12, 40 - finalMoves + Math.floor(seconds / 4))
+    setLock(true)
+    setCelebrating(true)
+    playCelebrateSfx()
+    const xp = Math.max(12, 40 - finalMoves + Math.floor(secondsRef.current / 4))
     onFinishRef.current({
       gameId: 'memory',
       won: true,
@@ -155,20 +180,23 @@ export function MemoryGame({ onFinish, onBack }: Props) {
   }
 
   function playAgain() {
-    if (flipTimerRef.current != null) {
-      window.clearTimeout(flipTimerRef.current)
-      flipTimerRef.current = null
-    }
+    if (!mountedRef.current) return
+    clearFlipTimer()
+    unlockAudio()
     playRestartSfx()
     const nextRound = round + 1
     reportedRef.current = false
     movesRef.current = 0
+    doneRef.current = false
+    lockRef.current = false
+    flippedRef.current = []
     setRound(nextRound)
     setTiles(makeBoard(nextRound))
     setFlipped([])
     setMoves(0)
     setLock(false)
     setDone(false)
+    setCelebrating(false)
     setSeconds(DURATION)
     setRunning(true)
     setFocusIndex(0)
@@ -176,16 +204,14 @@ export function MemoryGame({ onFinish, onBack }: Props) {
 
   function flip(index: number) {
     unlockAudio()
+    if (doneRef.current || !runningRef.current || lockRef.current) return
+
     const currentTiles = tilesRef.current
-    if (
-      !runningRef.current ||
-      lockRef.current ||
-      doneRef.current ||
-      currentTiles[index]?.matched ||
-      flippedRef.current.includes(index)
-    ) {
-      return
-    }
+    if (!inBounds(index, currentTiles.length)) return
+    const tile = currentTiles[index]
+    if (!tile || tile.matched || flippedRef.current.includes(index)) return
+    // Never flip more than one open card while waiting for a pair resolve
+    if (flippedRef.current.length >= 2) return
 
     playFlipSfx()
     const nextFlipped = [...flippedRef.current, index]
@@ -195,37 +221,51 @@ export function MemoryGame({ onFinish, onBack }: Props) {
 
     if (nextFlipped.length < 2) return
 
+    const [a, b] = nextFlipped
+    if (!inBounds(a, currentTiles.length) || !inBounds(b, currentTiles.length)) {
+      flippedRef.current = []
+      setFlipped([])
+      return
+    }
+
     const nextMoves = movesRef.current + 1
     movesRef.current = nextMoves
     setMoves(nextMoves)
     setLock(true)
     lockRef.current = true
-    const [a, b] = nextFlipped
-    const match = currentTiles[a].symbol === currentTiles[b].symbol
 
+    const match = currentTiles[a].symbol === currentTiles[b].symbol
     if (match) playMatchSfx()
     else playMismatchSfx()
 
+    clearFlipTimer()
     flipTimerRef.current = window.setTimeout(() => {
       flipTimerRef.current = null
+      if (!mountedRef.current || doneRef.current) return
+
       if (match) {
-        let cleared = false
-        setTiles((prev) => {
-          const updated = prev.map((t, i) =>
-            i === a || i === b ? { ...t, matched: true } : t,
-          )
-          cleared = updated.every((t) => t.matched)
-          return updated
-        })
+        const updated = tilesRef.current.map((t, i) =>
+          i === a || i === b ? { ...t, matched: true } : t,
+        )
+        tilesRef.current = updated
+        setTiles(updated)
+        const cleared = updated.length === TILE_COUNT && updated.every((t) => t.matched)
+        flippedRef.current = []
+        setFlipped([])
         if (cleared) {
-          queueMicrotask(() => finishWin(nextMoves))
+          finishWin(nextMoves)
+          return
         }
+      } else {
+        flippedRef.current = []
+        setFlipped([])
       }
-      flippedRef.current = []
-      setFlipped([])
-      lockRef.current = false
-      setLock(false)
-    }, match ? 220 : FLIP_REVEAL_MS)
+
+      if (!doneRef.current) {
+        lockRef.current = false
+        setLock(false)
+      }
+    }, match ? MATCH_HOLD_MS : FLIP_REVEAL_MS)
   }
 
   playAgainRef.current = playAgain
@@ -244,25 +284,24 @@ export function MemoryGame({ onFinish, onBack }: Props) {
       if (!runningRef.current) return
 
       const cols = 4
-      const total = PAIR_COUNT * 2
       if (e.code === 'ArrowRight') {
         e.preventDefault()
-        setFocusIndex((i) => (i + 1) % total)
+        setFocusIndex((i) => (i + 1) % TILE_COUNT)
         return
       }
       if (e.code === 'ArrowLeft') {
         e.preventDefault()
-        setFocusIndex((i) => (i - 1 + total) % total)
+        setFocusIndex((i) => (i - 1 + TILE_COUNT) % TILE_COUNT)
         return
       }
       if (e.code === 'ArrowDown') {
         e.preventDefault()
-        setFocusIndex((i) => (i + cols) % total)
+        setFocusIndex((i) => (i + cols) % TILE_COUNT)
         return
       }
       if (e.code === 'ArrowUp') {
         e.preventDefault()
-        setFocusIndex((i) => (i - cols + total) % total)
+        setFocusIndex((i) => (i - cols + TILE_COUNT) % TILE_COUNT)
         return
       }
       if (e.code === 'Enter' || e.code === 'Space') {
@@ -275,7 +314,7 @@ export function MemoryGame({ onFinish, onBack }: Props) {
   }, [])
 
   return (
-    <div className="mini-game play-stage">
+    <div className={`mini-game play-stage ${celebrating ? 'memory-celebrate' : ''}`}>
       <div className="mini-top">
         <button type="button" className="btn btn-ghost" onClick={onBack}>
           ← Arcade
@@ -293,7 +332,7 @@ export function MemoryGame({ onFinish, onBack }: Props) {
         <div>
           <h2 className="section-title">Memory Nest</h2>
           <p className="section-sub">
-            Match all pairs. Fewer moves is better — your best record saves the lowest clear.
+            Match every pair. Fewer moves is better — your best record keeps the lowest clear.
           </p>
         </div>
         <div className="hud-row">
@@ -312,7 +351,7 @@ export function MemoryGame({ onFinish, onBack }: Props) {
       </div>
 
       <div
-        className={`panel play-board ${done ? 'memory-ended' : ''}`}
+        className={`panel play-board ${done ? 'memory-ended' : ''} ${celebrating ? 'celebrate' : ''}`}
         onPointerDown={
           done
             ? (e) => {
@@ -336,10 +375,16 @@ export function MemoryGame({ onFinish, onBack }: Props) {
                   if (done) return
                   flip(index)
                 }}
-                aria-label={open ? `Tile ${tile.symbol}` : 'Hidden tile'}
+                aria-label={
+                  tile.matched
+                    ? `Matched ${tile.symbol}`
+                    : open
+                      ? `Revealed ${tile.symbol}`
+                      : `Hidden tile ${index + 1}`
+                }
                 disabled={done || (lock && !open)}
               >
-                <span>{open ? tile.symbol : '?'}</span>
+                <span aria-hidden="true">{open ? tile.symbol : '?'}</span>
               </button>
             )
           })}
@@ -349,7 +394,7 @@ export function MemoryGame({ onFinish, onBack }: Props) {
           <div className="mini-end overlay-end">
             <p>
               {won
-                ? `Nest cleared in ${moves} moves.`
+                ? `Nest cleared in ${moves} moves — party time!`
                 : `Time’s up — ${pairsFound}/${PAIR_COUNT} pairs found.`}
             </p>
             <p className="section-sub again-hint">Space / Enter / R — new random board</p>

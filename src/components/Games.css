@@ -364,6 +364,51 @@
   cursor: pointer;
 }
 
+.play-board.celebrate {
+  animation: memory-celebrate-glow 2.4s ease;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--glow) 45%, transparent),
+    0 0 40px color-mix(in srgb, var(--ember) 35%, transparent),
+    var(--shadow);
+}
+
+.memory-celebrate .memory-tile.matched {
+  animation: memory-match-pop 280ms ease, memory-party-twinkle 1.8s ease-in-out;
+}
+
+@keyframes memory-celebrate-glow {
+  0% {
+    filter: brightness(1);
+  }
+  25% {
+    filter: brightness(1.12);
+  }
+  100% {
+    filter: brightness(1);
+  }
+}
+
+@keyframes memory-party-twinkle {
+  0%,
+  100% {
+    box-shadow:
+      0 0 28px rgba(56, 189, 248, 0.45),
+      0 0 48px rgba(14, 165, 233, 0.25);
+  }
+  50% {
+    box-shadow:
+      0 0 34px rgba(251, 191, 36, 0.45),
+      0 0 56px rgba(56, 189, 248, 0.35);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .play-board.celebrate,
+  .memory-celebrate .memory-tile.matched {
+    animation: none;
+  }
+}
+
 .memory-tile.matched span {
   color: #bae6fd;
 }
