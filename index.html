@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=mobs1" />
+  <link rel="stylesheet" href="style.css?v=shield1" />
 </head>
 <body>
   <div id="app">
@@ -128,7 +128,7 @@
           <button type="submit" class="btn primary" id="btn-start">Enter the Ruins</button>
         </form>
 
-        <p class="hint-keys">Move: WASD · Interact: E · Attack: LMB · Inventory: I · Map: M · Heal: H · Esc: Menu</p>
+        <p class="hint-keys">Move: WASD · Attack: LMB · Block: Q/RMB · Interact: E · Heal: H · Bag: I · Map: M · Esc: Menu</p>
       </div>
     </section>
 
@@ -222,7 +222,7 @@
           </div>
         </div>
 
-        <div id="combat-hint" class="combat-hint hidden">LMB swing · bow click far · H drink potion · E chest/mine</div>
+        <div id="combat-hint" class="combat-hint hidden">LMB attack · Q/RMB block · H heal · E interact</div>
 
         <div id="toast" class="toast hidden" role="status"></div>
 
@@ -235,8 +235,11 @@
             </div>
             <button type="button" data-dir="down" class="pad-btn">▼</button>
           </div>
-          <button type="button" id="btn-interact" class="action-btn">E</button>
-          <button type="button" id="btn-heal" class="action-btn heal-btn" title="Drink potion (H)">H</button>
+          <div class="mobile-actions">
+            <button type="button" id="btn-block" class="action-btn block-btn" title="Hold to block (Q)">🛡</button>
+            <button type="button" id="btn-interact" class="action-btn">E</button>
+            <button type="button" id="btn-heal" class="action-btn heal-btn" title="Drink potion (H)">H</button>
+          </div>
         </div>
       </div>
     </section>
@@ -285,6 +288,23 @@
             <input type="checkbox" id="setting-mobile" />
             <span>Force on-screen controls</span>
           </label>
+
+          <div class="controls-help" aria-label="Controls">
+            <h3 class="controls-title">Controls</h3>
+            <ul class="controls-list">
+              <li><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> / arrows — Move</li>
+              <li><kbd>LMB</kbd> — Attack / mine (with pickaxe)</li>
+              <li><kbd>Q</kbd> / <kbd>RMB</kbd> — Block with armor or shield</li>
+              <li><kbd>E</kbd> — Interact (chest, quest, portal, stairs)</li>
+              <li><kbd>H</kbd> — Drink healing potion</li>
+              <li><kbd>1</kbd>–<kbd>9</kbd> — Hotbar hand</li>
+              <li><kbd>I</kbd> — Inventory · right-click gear to equip</li>
+              <li><kbd>M</kbd> — World map</li>
+              <li><kbd>Esc</kbd> — Settings / pause</li>
+            </ul>
+            <p class="muted controls-note">Equip armor or a shield in Inventory, then hold <kbd>Q</kbd> or right-click to block hits.</p>
+          </div>
+
           <div class="settings-actions">
             <button type="button" class="btn ghost" id="btn-resume">Resume</button>
             <button type="button" class="btn danger" id="btn-quit" disabled title="Finish your study timer first">Leave (locked)</button>
@@ -343,7 +363,7 @@
                 <span class="mc-ghost">🏹</span>
                 <span class="mc-stack" id="slot-bow-icon"></span>
               </button>
-              <button type="button" class="mc-slot mc-equip" data-equip="armor" id="slot-armor" title="Armor">
+              <button type="button" class="mc-slot mc-equip" data-equip="armor" id="slot-armor" title="Armor / Shield — hold Q or RMB to block">
                 <span class="mc-ghost">🛡</span>
                 <span class="mc-stack" id="slot-armor-icon"></span>
               </button>
@@ -496,7 +516,7 @@
     </div>
   </div>
 
-  <script src="script.js?v=mobs1"></script>
+  <script src="script.js?v=shield1"></script>
   <script>
     // Fallback only — skips if main script already handled the key/button
     (function () {

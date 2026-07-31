@@ -40,25 +40,30 @@
     { key: "wood_pick", name: "Wood Pickaxe", slot: "tool", rarity: "common", pwr: 0, def: 0, know: 0, mine: 1 },
     { key: "slate_chalk", name: "Slate & Chalk", slot: "tool", rarity: "common", pwr: 0, def: 0, know: 1 },
     { key: "linen_cloak", name: "Linen Cloak", slot: "armor", rarity: "common", pwr: 0, def: 1, know: 0 },
+    { key: "wood_shield", name: "Wood Buckler", slot: "armor", rarity: "common", pwr: 0, def: 2, know: 0, shield: true },
     { key: "primer", name: "Pocket Primer", slot: "book", rarity: "common", pwr: 0, def: 0, know: 2 },
     { key: "iron_quill", name: "Iron Quill Blade", slot: "weapon", rarity: "uncommon", pwr: 3, def: 0, know: 1 },
     { key: "leather_vest", name: "Scholar's Leather", slot: "armor", rarity: "uncommon", pwr: 0, def: 3, know: 0 },
+    { key: "iron_shield", name: "Iron Kite Shield", slot: "armor", rarity: "uncommon", pwr: 0, def: 5, know: 0, shield: true },
     { key: "compass", name: "Ruin Compass", slot: "tool", rarity: "uncommon", pwr: 1, def: 0, know: 2 },
     { key: "hunter_bow", name: "Hunter Bow", slot: "bow", rarity: "uncommon", pwr: 4, def: 0, know: 0, range: 6.5 },
     { key: "iron_pick", name: "Iron Pickaxe", slot: "tool", rarity: "uncommon", pwr: 1, def: 0, know: 0, mine: 2 },
     { key: "field_notes", name: "Field Notes", slot: "book", rarity: "uncommon", pwr: 0, def: 0, know: 4 },
     { key: "bronze_saber", name: "Bronze Saber", slot: "weapon", rarity: "rare", pwr: 5, def: 1, know: 0 },
     { key: "chain_hood", name: "Chain Hood", slot: "armor", rarity: "rare", pwr: 0, def: 5, know: 1 },
+    { key: "tower_shield", name: "Tower Shield", slot: "armor", rarity: "rare", pwr: 0, def: 7, know: 0, shield: true },
     { key: "pick_lens", name: "Crystal Pick-Lens", slot: "tool", rarity: "rare", pwr: 3, def: 0, know: 3, mine: 3 },
     { key: "longbow", name: "Ruin Longbow", slot: "bow", rarity: "rare", pwr: 6, def: 0, know: 1, range: 7.5 },
     { key: "annotated", name: "Annotated Codex", slot: "book", rarity: "rare", pwr: 1, def: 0, know: 6 },
     { key: "runed_edge", name: "Runed Edge", slot: "weapon", rarity: "epic", pwr: 8, def: 2, know: 2 },
     { key: "guardian_plate", name: "Guardian Plate", slot: "armor", rarity: "epic", pwr: 1, def: 9, know: 1 },
+    { key: "aegis_shield", name: "Aegis Shield", slot: "armor", rarity: "epic", pwr: 0, def: 11, know: 1, shield: true },
     { key: "aether_hammer", name: "Aether Hammer", slot: "tool", rarity: "epic", pwr: 6, def: 1, know: 4, mine: 4 },
     { key: "storm_bow", name: "Storm Bow", slot: "bow", rarity: "epic", pwr: 9, def: 1, know: 1, range: 8.5 },
     { key: "elder_tome", name: "Elder Tome", slot: "book", rarity: "epic", pwr: 2, def: 1, know: 10 },
     { key: "eclipse_blade", name: "Eclipse Blade", slot: "weapon", rarity: "legendary", pwr: 12, def: 3, know: 3 },
     { key: "starfall_mail", name: "Starfall Mail", slot: "armor", rarity: "legendary", pwr: 2, def: 14, know: 2 },
+    { key: "eclipse_aegis", name: "Eclipse Aegis", slot: "armor", rarity: "legendary", pwr: 1, def: 16, know: 1, shield: true },
     { key: "world_spade", name: "Worldspade", slot: "tool", rarity: "legendary", pwr: 9, def: 2, know: 6, mine: 5 },
     { key: "eclipse_bow", name: "Eclipse Bow", slot: "bow", rarity: "legendary", pwr: 12, def: 2, know: 2, range: 10 },
     { key: "codex_eternity", name: "Codex of Eternity", slot: "book", rarity: "legendary", pwr: 4, def: 2, know: 16 },
@@ -312,6 +317,8 @@ const QUESTIONS = {
     drinkItem: null,
     drinkHealAmt: 0,
     lowHpWarned: false,
+    blocking: false,
+    blockFlash: 0,
     projectiles: [],
     nextId: 1,
   };
@@ -757,11 +764,68 @@ const QUESTIONS = {
       noiseBurst(0.12, 0.1, 3200, 0.05);
     }
 
+    function block() {
+      noiseBurst(0.08, 0.28, 1400);
+      tone(180, 0.1, "triangle", 0.16, 0, 90);
+      tone(420, 0.08, "square", 0.08, 0.02, 200);
+    }
+
+    function questOk() {
+      tone(523.25, 0.12, "sine", 0.14, 0);
+      tone(659.25, 0.14, "triangle", 0.14, 0.08);
+      tone(783.99, 0.22, "sine", 0.16, 0.16);
+      tone(1046.5, 0.28, "sine", 0.12, 0.24);
+    }
+
+    function questFail() {
+      tone(300, 0.18, "sawtooth", 0.14, 0, 120);
+      tone(180, 0.22, "triangle", 0.12, 0.1, 80);
+      noiseBurst(0.12, 0.16, 400, 0.05);
+    }
+
+    function portalEnter() {
+      noiseBurst(0.25, 0.22, 600);
+      tone(110, 0.3, "sine", 0.14, 0, 220);
+      tone(220, 0.35, "triangle", 0.1, 0.08, 440);
+      tone(440, 0.28, "sine", 0.08, 0.18, 880);
+    }
+
+    function portalExit() {
+      tone(440, 0.18, "sine", 0.1, 0, 220);
+      tone(330, 0.22, "triangle", 0.1, 0.08, 165);
+      noiseBurst(0.15, 0.14, 500, 0.05);
+    }
+
+    function levelUp() {
+      tone(392, 0.12, "sine", 0.14, 0);
+      tone(523.25, 0.14, "sine", 0.14, 0.08);
+      tone(659.25, 0.16, "triangle", 0.16, 0.16);
+      tone(783.99, 0.2, "sine", 0.14, 0.24);
+      tone(1046.5, 0.32, "sine", 0.12, 0.32);
+    }
+
+    function equip() {
+      tone(480, 0.07, "triangle", 0.12, 0, 320);
+      noiseBurst(0.05, 0.1, 1600);
+    }
+
+    function monsterDie() {
+      noiseBurst(0.12, 0.22, 500);
+      tone(140, 0.14, "sawtooth", 0.12, 0, 60);
+    }
+
+    function stairs() {
+      tone(260, 0.08, "square", 0.08, 0, 200);
+      tone(200, 0.08, "square", 0.08, 0.09, 160);
+      tone(300, 0.1, "triangle", 0.09, 0.18, 240);
+    }
+
     return {
       unlock, setVolume, setEnabled, setMusicEnabled, syncAmbience, stopAmbience,
       swordSlash, swordHit, fist, bow,
       footstep, drinkGulp, healChime, healBurst, potionPop, hurt, mine, ui,
-      chestOpen, chestLoot,
+      chestOpen, chestLoot, block, questOk, questFail,
+      portalEnter, portalExit, levelUp, equip, monsterDie, stairs,
     };
   })();
 
@@ -1564,6 +1628,7 @@ const QUESTIONS = {
     updateDungeonUI();
     showToast(`${gateRank}-Rank Gate entered [${DIFFICULTY[diffKey].label}] · ${gen.monsters.length} foes · ${gen.theme.name}`);
     SFX.unlock();
+    SFX.portalEnter();
     SFX.syncAmbience({ running: true, dungeon: true, biome: "dungeon", moving: false });
   }
 
@@ -1576,6 +1641,7 @@ const QUESTIONS = {
     if (!isNight()) state.nightMobs = [];
     updateDungeonUI();
     showToast(isNight() ? "Returned under the night sky…" : "Returned to the overworld.");
+    SFX.portalExit();
     const biome = biomeAt(Math.floor(state.player.x), Math.floor(state.player.y));
     SFX.syncAmbience({ running: true, dungeon: false, biome, moving: false });
   }
@@ -1600,7 +1666,8 @@ const QUESTIONS = {
     recalcHp();
     state.hp = state.maxHp;
     updateDungeonUI();
-    showToast(`Descended to Floor ${next}: ${gen.theme.name}`);
+    SFX.stairs();
+    showToast(`Descended to Floor ${next}: ${gen.theme.name} · ${gen.monsters.length} foes`);
     if (next === 10) showToast("The Guardian awaits! Clear foes or reach the throne.");
   }
 
@@ -1615,14 +1682,17 @@ const QUESTIONS = {
   function updateDungeonUI() {
     const inD = !!(state.dungeon && state.dungeon.active);
     $("hud-floor-wrap").classList.toggle("hidden", !inD);
-    $("combat-hint").classList.toggle("hidden", !inD);
+    if ($("combat-hint") && state.running) $("combat-hint").classList.remove("hidden");
     if (inD) {
       const gr = state.dungeon.gateRank || "E";
       $("hud-floor").textContent = `${state.dungeon.floor}/10`;
       $("hud-biome").textContent = `${gr}-Rank · ${state.dungeon.name} · ${FLOOR_THEMES[state.dungeon.floor - 1].name}`;
-      $("combat-hint").textContent = `${gr}-Rank Gate · Floor ${state.dungeon.floor}/10 · LMB attack · H drink · E chests`;
+      $("combat-hint").textContent = `${gr}-Rank · Fl.${state.dungeon.floor}/10 · LMB attack · Q/RMB block · H heal · E chests`;
     } else {
       $("hud-biome").textContent = BIOME_NAMES[biomeAt(Math.floor(state.player.x), Math.floor(state.player.y))] || "Grassland Ruins";
+      if ($("combat-hint")) {
+        $("combat-hint").textContent = "LMB attack · Q/RMB block (armor/shield) · H heal · E interact · I bag · M map";
+      }
     }
   }
 
@@ -1696,6 +1766,36 @@ const QUESTIONS = {
     }
     if ((state.tempPwrT || 0) > 0) pwr += state.tempPwr || 0;
     return { def, pwr, know };
+  }
+
+  function getBlockArmor() {
+    const eq = state.equipped.armor;
+    if (eq && (eq.def || 0) > 0) return eq;
+    const hand = getHandItem();
+    if (hand && hand.slot === "armor" && (hand.def || 0) > 0) return hand;
+    return eq || null;
+  }
+
+  function canBlock() {
+    if (!state.running || state.paused || state.drinkAnim > 0 || state.swimming) return false;
+    return gearStats().def > 0 && !!getBlockArmor();
+  }
+
+  function isBlocking() {
+    return !!(state.blocking && canBlock());
+  }
+
+  function setBlocking(on) {
+    const want = !!on;
+    if (want && !canBlock()) {
+      if (on && state.running && !state.paused) {
+        showToast("Equip armor or a shield (I) to block!", true);
+      }
+      state.blocking = false;
+      return;
+    }
+    if (want && !state.blocking) SFX.unlock();
+    state.blocking = want;
   }
 
 
@@ -1786,7 +1886,9 @@ const QUESTIONS = {
       btn.addEventListener("contextmenu", (ev) => {
         ev.preventDefault();
         const it = state.slots[i];
-        if (it && it.type === "consumable") useItem(it.uid);
+        if (!it) return;
+        if (it.type === "consumable") useItem(it.uid);
+        else if (it.slot) equipItem(it.uid);
       });
       row.appendChild(btn);
     }
@@ -2098,7 +2200,13 @@ const QUESTIONS = {
     updateHotbarUI();
     updateEquipUI();
     recalcHp();
-    showToast(`Equipped ${item.name} → ${item.slot}`);
+    SFX.equip();
+    const stats = [];
+    if (item.def) stats.push(`DEF ${item.def}`);
+    if (item.pwr) stats.push(`PWR ${item.pwr}`);
+    if (item.shield) stats.push("hold Q/RMB to block");
+    else if (item.slot === "armor" && item.def) stats.push("hold Q/RMB to block");
+    showToast(`Equipped ${item.name}${stats.length ? ` · ${stats.join(" · ")}` : ""}`);
   }
 
   function tryPlaceInSlot(slot) {
@@ -2121,6 +2229,7 @@ const QUESTIONS = {
     updateHotbarUI();
     updateEquipUI();
     recalcHp();
+    SFX.equip();
     showToast(`Unequipped ${item.name}`);
   }
 
@@ -2205,7 +2314,9 @@ const QUESTIONS = {
         btn.addEventListener("contextmenu", (ev) => {
           ev.preventDefault();
           const it = state.slots[idx];
-          if (it && it.type === "consumable") useItem(it.uid);
+          if (!it) return;
+          if (it.type === "consumable") useItem(it.uid);
+          else if (it.slot) equipItem(it.uid);
         });
         hot.appendChild(btn);
       }
@@ -2445,11 +2556,13 @@ const QUESTIONS = {
       state.kp += 10 + rank * 5 + gearStats().know;
       state.checkpoint = { x: structure.wx + 0.5, y: structure.wy + 0.5 };
       fb.textContent = `Correct! Loot: ${loot.map((l) => l.name).join(", ")}. Equip it from Inventory (I).`;
+      SFX.questOk();
       updateHUD();
       setTimeout(() => { closeModal("quest-modal"); state.paused = false; showToast(`+${loot.map((l) => l.name).join(", ")}`); }, 1100);
     } else {
       fb.classList.add("bad");
       fb.textContent = "Wrong… the ruins reject you. Back to the beginning!";
+      SFX.questFail();
       setTimeout(() => { closeModal("quest-modal"); respawnToBeginning(); state.paused = false; showToast("Respawned at the gate.", true); }, 1200);
     }
   }
@@ -2566,6 +2679,7 @@ const QUESTIONS = {
         closeModal("boss-modal");
         updateHUD();
         state.paused = false;
+        SFX.levelUp();
         showResult("Guardian Vanquished!", `Level ${state.level}! Epic loot: ${loot.map((l) => l.name).join(", ")}. Equip from Inventory (I).`);
       }, 800);
     } else {
@@ -2573,20 +2687,39 @@ const QUESTIONS = {
     }
   }
 
-  function findChestAt(wx, wy) {
+  function findAnyChestAt(wx, wy) {
     if (state.dungeon?.active) {
-      const dc = state.dungeon.chests.find((c) => !c.opened && c.x === wx && c.y === wy);
+      const dc = (state.dungeon.chests || []).find((c) => (c.x === wx && c.y === wy) || (c.wx === wx && c.wy === wy));
       if (dc) return dc;
     }
-    const oc = state.chests.get(tileKey(wx, wy));
-    if (oc && !oc.opened) return oc;
+    return state.chests.get(tileKey(wx, wy)) || null;
+  }
+
+  function findChestAt(wx, wy) {
+    const c = findAnyChestAt(wx, wy);
+    if (c && !c.opened && !c.looted) return c;
     return null;
+  }
+
+  function clearChestTile(chest) {
+    const cx = chest.wx != null ? chest.wx : chest.x;
+    const cy = chest.wy != null ? chest.wy : chest.y;
+    if (cx == null || cy == null) return;
+    // Loot collected → chest vanishes from the world
+    const replace = state.dungeon?.active ? TILES.FLOOR : TILES.PATH;
+    if (getTile(cx, cy) === TILES.CHEST) setTile(cx, cy, replace);
+    chest.wx = cx;
+    chest.wy = cy;
+    chest.x = cx;
+    chest.y = cy;
+    if (!state.dungeon?.active) state.chests.set(tileKey(cx, cy), chest);
   }
 
   function finalizeChestLoot(chest) {
     if (!chest || chest.looted) return;
     chest.looted = true;
     chest.opened = true;
+    chest.opening = false;
     const rank = Math.max(
       chest.rank || 0,
       state.dungeon?.rank || 0,
@@ -2603,16 +2736,18 @@ const QUESTIONS = {
     const cx = chest.wx != null ? chest.wx : chest.x;
     const cy = chest.wy != null ? chest.wy : chest.y;
     spawnParticles(cx + 0.5, cy + 0.5, 18, "spark");
+    clearChestTile(chest);
     updateHUD();
+    updateInventoryUI();
+    updateHotbarUI();
     const names = loot.map((l) => l.name).join(", ");
-    showToast(`Opened chest! +${names}`);
+    showToast(`Loot collected! +${names} · Equip in Inventory (I)`);
     SFX.chestLoot();
-    showResult("Chest Loot!", `You found: ${names}. Press I to Equip gear or Use potions (H = quick heal).`);
   }
 
   function openChest(chest) {
-    if (!chest || chest.opened || chest.opening) {
-      if (chest && chest.opened) showToast("Chest already looted.");
+    if (!chest || chest.opened || chest.looted || chest.opening) {
+      if (chest && (chest.opened || chest.looted)) showToast("Chest already looted.");
       return;
     }
     // Require intentional open (E / tap) — play lid animation first
@@ -2645,17 +2780,19 @@ const QUESTIONS = {
     // Chests first so loot is never blocked by other prompts
     for (const [dx, dy] of near) {
       const wx = px + dx, wy = py + dy;
+      const any = findAnyChestAt(wx, wy);
+      if (any && (any.opened || any.looted)) {
+        // Safety: remove leftover chest tiles after loot
+        if (getTile(wx, wy) === TILES.CHEST) clearChestTile(any);
+        continue;
+      }
       const chest = findChestAt(wx, wy);
-      if (chest || getTile(wx, wy) === TILES.CHEST) {
-        const c = chest || findChestAt(wx, wy);
-        if (c && !c.opened && !c.opening) return { type: "chest", data: c, label: "Open chest (E)" };
-        if (getTile(wx, wy) === TILES.CHEST) {
-          const orphan = c || { id: uid(), wx, wy, x: wx, y: wy, opened: false, rank: state.dungeon?.rank || 0, dungeon: !!state.dungeon?.active };
-          if (!orphan.opened && !orphan.opening) {
-            if (!c) state.chests.set(tileKey(wx, wy), orphan);
-            return { type: "chest", data: orphan, label: "Open chest (E)" };
-          }
-        }
+      if (chest && !chest.opening) return { type: "chest", data: chest, label: "Open chest (E)" };
+      if (getTile(wx, wy) === TILES.CHEST && !any) {
+        const orphan = { id: uid(), wx, wy, x: wx, y: wy, opened: false, looted: false, rank: state.dungeon?.rank || 0, dungeon: !!state.dungeon?.active };
+        if (state.dungeon?.active) state.dungeon.chests.push(orphan);
+        else state.chests.set(tileKey(wx, wy), orphan);
+        return { type: "chest", data: orphan, label: "Open chest (E)" };
       }
     }
 
@@ -2880,6 +3017,8 @@ const QUESTIONS = {
     monster.hitFlash = 0.2;
     spawnParticles(monster.x, monster.y, 8, "spark");
     if (monster.hp <= 0) {
+      SFX.monsterDie();
+      spawnParticles(monster.x, monster.y, 12, "spark");
       if (monster.night) {
         state.nightMobs = state.nightMobs.filter((m) => m.id !== monster.id);
         state.kp += 2 + ({ easy: 1, medium: 2, hard: 3, raid: 4 }[state.difficulty] || 1);
@@ -2907,6 +3046,7 @@ const QUESTIONS = {
 
   function performMeleeSwing() {
     if (state.drinkAnim > 0) { showToast("Drinking…"); return false; }
+    if (isBlocking()) { showToast("Lower your shield to attack (release Q / RMB)"); return false; }
     if (state.hitCd > 0 || state.paused) return false;
     const weapon = getCombatWeapon();
     const hasWeapon = !!weapon;
@@ -2942,6 +3082,7 @@ const QUESTIONS = {
   function shootBow(tx, ty) {
     const bow = getCombatBow();
     if (state.drinkAnim > 0) { showToast("Drinking…"); return false; }
+    if (isBlocking()) { showToast("Can't shoot while blocking."); return false; }
     if (!bow || state.hitCd > 0 || state.paused) return false;
     const dx = tx - state.player.x, dy = ty - state.player.y;
     const dist = Math.hypot(dx, dy) || 1;
@@ -2968,6 +3109,7 @@ const QUESTIONS = {
 
   function startMining(wx, wy) {
     if (state.drinkAnim > 0) { showToast("Drinking…"); return; }
+    if (isBlocking()) { showToast("Can't mine while blocking."); return; }
     const pick = getCombatPick();
     if (!pick) { showToast("Hold a pickaxe on the hotbar (1–9) or equip Tool!", true); return; }
     const minePow = pick.mine || 1;
@@ -3096,18 +3238,36 @@ const QUESTIONS = {
 
   function playerHurt(dmg) {
     const def = gearStats().def;
-    const taken = Math.max(1, dmg - Math.floor(def * 0.5));
+    let taken;
+    if (isBlocking()) {
+      // Active shield / armor block — much stronger than passive DEF
+      const blockPower = 0.6 + Math.min(0.35, def * 0.035);
+      const mitigated = Math.floor(dmg * blockPower) + Math.floor(def * 0.9);
+      taken = Math.max(0, dmg - mitigated);
+      state.blockFlash = 0.25;
+      state.hurtCd = 0.55;
+      SFX.block();
+      spawnParticles(state.player.x + Math.cos(state.player.facing) * 0.4, state.player.y + Math.sin(state.player.facing) * 0.4, 8, "spark");
+      if (taken <= 0) {
+        spawnFloatText(state.player.x, state.player.y - 0.5, "BLOCK", "#90d0ff");
+        showToast("Blocked with your shield/armor!");
+        return;
+      }
+      spawnFloatText(state.player.x, state.player.y - 0.5, `-${taken}`, "#a0c8ff");
+      showToast(`Blocked! Only ${taken} damage got through.`);
+    } else {
+      taken = Math.max(1, dmg - Math.floor(def * 0.5));
+      state.hurtCd = 0.8;
+      SFX.hurt();
+      spawnFloatText(state.player.x, state.player.y - 0.45, `-${taken}`, "#ff6060");
+      showToast(`Took ${taken} damage!`, true);
+    }
     state.hp -= taken;
-    state.hurtCd = 0.8;
-    SFX.hurt();
-    spawnFloatText(state.player.x, state.player.y - 0.45, `-${taken}`, "#ff6060");
     recalcHp();
     if (state.hp <= 0) {
       state.hp = state.maxHp;
       respawnToBeginning();
       showToast("You fell in battle! Respawned at the gate — gear kept.", true);
-    } else {
-      showToast(`Took ${taken} damage!`, true);
     }
   }
 
@@ -3244,7 +3404,8 @@ const QUESTIONS = {
 
     const baseSpeed = state.swimming ? 2.1 : 3.2;
     const drinkSlow = state.drinkAnim > 0 ? 0.35 : 1;
-    const speed = (baseSpeed + gearStats().pwr * 0.04) * state.settings.speed * drinkSlow;
+    const blockSlow = isBlocking() ? 0.55 : 1;
+    const speed = (baseSpeed + gearStats().pwr * 0.04) * state.settings.speed * drinkSlow * blockSlow;
     const nx = state.player.x + mx * speed * dt;
     const ny = state.player.y + my * speed * dt;
     if (!collides(nx, state.player.y)) state.player.x = nx;
@@ -3334,6 +3495,9 @@ const QUESTIONS = {
     }
     if (state.hitCd > 0) state.hitCd -= dt;
     if (state.hurtCd > 0) state.hurtCd -= dt;
+    if (state.blockFlash > 0) state.blockFlash = Math.max(0, state.blockFlash - dt);
+    // Keep block state honest if armor was unequipped
+    if (state.blocking && !canBlock()) state.blocking = false;
     if ((state.tempPwrT || 0) > 0) {
       state.tempPwrT -= dt;
       if (state.tempPwrT <= 0) {
@@ -3700,8 +3864,15 @@ const QUESTIONS = {
       }
       case TILES.CHEST: {
         fillNoise(px, py, ts, wx, wy, inD ? "#2a2438" : "#2f9a3c", inD ? "#34304a" : "#288834", 0.2);
-        const ch = findChestAt(wx, wy);
-        const openAmt = ch ? (ch.opened || ch.looted ? 1 : (ch.opening ? Math.min(1, (ch.openT || 0) / 0.55) : 0)) : 0;
+        const ch = findAnyChestAt(wx, wy);
+        // Looted chests are removed from the map; if still here, show opening lid
+        if (ch && (ch.opened || ch.looted)) {
+          clearChestTile(ch);
+          fillNoise(px, py, ts, wx, wy, inD ? "#2a2438" : "#2f9a3c", inD ? "#34304a" : "#288834", 0.2);
+          shadeTile(px, py, ts);
+          break;
+        }
+        const openAmt = ch ? (ch.opening ? Math.min(1, (ch.openT || 0) / 0.55) : 0) : 0;
         // body
         outlineRect(px + ts * 0.12, py + ts * 0.38, ts * 0.76, ts * 0.42, "#c08030");
         pxRect(px + ts * 0.18, py + ts * 0.55, ts * 0.64, 1, "#8a5020");
@@ -3844,6 +4015,8 @@ const QUESTIONS = {
     const drinking = state.drinkAnim > 0;
     const drinkT = drinking ? 1 - Math.max(0, state.drinkAnim / 0.9) : 0; // 0→1 through drink
     const tipBack = drinking ? Math.sin(Math.min(1, drinkT * 1.15) * Math.PI) * 5 : 0;
+    const blocking = isBlocking() && !drinking && !swim;
+    const blockArmor = getBlockArmor();
 
     if (swim) pxRect(ppx - s * 0.4, ppy + s * 0.28 + bob, s * 0.8, 3, "rgba(20,60,120,0.45)");
     else pxRect(ppx - s * 0.35, ppy + s * 0.42, s * 0.7, 3, "rgba(0,0,0,0.4)");
@@ -3867,8 +4040,28 @@ const QUESTIONS = {
     pxRect(ppx - 3 + lookX, ppy - s * 0.3 + lookY + bob - sub - tipBack, 2, 2, "#0a0a0a");
     pxRect(ppx + 1 + lookX, ppy - s * 0.3 + lookY + bob - sub - tipBack, 2, 2, "#0a0a0a");
 
-    if (book && !swim && !drinking) {
+    if (book && !swim && !drinking && !blocking) {
       outlineRect(ppx - right * (s * 0.55) - 2, ppy - s * 0.05 + bob, 6, 8, "#e06040");
+    }
+
+    // SHIELD / armor block stance — raise guard in front
+    if (blocking && blockArmor) {
+      const raise = 1;
+      const sx = ppx + Math.cos(face) * (s * 0.42);
+      const sy = ppy + Math.sin(face) * (s * 0.25) + bob - sub - 2;
+      const shieldCol = blockArmor.shield
+        ? (blockArmor.rarity === "legendary" ? "#f0d060" : blockArmor.rarity === "epic" ? "#c080e0" : blockArmor.rarity === "rare" ? "#70a8e0" : "#c0a878")
+        : body;
+      outlineRect(sx - 5, sy - 8, 11, 16, shieldCol);
+      pxRect(sx - 3, sy - 6, 7, 12, "#ffffff33");
+      outlineRect(sx - 1, sy - 2, 3, 3, "#ffe060");
+      // arm holding shield
+      outlineRect(ppx + right * (s * 0.2), ppy - s * 0.02 + bob - raise * 2, 3, s * 0.28, "#f0c090");
+      if (state.blockFlash > 0) {
+        ctx.globalAlpha = Math.min(0.55, state.blockFlash * 2);
+        pxRect(sx - 8, sy - 10, 16, 20, "#a0d8ff");
+        ctx.globalAlpha = 1;
+      }
     }
 
     // DRINK animation — raise potion to mouth, tip back, glow
@@ -3926,7 +4119,7 @@ const QUESTIONS = {
     }
 
     // SWORD swing animation in arc
-    if (weapon && !swim && !drinking) {
+    if (weapon && !swim && !drinking && !blocking) {
       const swing = swingT;
       const ang = face + (1 - swing) * 1.6 * right - 0.4 * right;
       const reach = s * (0.55 + swing * 0.5);
@@ -4651,6 +4844,8 @@ const QUESTIONS = {
     state.drinkItem = null;
     state.drinkHealAmt = 0;
     state.lowHpWarned = false;
+    state.blocking = false;
+    state.blockFlash = 0;
     // Start unequipped — grind quests/chests/dungeons for weapons, armor, picks & bows
     // Emergency heals in the satchel
     const heal = POTION_TABLE.find((p) => p.key === "heal_small");
@@ -4860,6 +5055,13 @@ const QUESTIONS = {
       drinkHandPotion();
       return;
     }
+    if (e.code === "KeyQ" || e.key === "q" || e.key === "Q") {
+      if (!state.running || state.paused) return;
+      if (modalIsOpen("quest-modal") || modalIsOpen("boss-modal") || modalIsOpen("result-modal")) return;
+      e.preventDefault();
+      setBlocking(true);
+      return;
+    }
     if (/^[1-9]$/.test(e.key) && state.running && !state.paused) {
       state.hotbarSel = parseInt(e.key, 10) - 1;
       updateHotbarUI();
@@ -4916,6 +5118,7 @@ const QUESTIONS = {
     if (e.code === "ArrowDown" || e.key === "ArrowDown" || e.code === "KeyS" || e.key === "s" || e.key === "S") state.keys.ArrowDown = state.keys.s = state.keys.S = false;
     if (e.code === "ArrowLeft" || e.key === "ArrowLeft" || e.code === "KeyA" || e.key === "a" || e.key === "A") state.keys.ArrowLeft = state.keys.a = state.keys.A = false;
     if (e.code === "ArrowRight" || e.key === "ArrowRight" || e.code === "KeyD" || e.key === "d" || e.key === "D") state.keys.ArrowRight = state.keys.d = state.keys.D = false;
+    if (e.code === "KeyQ" || e.key === "q" || e.key === "Q") setBlocking(false);
     state.keys[e.key] = false;
   }
 
@@ -5125,8 +5328,27 @@ const QUESTIONS = {
   });
   $("btn-interact").addEventListener("click", (e) => { e.preventDefault(); tryInteract(); });
   $("btn-heal").addEventListener("click", (e) => { e.preventDefault(); drinkHandPotion(); });
+  if ($("btn-block")) {
+    const blockOn = (e) => { e.preventDefault(); setBlocking(true); };
+    const blockOff = (e) => { e.preventDefault(); setBlocking(false); };
+    $("btn-block").addEventListener("pointerdown", blockOn);
+    $("btn-block").addEventListener("pointerup", blockOff);
+    $("btn-block").addEventListener("pointerleave", blockOff);
+    $("btn-block").addEventListener("pointercancel", blockOff);
+  }
   canvas.addEventListener("click", handleCanvasClick);
   canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+  // Hold right mouse to block with shield/armor
+  canvas.addEventListener("mousedown", (e) => {
+    if (e.button === 2 && state.running && !state.paused) {
+      e.preventDefault();
+      setBlocking(true);
+    }
+  });
+  window.addEventListener("mouseup", (e) => {
+    if (e.button === 2) setBlocking(false);
+  });
+  window.addEventListener("blur", () => setBlocking(false));
   window.addEventListener("resize", () => { applyMobileVisibility(); if (state.running) resizeCanvas(); });
 
   $("btn-portal-enter").addEventListener("click", confirmEnterPortal);
