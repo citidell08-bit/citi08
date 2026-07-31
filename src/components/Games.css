@@ -461,6 +461,46 @@
   width: 100%;
 }
 
+.math-timer-wrap {
+  position: relative;
+}
+
+.math-time-bonus {
+  position: absolute;
+  top: -0.35rem;
+  right: -0.15rem;
+  z-index: 2;
+  padding: 0.15rem 0.4rem;
+  border-radius: 999px;
+  background: rgba(34, 211, 238, 0.2);
+  border: 1px solid rgba(34, 211, 238, 0.55);
+  color: var(--ember);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  animation: math-bonus-pop 480ms ease;
+  pointer-events: none;
+}
+
+.math-timer-wrap.bonus .game-timer-ring {
+  box-shadow: 0 0 22px rgba(34, 211, 238, 0.45);
+}
+
+@keyframes math-bonus-pop {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.9);
+  }
+  35% {
+    opacity: 1;
+    transform: translateY(-2px) scale(1.05);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-10px) scale(1);
+  }
+}
+
 .glow-window {
   width: min(320px, 100%);
   margin: 0 auto;

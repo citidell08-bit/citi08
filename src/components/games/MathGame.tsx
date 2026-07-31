@@ -23,6 +23,8 @@ interface Problem {
 
 const DURATION = 30
 const WIN_SCORE = 8
+/** Extra seconds banked for every correct answer. */
+const TIME_BONUS = 3
 
 function nextProblem(solved: number): Problem {
   // Ramp: start gentle, introduce multiply later, widen range with streak of solves.
@@ -45,6 +47,7 @@ function nextProblem(solved: number): Problem {
 
 export function MathGame({ onFinish, onBack }: Props) {
   const [seconds, setSeconds] = useState(DURATION)
+  const [clockTotal, setClockTotal] = useState(DURATION)
   const [running, setRunning] = useState(true)
   const [score, setScore] = useState(0)
   const [streak, setStreak] = useState(0)
@@ -52,6 +55,7 @@ export function MathGame({ onFinish, onBack }: Props) {
   const [input, setInput] = useState('')
   const [finished, setFinished] = useState(false)
   const [feedback, setFeedback] = useState<'ok' | 'bad' | null>(null)
+  const [timePop, setTimePop] = useState(false)
   const scoreRef = useRef(0)
   const streakRef = useRef(0)
   const reportedRef = useRef(false)
@@ -117,8 +121,10 @@ export function MathGame({ onFinish, onBack }: Props) {
     setProblem(nextProblem(0))
     setInput('')
     setFeedback(null)
+    setTimePop(false)
     setFinished(false)
     setSeconds(DURATION)
+    setClockTotal(DURATION)
     setRunning(true)
     queueMicrotask(() => inputRef.current?.focus())
   }
@@ -149,7 +155,10 @@ export function MathGame({ onFinish, onBack }: Props) {
       streakRef.current += 1
       setScore(scoreRef.current)
       setStreak(streakRef.current)
+      setSeconds((s) => s + TIME_BONUS)
+      setClockTotal((t) => t + TIME_BONUS)
       setFeedback('ok')
+      setTimePop(true)
       playHitSfx()
       setProblem(nextProblem(scoreRef.current))
       setInput('')
@@ -166,7 +175,8 @@ export function MathGame({ onFinish, onBack }: Props) {
     feedbackTimerRef.current = window.setTimeout(() => {
       feedbackTimerRef.current = null
       setFeedback(null)
-    }, 280)
+      setTimePop(false)
+    }, 480)
     inputRef.current?.focus()
   }
 
@@ -186,7 +196,7 @@ export function MathGame({ onFinish, onBack }: Props) {
         <div>
           <h2 className="section-title">Quick Sum</h2>
           <p className="section-sub">
-            Answer fast — difficulty ramps as you score. Enter submits.
+            Answer fast — each correct answer adds +{TIME_BONUS}s. Enter submits.
           </p>
         </div>
         <div className="hud-row">
@@ -198,7 +208,10 @@ export function MathGame({ onFinish, onBack }: Props) {
             <strong>{streak}</strong>
             <span>Streak</span>
           </div>
-          <GameTimer seconds={seconds} total={DURATION} pulsing={running && !finished} />
+          <div className={`math-timer-wrap ${timePop ? 'bonus' : ''}`}>
+            {timePop ? <span className="math-time-bonus">+{TIME_BONUS}s</span> : null}
+            <GameTimer seconds={seconds} total={clockTotal} pulsing={running && !finished} />
+          </div>
         </div>
       </div>
 

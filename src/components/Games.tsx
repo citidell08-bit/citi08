@@ -42,7 +42,7 @@ const CATALOG: {
   {
     id: 'math',
     title: 'Quick Sum',
-    blurb: '30-second arithmetic sprint. Difficulty ramps as you score.',
+    blurb: 'Arithmetic sprint — each correct answer adds +3 seconds.',
     badge: 'Speed',
     goal: '8+ correct',
     bestKey: 'bestMathScore',
