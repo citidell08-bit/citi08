@@ -155,10 +155,10 @@ function noiseBurst(
 export function playClickSfx(): void {
   unlockAudio()
   // Soft body thump of the switch
-  tone(120, 0.016, { type: 'sine', gain: 0.12, attack: 0.0003, slideTo: 55 })
+  tone(120, 0.018, { type: 'sine', gain: 0.16, attack: 0.0003, slideTo: 55 })
   // Hard plastic snap
-  noiseBurst(0.011, {
-    gain: 0.15,
+  noiseBurst(0.012, {
+    gain: 0.2,
     filterFreq: 1800,
     filterEnd: 500,
     filterType: 'bandpass',
