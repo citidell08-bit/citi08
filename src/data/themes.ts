@@ -10,6 +10,8 @@ export interface ThemeDef {
   preview: string
   /** Hex used for store preview bloom */
   glow: string
+  /** Ultra-premium store treatment */
+  legendary?: boolean
 }
 
 export const FREE_THEME: ThemeId = 'neon-blue'
@@ -77,6 +79,18 @@ export const THEMES: ThemeDef[] = [
     className: 'theme-cyber-grid',
     preview: 'linear-gradient(135deg, #020617, #1d4ed8 38%, #22d3ee 70%, #e0f2fe)',
     glow: '#22d3ee',
+  },
+  {
+    id: 'neon-void',
+    title: 'Neon Void',
+    blurb:
+      'Outer-space neon nebula — drifting stars, magenta/cyan gas clouds, deep-void bloom. The ultimate skin.',
+    cost: 320,
+    className: 'theme-neon-void',
+    preview:
+      'radial-gradient(circle at 20% 30%, #f0abfc 0%, transparent 28%), radial-gradient(circle at 80% 20%, #22d3ee 0%, transparent 32%), radial-gradient(circle at 60% 75%, #7c3aed 0%, transparent 40%), linear-gradient(160deg, #02010a, #0b0520 45%, #020617)',
+    glow: '#e879f9',
+    legendary: true,
   },
 ]
 

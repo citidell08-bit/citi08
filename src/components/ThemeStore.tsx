@@ -39,10 +39,10 @@ export function ThemeStore({ state, onBuy, onEquip }: Props) {
           return (
             <li
               key={theme.id}
-              className={`panel theme-card ${isActive ? 'active' : ''} ${isOwned ? 'owned' : ''}`}
+              className={`panel theme-card ${isActive ? 'active' : ''} ${isOwned ? 'owned' : ''} ${theme.legendary ? 'legendary' : ''}`}
             >
               <div
-                className="theme-preview"
+                className={`theme-preview ${theme.legendary ? 'legendary-preview' : ''}`}
                 style={
                   {
                     background: theme.preview,
@@ -52,7 +52,10 @@ export function ThemeStore({ state, onBuy, onEquip }: Props) {
                 aria-hidden="true"
               />
               <div className="theme-copy">
-                <em>{theme.cost === 0 ? 'Free' : `${theme.cost} coins`}</em>
+                <em>
+                  {theme.legendary ? 'Legendary · ' : ''}
+                  {theme.cost === 0 ? 'Free' : `${theme.cost} coins`}
+                </em>
                 <strong>{theme.title}</strong>
                 <p>{theme.blurb}</p>
               </div>

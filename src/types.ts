@@ -10,6 +10,7 @@ export type ThemeId =
   | 'neon-violet'
   | 'neon-amber'
   | 'cyber-grid'
+  | 'neon-void'
 
 export interface Flashcard {
   id: string
