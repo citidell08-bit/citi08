@@ -136,10 +136,10 @@ export function GlowGame({ onFinish, onBack }: Props) {
           ← Arcade
         </button>
         <div className="mini-stats">
+          <span className="score-pill">Score {score}</span>
           <span>
             Round {Math.min(round, ROUNDS)}/{ROUNDS}
           </span>
-          <span>Hits {score}</span>
           <span>Glow {windowLeft}s</span>
         </div>
       </div>
@@ -149,7 +149,13 @@ export function GlowGame({ onFinish, onBack }: Props) {
           <h2 className="section-title">Glow Catch</h2>
           <p className="section-sub">Tap the lit cell before it fades. Watch the timer.</p>
         </div>
-        <GameTimer seconds={seconds} total={DURATION} pulsing={running && !finished} />
+        <div className="hud-row">
+          <div className="dash-score-badge" aria-live="polite">
+            <strong>{score}</strong>
+            <span>Score</span>
+          </div>
+          <GameTimer seconds={seconds} total={DURATION} pulsing={running && !finished} />
+        </div>
       </div>
 
       <div className={`panel glow-panel play-board ${missFlash ? 'miss' : ''}`}>

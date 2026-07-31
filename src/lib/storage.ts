@@ -19,6 +19,7 @@ export function createInitialState(): GameState {
     bestMemoryMoves: null,
     bestMathScore: 0,
     bestGlowScore: 0,
+    bestDashScore: 0,
     streak: 0,
     longestStreak: 0,
     lastActiveDate: null,

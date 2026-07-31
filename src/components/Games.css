@@ -27,6 +27,43 @@
   align-items: center;
 }
 
+.hud-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.score-pill {
+  color: var(--ember) !important;
+  border-color: rgba(240, 180, 41, 0.35) !important;
+}
+
+.dash-score-badge {
+  min-width: 96px;
+  padding: 0.75rem 1rem;
+  border-radius: 18px;
+  text-align: center;
+  background: var(--ember-soft);
+  border: 1px solid rgba(240, 180, 41, 0.35);
+}
+
+.dash-score-badge strong {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 1.8rem;
+  letter-spacing: -0.04em;
+  color: var(--ember);
+  line-height: 1;
+}
+
+.dash-score-badge span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
 .play-header .section-sub {
   margin-bottom: 0;
 }

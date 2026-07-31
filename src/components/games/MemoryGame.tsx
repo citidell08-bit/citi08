@@ -121,6 +121,7 @@ export function MemoryGame({ onFinish, onBack }: Props) {
           ← Arcade
         </button>
         <div className="mini-stats">
+          <span className="score-pill">Score {(matchedCount / 2) * 100}</span>
           <span>Moves {moves}</span>
           <span>
             Pairs {matchedCount / 2}/{SYMBOLS.length}
@@ -133,7 +134,13 @@ export function MemoryGame({ onFinish, onBack }: Props) {
           <h2 className="section-title">Memory Nest</h2>
           <p className="section-sub">Match every pair before the timer hits zero.</p>
         </div>
-        <GameTimer seconds={seconds} total={DURATION} pulsing={running && !done} />
+        <div className="hud-row">
+          <div className="dash-score-badge" aria-live="polite">
+            <strong>{(matchedCount / 2) * 100}</strong>
+            <span>Score</span>
+          </div>
+          <GameTimer seconds={seconds} total={DURATION} pulsing={running && !done} />
+        </div>
       </div>
 
       <div className="panel play-board">

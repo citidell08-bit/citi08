@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react'
 import { GAME_COSTS } from '../lib/coins'
 import type { GameState, MiniGameId, MiniGameResult, Tab } from '../types'
+import { DashGame } from './games/DashGame'
 import { GlowGame } from './games/GlowGame'
 import { MathGame } from './games/MathGame'
 import { MemoryGame } from './games/MemoryGame'
@@ -11,24 +12,35 @@ const CATALOG: {
   title: string
   blurb: string
   badge: string
+  bestKey: keyof GameState
 }[] = [
+  {
+    id: 'dash',
+    title: 'Spike Dash',
+    blurb: 'Geometry-dash style runner — jump spikes and blocks. Don’t crash.',
+    badge: 'Runner',
+    bestKey: 'bestDashScore',
+  },
   {
     id: 'memory',
     title: 'Memory Nest',
-    blurb: 'Flip tiles and match pairs. Fewer moves earn more XP.',
+    blurb: 'Flip tiles and match pairs before time runs out. Track your score.',
     badge: 'Memory',
+    bestKey: 'bestMemoryMoves',
   },
   {
     id: 'math',
     title: 'Quick Sum',
-    blurb: '30-second arithmetic sprint between study blocks.',
+    blurb: '30-second arithmetic sprint. Higher score wins more XP.',
     badge: 'Speed',
+    bestKey: 'bestMathScore',
   },
   {
     id: 'glow',
     title: 'Glow Catch',
-    blurb: 'Tap the glowing cell before it fades. Train focus.',
+    blurb: 'Tap glowing cells before they fade. Score every hit.',
     badge: 'Reflex',
+    bestKey: 'bestGlowScore',
   },
 ]
 
@@ -76,6 +88,16 @@ export function Games({ state, onComplete, onSpend, onNavigate }: Props) {
     setActive(gameId)
   }
 
+  function bestLabel(gameId: MiniGameId, value: unknown): string {
+    if (gameId === 'memory') {
+      return value == null ? '—' : `${value} moves`
+    }
+    return String(value ?? 0)
+  }
+
+  if (active === 'dash') {
+    return <DashGame onFinish={handleFinish} onBack={() => setActive(null)} />
+  }
   if (active === 'memory') {
     return <MemoryGame onFinish={handleFinish} onBack={() => setActive(null)} />
   }
@@ -91,7 +113,7 @@ export function Games({ state, onComplete, onSpend, onNavigate }: Props) {
       <header>
         <h2 className="section-title">Cyber Arcade</h2>
         <p className="section-sub">
-          Complete quests for coins, then spend them to jump straight into a timed mini-game.
+          Spend coins to play. Every game tracks a live score — Spike Dash is the big runner.
         </p>
       </header>
 
@@ -102,7 +124,7 @@ export function Games({ state, onComplete, onSpend, onNavigate }: Props) {
           </strong>
           <p>
             {arcadeUnlocked
-              ? 'Arcade unlocked — pick a game and spend coins to play.'
+              ? 'Arcade unlocked — jump into Spike Dash or a brain-break game.'
               : 'Clear at least one daily quest to unlock play. Level-ups also mint coins.'}
           </p>
         </div>
@@ -119,16 +141,8 @@ export function Games({ state, onComplete, onSpend, onNavigate }: Props) {
           <span>Coins</span>
         </div>
         <div className="stat">
-          <strong>{state.totalGamesPlayed}</strong>
-          <span>Played</span>
-        </div>
-        <div className="stat">
-          <strong>{state.totalGamesWon}</strong>
-          <span>Wins</span>
-        </div>
-        <div className="stat">
-          <strong>{state.bestMemoryMoves ?? '—'}</strong>
-          <span>Best memory</span>
+          <strong>{state.bestDashScore}</strong>
+          <span>Best dash</span>
         </div>
         <div className="stat">
           <strong>{state.bestMathScore}</strong>
@@ -138,6 +152,14 @@ export function Games({ state, onComplete, onSpend, onNavigate }: Props) {
           <strong>{state.bestGlowScore}</strong>
           <span>Best glow</span>
         </div>
+        <div className="stat">
+          <strong>{state.bestMemoryMoves ?? '—'}</strong>
+          <span>Best memory</span>
+        </div>
+        <div className="stat">
+          <strong>{state.totalGamesWon}</strong>
+          <span>Wins</span>
+        </div>
       </div>
 
       {error && <p className="games-error">{error}</p>}
@@ -146,13 +168,16 @@ export function Games({ state, onComplete, onSpend, onNavigate }: Props) {
         {CATALOG.map((game) => {
           const cost = GAME_COSTS[game.id]
           const canAfford = state.coins >= cost
+          const best = state[game.bestKey]
           return (
             <li key={game.id} className="panel game-card">
               <div>
                 <em>{game.badge}</em>
                 <strong>{game.title}</strong>
                 <p>{game.blurb}</p>
-                <span className="game-cost">Entry {cost} coins</span>
+                <span className="game-cost">
+                  Entry {cost} coins · Best {bestLabel(game.id, best)}
+                </span>
               </div>
               <button
                 type="button"

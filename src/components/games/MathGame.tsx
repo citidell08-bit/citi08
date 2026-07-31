@@ -92,7 +92,7 @@ export function MathGame({ onFinish, onBack }: Props) {
           ← Arcade
         </button>
         <div className="mini-stats">
-          <span>Score {score}</span>
+          <span className="score-pill">Score {score}</span>
           <span>Streak {streak}</span>
         </div>
       </div>
@@ -102,7 +102,13 @@ export function MathGame({ onFinish, onBack }: Props) {
           <h2 className="section-title">Quick Sum</h2>
           <p className="section-sub">Solve as many as you can before time runs out.</p>
         </div>
-        <GameTimer seconds={seconds} total={DURATION} pulsing={running && !finished} />
+        <div className="hud-row">
+          <div className="dash-score-badge" aria-live="polite">
+            <strong>{score}</strong>
+            <span>Score</span>
+          </div>
+          <GameTimer seconds={seconds} total={DURATION} pulsing={running && !finished} />
+        </div>
       </div>
 
       <div className={`panel math-panel play-board ${feedback ?? ''}`}>

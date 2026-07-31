@@ -152,6 +152,8 @@ function iconFor(icon: string): string {
       return '♛'
     case 'brain':
       return '✦'
+    case 'dash':
+      return '▶'
     default:
       return '○'
   }

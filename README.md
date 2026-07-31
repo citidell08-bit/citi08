@@ -8,7 +8,7 @@ Cyber Kith is a browser study companion that turns focus sessions and flashcard 
 - **Coins** — Earn coins from quests, achievements, and every level-up; spend them to play arcade games
 - **Focus den** — Timed study sessions (15 / 25 / 45 min) with XP rewards
 - **Flashcards** — Review a starter biology deck or create your own
-- **Arcade mini-games** — Memory Nest, Quick Sum, and Glow Catch with live countdown timers
+- **Arcade mini-games** — Spike Dash (Geometry Dash-style runner), Memory Nest, Quick Sum, and Glow Catch — each with live scores and timers
 - **Daily quests** — Rotating goals that refresh each day and pay out coins on completion
 - **Achievements & streaks** — Milestones and consecutive study days
 - **Local save** — Progress persists in `localStorage`

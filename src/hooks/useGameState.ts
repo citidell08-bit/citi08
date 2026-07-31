@@ -185,6 +185,7 @@ export function useGameState() {
     if (prev.bestMemoryMoves != null && prev.bestMemoryMoves <= 16) {
       next = unlock(next, 'memory_sharp')
     }
+    if (prev.bestDashScore >= 120) next = unlock(next, 'dash_runner')
     return next
   }
 
@@ -252,6 +253,10 @@ export function useGameState() {
               ? result.score
               : Math.min(next.bestMemoryMoves, result.score)
             : next.bestMemoryMoves,
+        bestDashScore:
+          result.gameId === 'dash'
+            ? Math.max(next.bestDashScore, result.score)
+            : next.bestDashScore,
       }
       // Small coin tip for a win so arcade isn't only a sink
       if (result.won) {

@@ -11,6 +11,7 @@ export const GAME_COSTS: Record<MiniGameId, number> = {
   memory: 15,
   math: 10,
   glow: 10,
+  dash: 15,
 }
 
 export function coinsForLevelsGained(fromLevel: number, toLevel: number): number {

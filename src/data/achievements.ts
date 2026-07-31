@@ -78,4 +78,11 @@ export const DEFAULT_ACHIEVEMENTS: Achievement[] = [
     icon: 'brain',
     unlockedAt: null,
   },
+  {
+    id: 'dash_runner',
+    title: 'Spike Surfer',
+    description: 'Score 120+ in Spike Dash.',
+    icon: 'dash',
+    unlockedAt: null,
+  },
 ]

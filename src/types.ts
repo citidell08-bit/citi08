@@ -1,6 +1,6 @@
 export type Tab = 'home' | 'focus' | 'cards' | 'play' | 'quests'
 
-export type MiniGameId = 'memory' | 'math' | 'glow'
+export type MiniGameId = 'memory' | 'math' | 'glow' | 'dash'
 
 export interface Flashcard {
   id: string
@@ -54,6 +54,7 @@ export interface GameState {
   bestMemoryMoves: number | null
   bestMathScore: number
   bestGlowScore: number
+  bestDashScore: number
   streak: number
   longestStreak: number
   lastActiveDate: string | null
