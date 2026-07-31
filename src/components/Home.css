@@ -32,8 +32,20 @@
   padding: 1.25rem;
 }
 
+.reset-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.reset-row .section-sub {
+  margin-bottom: 0;
+}
+
 .reset-btn {
-  margin-top: 0.35rem;
+  flex-shrink: 0;
   border-color: rgba(248, 113, 113, 0.45);
   color: #fca5a5;
 }

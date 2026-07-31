@@ -82,6 +82,32 @@ export function Home({ state, onNavigate, onRename, onResetProgress }: Props) {
         </div>
       </section>
 
+      <section className="panel reset-panel">
+        <div className="reset-row">
+          <div>
+            <h2 className="section-title">Reset progress</h2>
+            <p className="section-sub">
+              Wipe coins, XP, streak, owned games, themes, and quests — back to a new player at zero.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="btn btn-ghost reset-btn"
+            onClick={() => {
+              if (
+                window.confirm(
+                  'Erase all Cyber Kith progress on this device? This cannot be undone.',
+                )
+              ) {
+                onResetProgress()
+              }
+            }}
+          >
+            Reset progress
+          </button>
+        </div>
+      </section>
+
       <section className="panel rename-panel">
         <h2 className="section-title">Name your Cyber Kith</h2>
         <p className="section-sub">Companions remember who they study with.</p>
@@ -122,29 +148,6 @@ export function Home({ state, onNavigate, onRename, onResetProgress }: Props) {
             </li>
           ))}
         </ul>
-      </section>
-
-      <section className="panel reset-panel">
-        <h2 className="section-title">Start over</h2>
-        <p className="section-sub">
-          Wipe coins, XP, streak, owned games, themes, and quest progress on this device. You become
-          a brand-new player at zero.
-        </p>
-        <button
-          type="button"
-          className="btn btn-ghost reset-btn"
-          onClick={() => {
-            if (
-              window.confirm(
-                'Erase all Cyber Kith progress on this device? This cannot be undone.',
-              )
-            ) {
-              onResetProgress()
-            }
-          }}
-        >
-          New player — erase everything
-        </button>
       </section>
     </div>
   )
