@@ -1719,7 +1719,7 @@ const QUESTIONS = {
     } else {
       $("hud-biome").textContent = BIOME_NAMES[biomeAt(Math.floor(state.player.x), Math.floor(state.player.y))] || "Grassland Ruins";
       if ($("combat-hint")) {
-        $("combat-hint").textContent = "1 Sword · 2 Bow · 3 Pickaxe · HOLD F or top-right 🛡 BLOCK to raise shield";
+        $("combat-hint").textContent = "Loot gear from chests/quests · LMB attack · HOLD F / 🛡 BLOCK with shield · H heal · E interact";
       }
     }
     updateBlockUI();
@@ -2273,8 +2273,9 @@ const QUESTIONS = {
     const stats = [];
     if (item.def) stats.push(`DEF ${item.def}`);
     if (item.pwr) stats.push(`PWR ${item.pwr}`);
-    if (item.shield || (item.slot === "armor" && item.def)) stats.push("hold F / 🛡 BLOCK");
+    if (item.shield || (item.slot === "armor" && item.def)) stats.push("HOLD F / top-right 🛡 BLOCK");
     showToast(`Equipped ${item.name}${stats.length ? ` · ${stats.join(" · ")}` : ""}`);
+    updateBlockUI();
   }
 
   function tryPlaceInSlot(slot) {
@@ -2340,6 +2341,7 @@ const QUESTIONS = {
       $("inv-know").textContent = String(s.know);
     }
     recalcHp();
+    updateBlockUI();
   }
 
   function updateInventoryUI() {
@@ -5031,25 +5033,12 @@ const QUESTIONS = {
     state.lowHpWarned = false;
     state.blocking = false;
     state.blockFlash = 0;
-    // Starter kit: sword + bow + pickaxe on hotbar, shield equipped, heals
-    const blade = LOOT_TABLE.find((p) => p.key === "wood_blade");
-    if (blade) addItem({ ...blade, uid: uid() });
-    const bowLoot = LOOT_TABLE.find((p) => p.key === "short_bow");
-    if (bowLoot) addItem({ ...bowLoot, uid: uid() });
-    const pickLoot = LOOT_TABLE.find((p) => p.key === "wood_pick");
-    if (pickLoot) addItem({ ...pickLoot, uid: uid() });
-    const heal = POTION_TABLE.find((p) => p.key === "heal_small");
-    if (heal) {
-      addItem({ ...heal, uid: uid(), slot: null });
-      addItem({ ...heal, uid: uid(), slot: null });
-    }
-    const buckler = LOOT_TABLE.find((p) => p.key === "wood_shield");
-    if (buckler) {
-      const shieldItem = { ...buckler, uid: uid() };
-      // Auto-equip starter shield so F / 🛡 BLOCK works right away
-      state.equipped.armor = shieldItem;
-    }
+    // Spawn with empty inventory / no equipped gear — loot quests, chests, dungeons
+    state.inventory = [];
+    state.slots = Array(INV_SIZE).fill(null);
+    state.heldItem = null;
     state.hotbarSel = 0;
+    state.equipped = { weapon: null, armor: null, tool: null, book: null, bow: null };
     updateBlockUI();
 
     ensureChunk(0, 0);
@@ -5067,7 +5056,7 @@ const QUESTIONS = {
     requestAnimationFrame(() => {
       resizeCanvas();
       draw();
-      showToast("Starter gear: 1=Sword · 2=Bow · 3=Pickaxe · Shield equipped — HOLD F or top-right 🛡 BLOCK");
+      showToast("Empty pack — loot chests, quests & dungeons for sword, pickaxe, bow & shield. HOLD F / 🛡 BLOCK when you find armor.");
       updateSessionTimerUI();
       updateBlockUI();
     });

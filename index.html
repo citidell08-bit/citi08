@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=gear1" />
+  <link rel="stylesheet" href="style.css?v=empty1" />
 </head>
 <body>
   <div id="app">
@@ -128,7 +128,7 @@
           <button type="submit" class="btn primary" id="btn-start">Enter the Ruins</button>
         </form>
 
-        <p class="hint-keys">Move: WASD · Sword: LMB/Space · Pickaxe: select 3 + click stone · Shield: HOLD F or top-right 🛡 BLOCK · E interact · H heal · I bag</p>
+        <p class="hint-keys">Move: WASD · Attack: LMB/Space · Mine: pickaxe + click stone · Shield: HOLD F / 🛡 BLOCK (after loot) · E interact · H heal · I bag</p>
       </div>
     </section>
 
@@ -197,7 +197,7 @@
 
         <div id="shield-tip" class="shield-tip hidden" aria-live="polite">
           <span class="shield-tip-icon" aria-hidden="true">🛡</span>
-          <span id="shield-tip-text">Your shield is equipped — HOLD F or the top-right 🛡 BLOCK button</span>
+          <span id="shield-tip-text">No shield yet — loot one, equip it in I, then HOLD F or 🛡 BLOCK</span>
         </div>
 
         <div id="equip-strip" class="equip-strip hidden" aria-hidden="true"></div>
@@ -311,7 +311,7 @@
               <li><kbd>M</kbd> — World map</li>
               <li><kbd>Esc</kbd> — Settings / pause</li>
             </ul>
-            <p class="muted controls-note"><strong>Shield:</strong> already equipped — look for the pulsing <strong>🛡 BLOCK</strong> button at the <em>top-right</em> of the HUD, or hold <kbd>F</kbd> / <kbd>Shift</kbd>. <strong>Sword</strong> is hotbar <kbd>1</kbd>, <strong>Bow</strong> <kbd>2</kbd>, <strong>Pickaxe</strong> <kbd>3</kbd> (click stone to mine).</p>
+            <p class="muted controls-note">You spawn with an <strong>empty inventory</strong>. Loot swords, pickaxes, bows, and shields from chests, quests, and dungeons. Equip a shield/armor in <kbd>I</kbd>, then <strong>HOLD F</strong> or the top-right <strong>🛡 BLOCK</strong> button to raise it. Put a pickaxe on the hotbar and click stone to mine.</p>
           </div>
 
           <div class="settings-actions">
@@ -525,7 +525,7 @@
     </div>
   </div>
 
-  <script src="script.js?v=gear1"></script>
+  <script src="script.js?v=empty1"></script>
   <script>
     // Fallback only — skips if main script already handled the key/button
     (function () {
