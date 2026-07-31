@@ -1,32 +1,52 @@
+/* Right-edge Ask control — kept off the coin/music chip row and nav dock */
 .assistant-fab {
   position: fixed;
-  top: 1.15rem;
-  right: max(6.75rem, calc((100% - 1120px) / 2 + 5.75rem));
+  top: 50%;
+  right: max(0.65rem, calc((100% - 1120px) / 2 - 0.15rem));
+  left: auto;
+  transform: translateY(-50%);
   z-index: 36;
   display: inline-flex;
+  flex-direction: column;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.55rem 0.85rem;
-  border-radius: 999px;
-  border: 1px solid rgba(56, 189, 248, 0.45);
-  background: linear-gradient(135deg, rgba(14, 116, 180, 0.55), rgba(8, 47, 73, 0.92));
+  justify-content: center;
+  gap: 0.35rem;
+  width: 3.25rem;
+  min-height: 6.25rem;
+  padding: 0.85rem 0.4rem;
+  border-radius: 1.15rem;
+  border: 1px solid rgba(56, 189, 248, 0.5);
+  background: linear-gradient(180deg, rgba(14, 116, 180, 0.72), rgba(8, 47, 73, 0.95));
   color: #e0f2fe;
   font-weight: 800;
-  font-size: 0.85rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  line-height: 1.1;
+  text-align: center;
   box-shadow:
-    0 10px 28px rgba(0, 0, 0, 0.35),
-    0 0 20px rgba(34, 211, 238, 0.25);
+    0 12px 32px rgba(0, 0, 0, 0.4),
+    0 0 22px rgba(34, 211, 238, 0.28);
   cursor: pointer;
 }
 
 .assistant-fab:active {
-  transform: scale(0.96);
+  transform: translateY(-50%) scale(0.96);
 }
 
 .assistant-fab-icon {
   color: #67e8f9;
-  font-size: 1rem;
+  font-size: 1.2rem;
   line-height: 1;
+}
+
+.assistant-fab-label {
+  display: block;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  white-space: nowrap;
+  max-height: 7rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .assistant-backdrop {
@@ -34,30 +54,32 @@
   inset: 0;
   z-index: 55;
   display: grid;
-  place-items: end center;
+  place-items: stretch end;
   padding: 0.75rem 0.75rem 5.75rem;
-  background: rgba(2, 6, 23, 0.55);
+  background: rgba(2, 6, 23, 0.45);
   backdrop-filter: blur(6px);
 }
 
 .assistant-panel {
-  width: min(440px, 100%);
-  max-height: min(72vh, 640px);
+  width: min(400px, 100%);
+  max-height: min(78vh, 680px);
   display: grid;
   grid-template-rows: auto auto 1fr auto;
   gap: 0.75rem;
   padding: 1rem 1.05rem 1.05rem;
+  justify-self: end;
+  align-self: end;
   animation: assistant-rise 220ms ease-out;
 }
 
 @keyframes assistant-rise {
   from {
     opacity: 0;
-    transform: translateY(16px);
+    transform: translateX(18px);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateX(0);
   }
 }
 
@@ -124,18 +146,24 @@
 
 .assistant-chips {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: stretch;
   gap: 0.4rem;
+  max-height: 9.5rem;
+  overflow: auto;
+  padding-right: 0.15rem;
 }
 
 .assistant-chip {
-  padding: 0.4rem 0.7rem;
-  border-radius: 999px;
+  width: 100%;
+  padding: 0.55rem 0.75rem;
+  border-radius: 12px;
   border: 1px solid rgba(56, 189, 248, 0.35);
-  background: rgba(14, 116, 180, 0.2);
+  background: rgba(8, 30, 55, 0.55);
   color: #bae6fd;
-  font-size: 0.78rem;
-  font-weight: 700;
+  font-size: 0.8rem;
+  font-weight: 650;
+  text-align: left;
   cursor: pointer;
 }
 
@@ -191,31 +219,56 @@
 
 @media (max-width: 839px) {
   .assistant-fab {
-    top: 1rem;
+    top: auto;
+    bottom: 5.45rem;
     right: 1rem;
+    left: auto;
+    transform: none;
+    width: auto;
+    min-height: 0;
+    flex-direction: row;
+    gap: 0.4rem;
+    padding: 0.6rem 0.85rem;
+    border-radius: 999px;
+    font-size: 0.82rem;
+    letter-spacing: 0.02em;
+  }
+
+  .assistant-fab:active {
+    transform: scale(0.96);
   }
 
   .assistant-fab-label {
+    writing-mode: horizontal-tb;
+    transform: none;
     max-width: 7.5rem;
+    max-height: none;
+    white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
   }
 
   .assistant-backdrop {
-    padding-bottom: 5.5rem;
+    padding: 0.75rem 0.75rem 5.5rem;
     place-items: end stretch;
   }
 
   .assistant-panel {
     width: 100%;
     max-height: min(78vh, 680px);
+    justify-self: stretch;
   }
 }
 
 @media (min-width: 840px) {
   .assistant-backdrop {
-    place-items: center;
-    padding: 1.5rem;
+    place-items: stretch end;
+    padding: 1.25rem;
+  }
+
+  .assistant-panel {
+    align-self: stretch;
+    max-height: calc(100vh - 2.5rem);
+    width: min(420px, 42vw);
   }
 }

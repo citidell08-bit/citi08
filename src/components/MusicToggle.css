@@ -45,8 +45,15 @@
 
 @media (max-width: 839px) {
   .music-toggle {
+    /* Leave bottom-right free for Ask; sit mid-bottom above the nav */
     top: auto;
     bottom: 5.35rem;
-    right: 1rem;
+    right: auto;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  .music-toggle:active {
+    transform: translateX(-50%) scale(0.96);
   }
 }
