@@ -1351,12 +1351,14 @@ const QUESTIONS = {
   }
 
 
-  function generateDungeonFloor(floor, rank, name, monsterMult = 1) {
+  function generateDungeonFloor(floor, rank, name, monsterMult = 1, diffKey = "medium") {
     const theme = FLOOR_THEMES[floor - 1];
     const w = 56 + floor * 2, h = 40 + floor;
     const tiles = Array.from({ length: h }, () => Array(w).fill(TILES.WALL));
     const rooms = [];
-    const tries = 30 + floor * 2;
+    // Harder gates carve a few extra rooms so there is space for denser packs
+    const extraRooms = { easy: 0, medium: 2, hard: 4, raid: 7 }[diffKey] || 2;
+    const tries = 30 + floor * 2 + extraRooms * 3;
     for (let t = 0; t < tries; t++) {
       const rw = 5 + Math.floor(Math.random() * 5);
       const rh = 4 + Math.floor(Math.random() * 4);
@@ -1391,18 +1393,37 @@ const QUESTIONS = {
     const spawnY = Math.floor(startRoom.y + startRoom.h / 2) + 0.5;
     const monsters = [];
     const chests = [];
+    const perRoom = dungeonMobsPerRoom(diffKey) + (floor >= 7 ? 1 : 0);
+    const roomChance = dungeonRoomSpawnChance(diffKey);
+    const offsets = [
+      [0, 0], [1, 0], [-1, 0], [0, 1], [0, -1],
+      [1, 1], [-1, 1], [1, -1], [-1, -1], [2, 0], [-2, 0],
+    ];
     rooms.forEach((room, idx) => {
       if (idx === 0) return;
       const cx = Math.floor(room.x + room.w / 2);
       const cy = Math.floor(room.y + room.h / 2);
-      if (hash2(cx, cy, floor * 991 + rank) > 0.28) {
-        const mhp = Math.floor(theme.hp * (1 + rank * 0.15 + floor * 0.08) * monsterMult);
-        monsters.push({
-          id: uid(), x: cx + 0.5, y: cy + 0.5, hp: mhp, maxHp: mhp,
-          type: theme.monster, dmg: Math.floor((theme.dmg + Math.floor(floor / 2)) * monsterMult),
-          spd: theme.spd, color: theme.color, body: theme.body, eye: theme.eye,
-          hitCd: 0,
-        });
+      // Higher difficulty = more rooms get packs, and each pack is larger
+      if (hash2(cx, cy, floor * 991 + rank) < (1 - roomChance)) {
+        // skip this room
+      } else {
+        let placed = 0;
+        for (let n = 0; n < perRoom && placed < perRoom; n++) {
+          const [ox, oy] = offsets[n % offsets.length];
+          const mx = Math.min(room.x + room.w - 2, Math.max(room.x + 1, cx + ox));
+          const my = Math.min(room.y + room.h - 2, Math.max(room.y + 1, cy + oy));
+          const tile = tiles[my] && tiles[my][mx];
+          if (tile !== TILES.FLOOR && tile !== TILES.COBBLE) continue;
+          if (monsters.some((m) => Math.floor(m.x) === mx && Math.floor(m.y) === my)) continue;
+          const mhp = Math.floor(theme.hp * (1 + rank * 0.15 + floor * 0.08) * monsterMult);
+          monsters.push({
+            id: uid(), x: mx + 0.5, y: my + 0.5, hp: mhp, maxHp: mhp,
+            type: theme.monster, dmg: Math.floor((theme.dmg + Math.floor(floor / 2)) * monsterMult),
+            spd: theme.spd, color: theme.color, body: theme.body, eye: theme.eye,
+            hitCd: 0,
+          });
+          placed += 1;
+        }
       }
       // Always at least one chest chance high — guarantee chest in many rooms
       if (hash2(cx + 3, cy + 1, floor * 313) > 0.15 || idx === rooms.length - 1 || idx === 1) {
@@ -1461,7 +1482,7 @@ const QUESTIONS = {
     $("dungeon-portal-title").textContent = `${previewRank}-Rank Gate`;
     $("dungeon-portal-name").textContent = `⚔ ${structure.name} · ${previewRank}-Rank Gate · 10 Floors`;
     $("dungeon-portal-flavor").textContent =
-      `A magical gate tears open — Solo-Leveling style. Pick gate difficulty (scales monster damage), then enter Floor 1 of 10.`;
+      `A magical gate tears open — Solo-Leveling style. Pick gate difficulty (more monsters + higher damage), then enter Floor 1 of 10.`;
     setPortalDifficulty(state.difficulty || "easy");
     // live-update title when picking difficulty
     document.querySelectorAll(".diff-pick").forEach((btn) => {
@@ -1497,6 +1518,16 @@ const QUESTIONS = {
     return { easy: 0.7, medium: 1.15, hard: 1.7, raid: 2.4 }[diff] || 1;
   }
 
+  /** How many monsters to pack into each populated dungeon room. */
+  function dungeonMobsPerRoom(diff) {
+    return { easy: 1, medium: 2, hard: 3, raid: 5 }[diff] || 2;
+  }
+
+  /** Chance a non-start room gets a monster pack. */
+  function dungeonRoomSpawnChance(diff) {
+    return { easy: 0.48, medium: 0.72, hard: 0.9, raid: 0.98 }[diff] || 0.7;
+  }
+
   function enterDungeon(structure, dungeonDiff = "medium") {
     state.overworldReturn = { x: state.player.x, y: state.player.y };
     const floor = 1;
@@ -1505,7 +1536,7 @@ const QUESTIONS = {
     const baseRank = structure.rank || 0;
     const rank = Math.min(3, baseRank + ({ easy: 0, medium: 0, hard: 1, raid: 2 }[diffKey] || 0));
     const gateRank = gateRankLabel(baseRank, diffKey);
-    const gen = generateDungeonFloor(floor, rank, structure.name, mult);
+    const gen = generateDungeonFloor(floor, rank, structure.name, mult, diffKey);
     state.dungeon = {
       active: true,
       floor,
@@ -1531,7 +1562,7 @@ const QUESTIONS = {
     recalcHp();
     state.hp = state.maxHp;
     updateDungeonUI();
-    showToast(`${gateRank}-Rank Gate entered [${DIFFICULTY[diffKey].label}] · ${gen.theme.name}`);
+    showToast(`${gateRank}-Rank Gate entered [${DIFFICULTY[diffKey].label}] · ${gen.monsters.length} foes · ${gen.theme.name}`);
     SFX.unlock();
     SFX.syncAmbience({ running: true, dungeon: true, biome: "dungeon", moving: false });
   }
@@ -1553,7 +1584,7 @@ const QUESTIONS = {
     const d = state.dungeon;
     if (!d || !d.stairs) return;
     const next = d.floor + 1;
-    const gen = generateDungeonFloor(next, d.rank, d.name, d.monsterMult || 1);
+    const gen = generateDungeonFloor(next, d.rank, d.name, d.monsterMult || 1, d.dungeonDiff || "medium");
     d.floor = next;
     d.tiles = gen.tiles;
     d.w = gen.w;
@@ -2760,8 +2791,13 @@ const QUESTIONS = {
     state.dayTime = (state.dayTime + dt / Math.max(60, state.dayLength)) % 1;
     const night = isNight();
     if (night && !state.wasNight) {
-      showToast("Night falls… monsters stir in the ruins!", true);
-      state.nightSpawnCd = 0.4;
+      const burst = { easy: 1, medium: 2, hard: 4, raid: 6 }[state.difficulty] || 2;
+      showToast(`Night falls… ${burst > 1 ? burst + " " : ""}monsters stir in the ruins!`, true);
+      state.nightSpawnCd = 0.25;
+      for (let i = 0; i < burst; i++) {
+        const m = spawnOneNightMob();
+        if (m) state.nightMobs.push(m);
+      }
     }
     if (!night && state.wasNight) {
       showToast("Dawn breaks — night beasts flee.");
@@ -2820,12 +2856,21 @@ const QUESTIONS = {
 
   function updateNightSpawns(dt) {
     if (state.dungeon?.active || state.paused) return;
-    const cap = { easy: 3, medium: 5, hard: 7, raid: 9 }[state.difficulty] || 4;
+    // Harder study difficulty = denser night packs and faster respawns
+    const cap = { easy: 2, medium: 5, hard: 9, raid: 14 }[state.difficulty] || 5;
+    const batch = { easy: 1, medium: 1, hard: 2, raid: 3 }[state.difficulty] || 1;
+    const cd = { easy: 4.0, medium: 2.4, hard: 1.35, raid: 0.7 }[state.difficulty] || 2.5;
     state.nightSpawnCd -= dt;
     if (state.nightSpawnCd <= 0 && state.nightMobs.length < cap) {
-      const m = spawnOneNightMob();
-      if (m) state.nightMobs.push(m);
-      state.nightSpawnCd = { easy: 3.8, medium: 2.6, hard: 1.8, raid: 1.2 }[state.difficulty] || 2.5;
+      let added = 0;
+      for (let i = 0; i < batch && state.nightMobs.length < cap; i++) {
+        const m = spawnOneNightMob();
+        if (m) {
+          state.nightMobs.push(m);
+          added += 1;
+        }
+      }
+      state.nightSpawnCd = added ? cd : cd * 0.45;
     }
   }
 
@@ -5053,6 +5098,14 @@ const QUESTIONS = {
         updateInventoryUI();
         updateHotbarUI();
         return item;
+      },
+      dungeonMobCount(diff = "medium", floor = 1) {
+        const mult = dungeonDiffMult(diff);
+        const gen = generateDungeonFloor(floor, 1, "Test Gate", mult, diff);
+        return gen.monsters.length;
+      },
+      nightCap() {
+        return { easy: 2, medium: 5, hard: 9, raid: 14 }[state.difficulty] || 5;
       },
     };
   }
