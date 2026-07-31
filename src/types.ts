@@ -70,6 +70,8 @@ export interface GameState {
   totalCoinsEarned: number
   /** Legacy field (starter packs removed — new players begin at 0 coins / XP). */
   starterGranted: boolean
+  /** One-time project gift of 100 coins. */
+  projectGift100?: boolean
   /** Games purchased once — replay is free forever. */
   ownedGames: MiniGameId[]
   /** Background themes purchased once. */

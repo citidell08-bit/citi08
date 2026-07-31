@@ -41,6 +41,30 @@ export function useGameState() {
     saveState(state)
   }, [state])
 
+  /** One-time +100 coins project gift. */
+  useEffect(() => {
+    setState((prev) => {
+      if (prev.projectGift100) return prev
+      const next: GameState = {
+        ...prev,
+        coins: prev.coins + 100,
+        totalCoinsEarned: prev.totalCoinsEarned + 100,
+        projectGift100: true,
+      }
+      saveState(next)
+      const toast: Toast = {
+        id: uid('toast'),
+        message: 'Project gift — enjoy!',
+        coins: 100,
+      }
+      setToasts((t) => [...t, toast])
+      window.setTimeout(() => {
+        setToasts((t) => t.filter((x) => x.id !== toast.id))
+      }, 2800)
+      return next
+    })
+  }, [])
+
   useEffect(() => {
     const theme = themeById(state.activeTheme)
     const root = document.documentElement

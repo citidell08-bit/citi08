@@ -35,6 +35,7 @@ export function createInitialState(): GameState {
     totalCoinsEarned: 0,
     /** Legacy flag — starter packs are no longer granted. Fresh saves start at 0. */
     starterGranted: true,
+    projectGift100: false,
     ownedGames: [],
     ownedThemes: [FREE_THEME],
     activeTheme: FREE_THEME,
@@ -76,6 +77,7 @@ export function loadState(): GameState {
       totalCoinsEarned:
         typeof parsed.totalCoinsEarned === 'number' ? Math.max(0, parsed.totalCoinsEarned) : 0,
       starterGranted: true,
+      projectGift100: Boolean(parsed.projectGift100),
       ownedGames: normalizeOwnedGames(parsed.ownedGames),
       ownedThemes: normalizeOwnedThemes(parsed.ownedThemes),
       activeTheme: normalizeActiveTheme(parsed.activeTheme, parsed.ownedThemes),
