@@ -286,7 +286,9 @@ const QUESTIONS = {
     overworldReturn: { x: 8.5, y: 8.5 },
     player: { x: 8.5, y: 8.5, facing: 0 },
     keys: Object.create(null),
-    settings: { fov: 11, renderDist: 6, speed: 1, minimap: true, particles: true, forceMobile: false },
+    settings: { fov: 11, renderDist: 6, speed: 1, minimap: true, particles: true, sound: true, sfxVolume: 0.75, forceMobile: false },
+    floatTexts: [],
+    drinkSfxCd: 0,
     chunks: new Map(),
     structures: new Map(),
     buildings: new Map(),
@@ -325,6 +327,166 @@ const QUESTIONS = {
   ctx.imageSmoothingEnabled = false;
   miniCtx.imageSmoothingEnabled = false;
   if (fullMapCtx) fullMapCtx.imageSmoothingEnabled = false;
+
+  /** Synthesized SFX via Web Audio (no external asset files). */
+  const SFX = (() => {
+    let ac = null;
+    let master = null;
+
+    function ensure() {
+      if (!ac) {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return null;
+        ac = new AC();
+        master = ac.createGain();
+        master.gain.value = 0.6;
+        master.connect(ac.destination);
+      }
+      if (ac.state === "suspended") {
+        ac.resume().catch(() => {});
+      }
+      return ac;
+    }
+
+    function unlock() { ensure(); }
+
+    function enabled() {
+      return !!(state.settings.sound && (state.settings.sfxVolume ?? 0.75) > 0.01);
+    }
+
+    function level() {
+      return Math.max(0, Math.min(1, state.settings.sfxVolume ?? 0.75));
+    }
+
+    function setVolume(v) {
+      if (master) master.gain.value = 0.6 * Math.max(0, Math.min(1, v));
+    }
+
+    function tone(freq, dur, type, gain, delay = 0, freqEnd = null) {
+      const ctx = ensure();
+      if (!ctx || !enabled() || !master) return;
+      const t0 = ctx.currentTime + delay;
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = type || "square";
+      o.frequency.setValueAtTime(Math.max(1, freq), t0);
+      if (freqEnd != null) {
+        o.frequency.exponentialRampToValueAtTime(Math.max(1, freqEnd), t0 + Math.max(0.01, dur));
+      }
+      const v = Math.max(0.0001, gain * level());
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(v, t0 + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      o.connect(g);
+      g.connect(master);
+      o.start(t0);
+      o.stop(t0 + dur + 0.03);
+    }
+
+    function noiseBurst(dur, gain, filterFreq = 1800, delay = 0) {
+      const ctx = ensure();
+      if (!ctx || !enabled() || !master) return;
+      const n = Math.max(1, Math.floor(ctx.sampleRate * dur));
+      const buf = ctx.createBuffer(1, n, ctx.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < n; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / n);
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      const filt = ctx.createBiquadFilter();
+      filt.type = "bandpass";
+      filt.frequency.value = filterFreq;
+      filt.Q.value = 1.1;
+      const g = ctx.createGain();
+      const t0 = ctx.currentTime + delay;
+      g.gain.setValueAtTime(Math.max(0.0001, gain * level()), t0);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      src.connect(filt);
+      filt.connect(g);
+      g.connect(master);
+      src.start(t0);
+      src.stop(t0 + dur + 0.02);
+    }
+
+    function swordSlash() {
+      // Air whoosh + bright metallic “shing”
+      noiseBurst(0.11, 0.32, 2200);
+      tone(1600, 0.16, "sawtooth", 0.11, 0.015, 380);
+      tone(2400, 0.2, "triangle", 0.1, 0.025, 520);
+      tone(3600, 0.14, "sine", 0.07, 0.03, 900);
+      tone(4800, 0.1, "sine", 0.045, 0.04, 1400);
+    }
+
+    function swordHit() {
+      noiseBurst(0.07, 0.38, 1100);
+      tone(200, 0.09, "square", 0.14, 0, 70);
+      tone(980, 0.11, "triangle", 0.09, 0.01, 240);
+    }
+
+    function fist() {
+      noiseBurst(0.06, 0.22, 420);
+      tone(110, 0.08, "sine", 0.18, 0, 45);
+    }
+
+    function bow() {
+      noiseBurst(0.05, 0.2, 2600);
+      tone(420, 0.1, "triangle", 0.1, 0, 160);
+    }
+
+    function footstep(surface) {
+      const jit = 0.9 + Math.random() * 0.2;
+      if (surface === "water") {
+        noiseBurst(0.09 * jit, 0.16, 650);
+        tone(200 * jit, 0.06, "sine", 0.055, 0, 80);
+      } else if (surface === "stone") {
+        noiseBurst(0.035 * jit, 0.15, 1400);
+        tone(95 * jit, 0.045, "triangle", 0.09, 0, 48);
+      } else if (surface === "sand") {
+        noiseBurst(0.07 * jit, 0.13, 900);
+      } else {
+        noiseBurst(0.04 * jit, 0.11, 750);
+        tone(72 * jit, 0.045, "sine", 0.07, 0, 38);
+      }
+    }
+
+    function drinkGulp() {
+      tone(300, 0.07, "sine", 0.11, 0, 170);
+      tone(210, 0.09, "sine", 0.09, 0.09, 130);
+      tone(260, 0.08, "sine", 0.09, 0.2, 150);
+    }
+
+    function healChime() {
+      tone(523.25, 0.14, "sine", 0.13, 0);
+      tone(659.25, 0.16, "sine", 0.12, 0.07);
+      tone(783.99, 0.22, "triangle", 0.13, 0.14);
+      tone(1046.5, 0.28, "sine", 0.1, 0.2);
+    }
+
+    function potionPop() {
+      tone(720, 0.06, "triangle", 0.1, 0, 420);
+      noiseBurst(0.05, 0.12, 1800);
+    }
+
+    function hurt() {
+      tone(240, 0.11, "sawtooth", 0.14, 0, 70);
+      noiseBurst(0.09, 0.22, 480);
+    }
+
+    function mine() {
+      noiseBurst(0.04, 0.14, 900);
+      tone(140, 0.05, "square", 0.08, 0, 60);
+    }
+
+    function ui() {
+      tone(700, 0.04, "square", 0.05);
+    }
+
+    return {
+      unlock, setVolume, swordSlash, swordHit, fist, bow,
+      footstep, drinkGulp, healChime, potionPop, hurt, mine, ui,
+    };
+  })();
+
+  function unlockAudio() { SFX.unlock(); }
 
   const mapView = {
     zoom: "mid",
@@ -1416,6 +1578,15 @@ const QUESTIONS = {
     return "#f07090";
   }
 
+  function spawnFloatText(x, y, text, color = "#ffe080") {
+    state.floatTexts.push({
+      x, y, text, color,
+      life: 1.05,
+      max: 1.05,
+      vy: -0.85,
+    });
+  }
+
   function applyConsumableEffects(item) {
     if (!item) return;
     if (item.effect === "heal") {
@@ -1425,18 +1596,24 @@ const QUESTIONS = {
       const gained = Math.ceil(state.hp - before);
       state.drinkHealAmt = gained;
       showToast(`Drank ${item.name} · +${gained} HP`);
-      spawnParticles(state.player.x, state.player.y, 14, "heal");
+      spawnParticles(state.player.x, state.player.y, 22, "heal");
+      if (gained > 0) spawnFloatText(state.player.x, state.player.y - 0.6, `+${gained}`, "#ff90a8");
+      SFX.healChime();
       state.lowHpWarned = false;
     } else if (item.effect === "breath") {
       state.breath = state.maxBreath;
       updateBreathUI();
       showToast(`Drank ${item.name} · breath restored!`);
       spawnParticles(state.player.x, state.player.y, 10, "bubble");
+      spawnFloatText(state.player.x, state.player.y - 0.55, "AIR!", "#80d8ff");
+      SFX.healChime();
     } else if (item.effect === "might") {
       state.tempPwr = (state.tempPwr || 0) + (item.amount || 4);
       state.tempPwrT = Math.max(state.tempPwrT || 0, 18);
       showToast(`Drank ${item.name} · Might +${item.amount || 4}!`);
       spawnParticles(state.player.x, state.player.y, 12, "spark");
+      spawnFloatText(state.player.x, state.player.y - 0.55, `PWR+${item.amount || 4}`, "#ffc060");
+      SFX.healChime();
     }
     if (item.alsoBreath) {
       state.breath = state.maxBreath;
@@ -1495,14 +1672,18 @@ const QUESTIONS = {
     if (modalIsOpen("map-modal")) closeFullMap();
     if (modalIsOpen("settings-modal")) { closeModal("settings-modal"); state.paused = false; }
 
-    state.drinkAnim = 0.7;
+    state.drinkAnim = 0.9;
     state.drinkUid = item.uid;
     state.drinkItem = { ...item };
     state.drinkHealAmt = 0;
-    state.hitCd = Math.max(state.hitCd, 0.7);
+    state.drinkSfxCd = 0.05;
+    state.hitCd = Math.max(state.hitCd, 0.9);
     state.mineTarget = null;
     showToast(`Drinking ${item.name}…`);
-    spawnParticles(state.player.x, state.player.y - 0.2, 4, item.effect === "breath" ? "bubble" : "heal");
+    spawnParticles(state.player.x, state.player.y - 0.2, 6, item.effect === "breath" ? "bubble" : "heal");
+    SFX.unlock();
+    SFX.potionPop();
+    SFX.drinkGulp();
     return true;
   }
 
@@ -2396,8 +2577,11 @@ const QUESTIONS = {
     const range = meleeRange();
     const base = hasWeapon ? (5 + (weapon.pwr || 0) + Math.floor(gearStats().pwr * 0.25)) : 2;
     state.hitCd = hasWeapon ? 0.38 : 0.32;
-    state.attackAnim = 0.28;
+    state.attackAnim = 0.32;
     state.attackArc = range;
+    SFX.unlock();
+    if (hasWeapon) SFX.swordSlash();
+    else SFX.fist();
     let hitAny = false;
     const mobs = iterCombatMobs();
     for (const m of mobs) {
@@ -2409,8 +2593,13 @@ const QUESTIONS = {
       damageMonster(m, base);
       hitAny = true;
     }
-    spawnParticles(state.player.x + Math.cos(state.player.facing) * 0.45, state.player.y + Math.sin(state.player.facing) * 0.45, 5, "spark");
-    if (!hitAny && mobs.length) showToast(hasWeapon ? "Swing missed — step closer!" : "Fists miss — get closer!");
+    if (hitAny) {
+      if (hasWeapon) SFX.swordHit();
+      spawnParticles(state.player.x + Math.cos(state.player.facing) * 0.45, state.player.y + Math.sin(state.player.facing) * 0.45, 8, "spark");
+    } else {
+      spawnParticles(state.player.x + Math.cos(state.player.facing) * 0.45, state.player.y + Math.sin(state.player.facing) * 0.45, 5, "spark");
+      if (mobs.length) showToast(hasWeapon ? "Swing missed — step closer!" : "Fists miss — get closer!");
+    }
     return true;
   }
 
@@ -2436,6 +2625,8 @@ const QUESTIONS = {
       kind: "arrow",
     });
     spawnParticles(state.player.x, state.player.y, 4, "spark");
+    SFX.unlock();
+    SFX.bow();
     return true;
   }
 
@@ -2468,6 +2659,7 @@ const QUESTIONS = {
     state.mineAnim = 0.25;
     state.mineTarget.progress += dt;
     if (Math.random() < 0.08) spawnParticles(wx + 0.5, wy + 0.5, 2, "dust");
+    if (Math.random() < 0.12) SFX.mine();
     if (state.mineTarget.progress >= state.mineTarget.need) {
       const tile = getTile(wx, wy);
       setTile(wx, wy, tile === TILES.RUIN ? TILES.DIRT : TILES.DIRT);
@@ -2567,6 +2759,8 @@ const QUESTIONS = {
     const taken = Math.max(1, dmg - Math.floor(def * 0.5));
     state.hp -= taken;
     state.hurtCd = 0.8;
+    SFX.hurt();
+    spawnFloatText(state.player.x, state.player.y - 0.45, `-${taken}`, "#ff6060");
     recalcHp();
     if (state.hp <= 0) {
       state.hp = state.maxHp;
@@ -2700,9 +2894,11 @@ const QUESTIONS = {
     // Enter/exit splash
     if (state.swimming && !wasSwimming) {
       spawnParticles(state.player.x, state.player.y, 14, "splash");
+      SFX.footstep("water");
       showToast("You wade into the water… hold your breath!");
     } else if (!state.swimming && wasSwimming) {
       spawnParticles(state.player.x, state.player.y, 10, "splash");
+      SFX.footstep("water");
       state.breath = state.maxBreath;
     }
 
@@ -2722,13 +2918,23 @@ const QUESTIONS = {
     if (moving && state.footstepCd <= 0) {
       if (state.swimming) {
         spawnParticles(state.player.x, state.player.y + 0.15, 3, "splash");
-        state.footstepCd = 0.22;
+        SFX.footstep("water");
+        state.footstepCd = 0.28;
       } else {
         const ground = getTile(Math.floor(state.player.x), Math.floor(state.player.y));
+        let surface = "grass";
+        if (ground === TILES.STONE || ground === TILES.COBBLE || ground === TILES.FLOOR || ground === TILES.WALL || ground === TILES.RUIN) {
+          surface = "stone";
+        } else if (ground === TILES.SAND) {
+          surface = "sand";
+        } else if (ground === TILES.DIRT || ground === TILES.PATH) {
+          surface = "dirt";
+        }
         if (ground === TILES.SAND || ground === TILES.DIRT || ground === TILES.PATH || ground === TILES.GRASS) {
           spawnParticles(state.player.x, state.player.y + 0.35, 2, "dust");
         }
-        state.footstepCd = 0.18;
+        SFX.footstep(surface);
+        state.footstepCd = 0.32 / Math.max(0.7, state.settings.speed || 1);
       }
     }
 
@@ -2791,11 +2997,23 @@ const QUESTIONS = {
     if (state.attackAnim > 0) state.attackAnim = Math.max(0, state.attackAnim - dt);
     if (state.drinkAnim > 0) {
       state.drinkAnim -= dt;
-      if (Math.random() < 0.25) {
-        spawnParticles(state.player.x, state.player.y - 0.35, 1, state.drinkItem?.effect === "breath" ? "bubble" : "heal");
+      state.drinkSfxCd = (state.drinkSfxCd || 0) - dt;
+      if (state.drinkSfxCd <= 0 && state.drinkAnim > 0.12) {
+        SFX.drinkGulp();
+        state.drinkSfxCd = 0.22;
+      }
+      if (Math.random() < 0.4) {
+        spawnParticles(state.player.x, state.player.y - 0.4, 1, state.drinkItem?.effect === "breath" ? "bubble" : "heal");
       }
       if (state.drinkAnim <= 0) finishDrink();
     }
+    // Floating combat / heal numbers
+    state.floatTexts = state.floatTexts.filter((ft) => {
+      ft.life -= dt;
+      ft.y += ft.vy * dt;
+      ft.vy *= 0.96;
+      return ft.life > 0;
+    });
     // Low HP tip — remind them they can drink
     if (state.hp / Math.max(1, state.maxHp) <= 0.35 && !state.lowHpWarned && state.drinkAnim <= 0) {
       const hasHeal = state.slots.some((it) => it && it.type === "consumable" && it.effect === "heal");
@@ -3271,8 +3489,8 @@ const QUESTIONS = {
     const swingT = state.attackAnim > 0 ? (state.attackAnim / 0.35) : 0;
     const mineT = state.mineAnim > 0 ? Math.sin(state.animT * 18) : 0;
     const drinking = state.drinkAnim > 0;
-    const drinkT = drinking ? 1 - Math.max(0, state.drinkAnim / 0.7) : 0; // 0→1 through drink
-    const tipBack = drinking ? Math.sin(drinkT * Math.PI) * 3 : 0;
+    const drinkT = drinking ? 1 - Math.max(0, state.drinkAnim / 0.9) : 0; // 0→1 through drink
+    const tipBack = drinking ? Math.sin(Math.min(1, drinkT * 1.15) * Math.PI) * 5 : 0;
 
     if (swim) pxRect(ppx - s * 0.4, ppy + s * 0.28 + bob, s * 0.8, 3, "rgba(20,60,120,0.45)");
     else pxRect(ppx - s * 0.35, ppy + s * 0.42, s * 0.7, 3, "rgba(0,0,0,0.4)");
@@ -3304,25 +3522,31 @@ const QUESTIONS = {
     if (drinking && !swim) {
       const bottle = state.drinkItem;
       const col = potionColor(bottle);
-      const raise = Math.min(1, drinkT * 1.6);
-      const bx = ppx + right * (s * 0.15) + lookX * 0.5;
-      const by = ppy - s * (0.05 + raise * 0.42) + bob - sub - tipBack * 0.3;
-      // arm
-      outlineRect(ppx + right * (s * 0.28), ppy - s * 0.05 + bob - raise * s * 0.2, 3, s * 0.28, "#f0c090");
-      // bottle body
-      outlineRect(bx - 3, by - 2, 7, 11, col);
-      pxRect(bx - 2, by, 5, 7, "#ffffff55");
-      outlineRect(bx - 1, by - 5, 3, 4, "#c0a070"); // neck
-      pxRect(bx, by - 6, 2, 2, "#ffe060"); // cork
-      // glug sparkles near mouth
-      if (drinkT > 0.25 && drinkT < 0.85) {
-        pxRect(bx - 1 + right * 2, by - 8, 2, 2, "#fff8c0");
-        pxRect(bx + 2, by - 10, 2, 2, col);
+      const raise = Math.min(1, drinkT * 1.8);
+      const tip = Math.max(0, (drinkT - 0.35) / 0.5);
+      const bx = ppx + right * (s * 0.12) + lookX * 0.5;
+      const by = ppy - s * (0.05 + raise * 0.48) + bob - sub - tipBack * 0.35;
+      // reaching arm
+      outlineRect(ppx + right * (s * 0.28), ppy - s * 0.05 + bob - raise * s * 0.28, 3, s * 0.3, "#f0c090");
+      // bottle tips toward mouth
+      const tilt = Math.floor(tip * 3);
+      outlineRect(bx - 3 + tilt, by - 2 - tilt, 7, 11, col);
+      pxRect(bx - 2 + tilt, by - tilt, 5, Math.max(2, 7 - Math.floor(tip * 4)), "#ffffff66");
+      outlineRect(bx - 1 + tilt, by - 5 - tilt, 3, 4, "#c0a070");
+      pxRect(bx + tilt, by - 6 - tilt, 2, 2, "#ffe060");
+      // glug droplets
+      if (drinkT > 0.3 && drinkT < 0.9) {
+        const g = Math.sin(state.animT * 22);
+        pxRect(bx - 1 + right * 2, by - 8 + g, 2, 2, "#fff8c0");
+        pxRect(bx + 2, by - 11 - g, 2, 2, col);
+        pxRect(ppx + lookX, ppy - s * 0.42 + bob - tipBack, 2, 2, "#ffe8c0");
       }
-      // soft heal aura
+      // pulsing heal / potion aura
       const aura = Math.sin(drinkT * Math.PI);
-      ctx.globalAlpha = 0.2 + aura * 0.25;
-      pxRect(ppx - s * 0.55, ppy - s * 0.55 + bob - sub, s * 1.1, s * 1.1, col);
+      ctx.globalAlpha = 0.22 + aura * 0.35;
+      pxRect(ppx - s * 0.6, ppy - s * 0.65 + bob - sub - tipBack, s * 1.2, s * 1.25, col);
+      ctx.globalAlpha = 0.15 + aura * 0.2;
+      pxRect(ppx - s * 0.35, ppy - s * 0.4 + bob - sub - tipBack, s * 0.7, s * 0.7, "#ffffff");
       ctx.globalAlpha = 1;
     }
 
@@ -3506,22 +3730,45 @@ const QUESTIONS = {
       pxRect(mpx + 2, mpy - 4, (tileSize - 4) * pct, 3, "#ffe060");
     }
 
-    // Melee attack arc visual (matches short hit cone)
+    // Melee attack arc visual (matches short hit cone) — bright “shing” flash
     if (state.attackAnim > 0 && state.attackArc > 0) {
       const rad = state.attackArc * tileSize;
       const half = MELEE_ARC / 2;
-      const alpha = Math.min(0.35, state.attackAnim * 1.2);
-      ctx.strokeStyle = `rgba(255,240,120,${alpha})`;
-      ctx.lineWidth = 2;
+      const flash = Math.min(1, state.attackAnim / 0.32);
+      const alpha = 0.2 + flash * 0.45;
+      ctx.strokeStyle = `rgba(255,245,180,${alpha})`;
+      ctx.lineWidth = 2 + flash * 2;
       ctx.beginPath();
       ctx.arc(w / 2, h / 2, rad, state.player.facing - half, state.player.facing + half);
       ctx.stroke();
-      ctx.fillStyle = `rgba(255,220,80,${alpha * 0.25})`;
+      ctx.fillStyle = `rgba(255,230,120,${alpha * 0.3})`;
       ctx.beginPath();
       ctx.moveTo(w / 2, h / 2);
       ctx.arc(w / 2, h / 2, rad, state.player.facing - half, state.player.facing + half);
       ctx.closePath();
       ctx.fill();
+      // trailing gleam lines
+      ctx.strokeStyle = `rgba(255,255,255,${alpha * 0.7})`;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(w / 2, h / 2, rad * 0.85, state.player.facing - half * 0.7, state.player.facing + half * 0.2);
+      ctx.stroke();
+    }
+
+    // Floating +HP / damage text
+    for (const ft of state.floatTexts) {
+      const fx = Math.floor((ft.x - camX) * tileSize + w / 2);
+      const fy = Math.floor((ft.y - camY) * tileSize + h / 2);
+      ctx.globalAlpha = Math.min(1, ft.life / (ft.max * 0.5));
+      ctx.font = `bold ${Math.max(12, Math.floor(tileSize * 0.55))}px VT323, monospace`;
+      ctx.textAlign = "center";
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = "rgba(0,0,0,0.75)";
+      ctx.strokeText(ft.text, fx, fy);
+      ctx.fillStyle = ft.color;
+      ctx.fillText(ft.text, fx, fy);
+      ctx.globalAlpha = 1;
+      ctx.textAlign = "left";
     }
 
     // Projectiles (arrows)
@@ -4015,6 +4262,8 @@ const QUESTIONS = {
     state.chests.clear();
     state.usedQuestions.clear();
     state.particles = [];
+    state.floatTexts = [];
+    state.drinkSfxCd = 0;
     state.dungeon = null;
     state.spawn = { x: 8.5, y: 8.5 };
     state.checkpoint = { ...state.spawn };
@@ -4432,7 +4681,21 @@ const QUESTIONS = {
   bindRange("setting-speed", "speed", "speed-value", (v) => v.toFixed(1));
   $("setting-minimap").addEventListener("change", (e) => { state.settings.minimap = e.target.checked; });
   $("setting-particles").addEventListener("change", (e) => { state.settings.particles = e.target.checked; });
+  $("setting-sound").addEventListener("change", (e) => {
+    state.settings.sound = e.target.checked;
+    SFX.unlock();
+    if (e.target.checked) SFX.ui();
+  });
+  bindRange("setting-sfx-volume", "sfxVolume", "sfx-volume-value", (v) => {
+    SFX.setVolume(v);
+    return v.toFixed(2);
+  });
+  $("setting-sfx-volume").addEventListener("change", () => { SFX.unlock(); SFX.ui(); });
   $("setting-mobile").addEventListener("change", (e) => { state.settings.forceMobile = e.target.checked; applyMobileVisibility(); });
+
+  // Browsers require a gesture before AudioContext can play
+  window.addEventListener("pointerdown", unlockAudio, { passive: true });
+  window.addEventListener("keydown", unlockAudio);
 
   const setDir = (dir, down) => {
     const map = { up: "ArrowUp", down: "ArrowDown", left: "ArrowLeft", right: "ArrowRight" };

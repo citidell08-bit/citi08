@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=night1" />
+  <link rel="stylesheet" href="style.css?v=sfx1" />
 </head>
 <body>
   <div id="app">
@@ -269,6 +269,14 @@
             <span>Particle effects</span>
           </label>
           <label class="toggle-field">
+            <input type="checkbox" id="setting-sound" checked />
+            <span>Sound effects</span>
+          </label>
+          <label class="slider-field">
+            <span>SFX volume <em id="sfx-volume-value">0.75</em></span>
+            <input type="range" id="setting-sfx-volume" min="0" max="1" step="0.05" value="0.75" />
+          </label>
+          <label class="toggle-field">
             <input type="checkbox" id="setting-mobile" />
             <span>Force on-screen controls</span>
           </label>
@@ -483,7 +491,7 @@
     </div>
   </div>
 
-  <script src="script.js?v=night1"></script>
+  <script src="script.js?v=sfx1"></script>
   <script>
     // Fallback only — skips if main script already handled the key/button
     (function () {
