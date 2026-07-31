@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { MiniGameResult } from '../../types'
 import { GameTimer } from './GameTimer'
 
-const SYMBOLS = ['◉', '✦', '◷', '♛', 'ϟ', '▣', '✧', '◎']
+const SYMBOLS = ['◆', '●', '▲', '★', '✚', '◈', '⬡', '✦']
 const DURATION = 60
 
 interface Tile {

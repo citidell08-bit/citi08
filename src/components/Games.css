@@ -218,34 +218,64 @@
 .memory-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.45rem;
-  width: min(440px, 100%);
+  gap: 0.7rem;
+  width: min(560px, 100%);
   margin: 0 auto;
 }
 
 .memory-tile {
   aspect-ratio: 1;
-  border-radius: 14px;
-  border: 1px solid var(--line);
-  background: rgba(0, 0, 0, 0.28);
-  color: var(--muted);
-  font-size: clamp(1.05rem, 3.5vw, 1.45rem);
-  transition: transform 160ms ease, background 160ms ease, border-color 160ms ease;
+  border-radius: 18px;
+  border: 1px solid rgba(56, 189, 248, 0.22);
+  background: rgba(0, 20, 40, 0.45);
+  color: rgba(56, 189, 248, 0.55);
+  font-size: clamp(1.85rem, 6.5vw, 2.75rem);
+  transition:
+    transform 160ms ease,
+    background 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.memory-tile span {
+  display: block;
+  line-height: 1;
+  filter: drop-shadow(0 0 6px rgba(56, 189, 248, 0.35));
 }
 
 .memory-tile:hover:not(:disabled) {
-  transform: translateY(-2px);
-  border-color: rgba(94, 234, 212, 0.35);
+  transform: translateY(-2px) scale(1.02);
+  border-color: rgba(56, 189, 248, 0.55);
+  box-shadow: 0 0 18px rgba(14, 165, 233, 0.2);
 }
 
 .memory-tile.open {
-  background: linear-gradient(160deg, rgba(61, 139, 110, 0.45), rgba(12, 36, 32, 0.9));
-  color: var(--ink);
+  background: linear-gradient(160deg, rgba(14, 116, 180, 0.45), rgba(8, 24, 48, 0.95));
+  border-color: rgba(56, 189, 248, 0.75);
+  color: #38bdf8;
+  box-shadow:
+    0 0 22px rgba(56, 189, 248, 0.35),
+    inset 0 0 18px rgba(56, 189, 248, 0.12);
+}
+
+.memory-tile.open span {
+  color: #7dd3fc;
+  text-shadow:
+    0 0 8px rgba(56, 189, 248, 0.95),
+    0 0 18px rgba(14, 165, 233, 0.85),
+    0 0 28px rgba(3, 105, 161, 0.65);
+  filter: drop-shadow(0 0 10px rgba(56, 189, 248, 0.8));
 }
 
 .memory-tile.matched {
-  border-color: rgba(240, 180, 41, 0.45);
-  box-shadow: 0 0 18px rgba(240, 180, 41, 0.18);
+  border-color: rgba(125, 211, 252, 0.9);
+  box-shadow:
+    0 0 28px rgba(56, 189, 248, 0.45),
+    0 0 48px rgba(14, 165, 233, 0.25);
+}
+
+.memory-tile.matched span {
+  color: #bae6fd;
 }
 
 .math-panel,
@@ -332,10 +362,12 @@
 
 @media (max-width: 480px) {
   .memory-grid {
-    gap: 0.4rem;
+    gap: 0.55rem;
+    width: min(100%, 420px);
   }
 
   .memory-tile {
-    border-radius: 12px;
+    border-radius: 14px;
+    font-size: clamp(1.55rem, 8vw, 2.2rem);
   }
 }
