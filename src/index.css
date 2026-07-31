@@ -84,6 +84,7 @@ a {
 
 @media (min-width: 840px) {
   .app-shell {
+    padding-top: 4.5rem;
     padding-bottom: 2.5rem;
   }
 }
