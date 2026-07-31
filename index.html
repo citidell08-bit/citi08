@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=ruinrocks1" />
+  <link rel="stylesheet" href="style.css?v=mappins1" />
 </head>
 <body>
   <div id="app">
@@ -347,20 +347,22 @@
             <button type="button" class="btn ghost map-zoom-btn" data-map-zoom="near" id="map-zoom-near">Near</button>
             <button type="button" class="btn ghost map-zoom-btn active" data-map-zoom="mid" id="map-zoom-mid">Area</button>
             <button type="button" class="btn ghost map-zoom-btn" data-map-zoom="far" id="map-zoom-far">Far</button>
+            <button type="button" class="btn ghost" id="map-clear-pins" title="Clear all pins on this map">Clear pins</button>
             <span id="map-coords" class="muted map-coords">0, 0</span>
           </div>
           <div class="map-canvas-wrap">
-            <canvas id="fullmap-canvas" width="480" height="480" aria-label="Full world map"></canvas>
+            <canvas id="fullmap-canvas" width="480" height="480" aria-label="Full world map — click to pin a destination"></canvas>
           </div>
           <div class="map-legend">
             <span class="ml-you">You</span>
+            <span class="ml-pin">Pin</span>
             <span class="ml-village">Village</span>
             <span class="ml-dungeon">Dungeon</span>
             <span class="ml-quest">Quest</span>
             <span class="ml-water">Water</span>
             <span class="ml-chest">Chest</span>
           </div>
-          <p class="muted map-hint">Press <kbd>M</kbd> to open / close · drag to pan · scroll to zoom</p>
+          <p class="muted map-hint">Click map to <strong>pin</strong> a destination · click a pin to remove · drag to pan · <kbd>M</kbd> close</p>
         </div>
       </div>
     </div>
@@ -537,7 +539,7 @@
     </div>
   </div>
 
-  <script src="script.js?v=ruinrocks1"></script>
+  <script src="script.js?v=mappins1"></script>
   <script>
     // Fallback only — skips if main script already handled the key/button
     (function () {

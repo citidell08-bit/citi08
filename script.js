@@ -342,6 +342,7 @@ const QUESTIONS = {
     quakeCd: 0,
     quakeShake: 0,
     quakeRing: null, // { t, max, r }
+    mapPins: [], // { id, x, y, realm:'overworld'|'dungeon', floor? }
     projectiles: [],
     nextId: 1,
   };
@@ -1053,7 +1054,13 @@ const QUESTIONS = {
     dragging: false,
     lastX: 0,
     lastY: 0,
+    downX: 0,
+    downY: 0,
+    moved: false,
   };
+  const MAP_PIN_MAX = 8;
+  const MAP_PIN_CLICK_PX = 6; // movement under this = click (not drag)
+  const MAP_PIN_HIT_PX = 14;  // click near pin to remove
 
   function uid() { return `id-${state.nextId++}`; }
 
@@ -2720,7 +2727,10 @@ const QUESTIONS = {
     $("hud-level").textContent = String(state.level);
     $("hud-kp").textContent = String(state.kp);
     const px = Math.floor(state.player.x), py = Math.floor(state.player.y);
-    $("hud-coords").textContent = `${px}, ${py}`;
+    const near = nearestActivePin();
+    $("hud-coords").textContent = near
+      ? `${px}, ${py} · 📌${Math.round(near.dist)}`
+      : `${px}, ${py}`;
     const topicShort = bookTopicList()[0] || "";
     $("hud-study").textContent = topicShort
       ? `${state.playerName} · ${state.bookTitle} · ${topicShort}`
@@ -6023,8 +6033,40 @@ const QUESTIONS = {
         miniCtx.fillRect(mx, my, 2, 2);
       }
     }
-    miniCtx.fillStyle = "#ffffff";
-    miniCtx.fillRect(s / 2 - 2, s / 2 - 2, 4, 4);
+    // Destination pins on minimap
+    for (const p of activeMapPins()) {
+      let mx, my;
+      if (state.dungeon?.active) {
+        mx = (p.x / state.dungeon.w) * s;
+        my = (p.y / state.dungeon.h) * s;
+      } else {
+        mx = ((p.x - px) / (range * 2)) * s + s / 2;
+        my = ((p.y - py) / (range * 2)) * s + s / 2;
+      }
+      // Off-map: draw edge arrow toward pin
+      const clamped = mx < 3 || my < 3 || mx > s - 3 || my > s - 3;
+      if (clamped) {
+        const ang = Math.atan2(my - s / 2, mx - s / 2);
+        const ex = s / 2 + Math.cos(ang) * (s / 2 - 5);
+        const ey = s / 2 + Math.sin(ang) * (s / 2 - 5);
+        miniCtx.fillStyle = "#ff4060";
+        miniCtx.fillRect(ex - 2, ey - 2, 4, 4);
+      } else {
+        miniCtx.fillStyle = "#000";
+        miniCtx.fillRect(mx - 2, my - 3, 4, 5);
+        miniCtx.fillStyle = "#ff4060";
+        miniCtx.fillRect(mx - 1, my - 4, 3, 3);
+      }
+    }
+    if (state.dungeon?.active) {
+      const pmx = (state.player.x / state.dungeon.w) * s;
+      const pmy = (state.player.y / state.dungeon.h) * s;
+      miniCtx.fillStyle = "#ffffff";
+      miniCtx.fillRect(pmx - 2, pmy - 2, 4, 4);
+    } else {
+      miniCtx.fillStyle = "#ffffff";
+      miniCtx.fillRect(s / 2 - 2, s / 2 - 2, 4, 4);
+    }
   }
 
   function mapTileColor(tile) {
@@ -6063,6 +6105,161 @@ const QUESTIONS = {
     return e.code === "KeyM" || e.key === "m" || e.key === "M";
   }
 
+  function currentMapRealm() {
+    if (state.dungeon?.active) {
+      return { realm: "dungeon", floor: state.dungeon.floor | 0 };
+    }
+    return { realm: "overworld", floor: 0 };
+  }
+
+  function activeMapPins() {
+    const cur = currentMapRealm();
+    return (state.mapPins || []).filter((p) => {
+      if (p.realm !== cur.realm) return false;
+      if (cur.realm === "dungeon" && (p.floor | 0) !== cur.floor) return false;
+      return true;
+    });
+  }
+
+  function getFullMapCamera() {
+    const s = fullMapCanvas ? fullMapCanvas.width : 480;
+    const inDungeon = !!(state.dungeon && state.dungeon.active);
+    const px = state.player.x;
+    const py = state.player.y;
+    let range, originX, originY, worldW, worldH;
+    if (inDungeon) {
+      worldW = state.dungeon.w;
+      worldH = state.dungeon.h;
+      range = Math.max(worldW, worldH) / 2;
+      originX = worldW / 2 + mapView.panX;
+      originY = worldH / 2 + mapView.panY;
+    } else {
+      range = mapView.ranges[mapView.zoom] || 96;
+      originX = px + mapView.panX;
+      originY = py + mapView.panY;
+      worldW = range * 2;
+      worldH = range * 2;
+    }
+    return { s, inDungeon, px, py, range, originX, originY, worldW, worldH };
+  }
+
+  function worldToFullMap(wx, wy, cam = null) {
+    const c = cam || getFullMapCamera();
+    const mx = ((wx - (c.originX - c.range)) / (c.range * 2)) * c.s;
+    const my = ((wy - (c.originY - c.range)) / (c.range * 2)) * c.s;
+    return [mx, my];
+  }
+
+  function fullMapClientToWorld(clientX, clientY) {
+    if (!fullMapCanvas) return null;
+    const cam = getFullMapCamera();
+    const rect = fullMapCanvas.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return null;
+    const mx = ((clientX - rect.left) / rect.width) * cam.s;
+    const my = ((clientY - rect.top) / rect.height) * cam.s;
+    const wx = (cam.originX - cam.range) + (mx / cam.s) * (cam.range * 2);
+    const wy = (cam.originY - cam.range) + (my / cam.s) * (cam.range * 2);
+    return { x: wx, y: wy, mx, my, cam };
+  }
+
+  function drawMapPinMarker(ctx, mx, my, pulse = 0) {
+    const bob = Math.sin(pulse) * 1.5;
+    const y = my - 6 + bob;
+    // stem
+    ctx.fillStyle = "#1a1008";
+    ctx.fillRect(mx - 1, y + 2, 3, 10);
+    // pin head
+    ctx.fillStyle = "#000";
+    ctx.beginPath();
+    ctx.arc(mx, y, 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#ff4060";
+    ctx.beginPath();
+    ctx.arc(mx, y, 4.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#ffe0e8";
+    ctx.beginPath();
+    ctx.arc(mx - 1, y - 1, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function clearMapPinsForRealm() {
+    const cur = currentMapRealm();
+    const before = state.mapPins.length;
+    state.mapPins = state.mapPins.filter((p) => {
+      if (p.realm !== cur.realm) return true;
+      if (cur.realm === "dungeon" && (p.floor | 0) !== cur.floor) return true;
+      return false;
+    });
+    const removed = before - state.mapPins.length;
+    if (removed > 0) {
+      showToast(`Cleared ${removed} pin${removed > 1 ? "s" : ""}`);
+      try { SFX.ui(); } catch (_) {}
+    } else {
+      showToast("No pins on this map.");
+    }
+    updateMapPinUI();
+    if (isMapOpen()) drawFullMap();
+  }
+
+  function handleMapPinClick(clientX, clientY) {
+    const hit = fullMapClientToWorld(clientX, clientY);
+    if (!hit) return;
+    const { x, y, mx, my, cam } = hit;
+    // Remove if clicking an existing pin
+    const pins = activeMapPins();
+    for (const p of pins) {
+      const [px, py] = worldToFullMap(p.x, p.y, cam);
+      if (Math.hypot(px - mx, py - my) <= MAP_PIN_HIT_PX) {
+        state.mapPins = state.mapPins.filter((q) => q.id !== p.id);
+        showToast(`Pin removed · ${Math.floor(p.x)}, ${Math.floor(p.y)}`);
+        try { SFX.ui(); } catch (_) {}
+        updateMapPinUI();
+        drawFullMap();
+        return;
+      }
+    }
+    if (pins.length >= MAP_PIN_MAX) {
+      showToast(`Max ${MAP_PIN_MAX} pins — clear one or use Clear pins.`, true);
+      return;
+    }
+    const cur = currentMapRealm();
+    const pin = {
+      id: uid(),
+      x,
+      y,
+      realm: cur.realm,
+      floor: cur.floor,
+    };
+    state.mapPins.push(pin);
+    const dist = Math.hypot(x - state.player.x, y - state.player.y);
+    showToast(`📌 Pinned ${Math.floor(x)}, ${Math.floor(y)} · ${Math.round(dist)} tiles away`);
+    try { SFX.ui(); } catch (_) {}
+    updateMapPinUI();
+    drawFullMap();
+  }
+
+  function updateMapPinUI() {
+    const btn = $("map-clear-pins");
+    const n = activeMapPins().length;
+    if (btn) {
+      btn.textContent = n > 0 ? `Clear pins (${n})` : "Clear pins";
+      btn.disabled = n <= 0;
+    }
+  }
+
+  function nearestActivePin() {
+    const pins = activeMapPins();
+    if (!pins.length) return null;
+    let best = null;
+    let bestD = Infinity;
+    for (const p of pins) {
+      const d = Math.hypot(p.x - state.player.x, p.y - state.player.y);
+      if (d < bestD) { bestD = d; best = p; }
+    }
+    return best ? { pin: best, dist: bestD } : null;
+  }
+
   function openFullMap() {
     if (!state.running) {
       showToast("Start a run first, then press M for the map.", true);
@@ -6087,7 +6284,8 @@ const QUESTIONS = {
       state.paused = true;
       const title = modalEl("map-title");
       if (title) title.textContent = state.dungeon?.active ? `${state.dungeon.name} Map` : "World Map";
-      showToast("Map · M to close");
+      showToast("Map · click to pin a destination · M to close");
+      updateMapPinUI();
       // Defer draw so the modal paints immediately
       requestAnimationFrame(() => {
         try { drawFullMap(); }
@@ -6131,28 +6329,10 @@ const QUESTIONS = {
 
   function drawFullMap() {
     if (!fullMapCanvas || !fullMapCtx || !isMapOpen()) return;
-    const s = fullMapCanvas.width;
+    const cam = getFullMapCamera();
+    const { s, inDungeon, px, py, range, originX, originY, worldW, worldH } = cam;
     const img = fullMapCtx.createImageData(s, s);
     const data = img.data;
-    const inDungeon = !!(state.dungeon && state.dungeon.active);
-    const px = state.player.x;
-    const py = state.player.y;
-    let range, originX, originY, worldW, worldH;
-
-    if (inDungeon) {
-      worldW = state.dungeon.w;
-      worldH = state.dungeon.h;
-      // Fit whole dungeon floor
-      range = Math.max(worldW, worldH) / 2;
-      originX = worldW / 2 + mapView.panX;
-      originY = worldH / 2 + mapView.panY;
-    } else {
-      range = mapView.ranges[mapView.zoom] || 96;
-      originX = px + mapView.panX;
-      originY = py + mapView.panY;
-      worldW = range * 2;
-      worldH = range * 2;
-    }
 
     for (let y = 0; y < s; y++) {
       for (let x = 0; x < s; x++) {
@@ -6199,16 +6379,10 @@ const QUESTIONS = {
     }
     fullMapCtx.putImageData(img, 0, 0);
 
-    function worldToMap(wx, wy) {
-      const mx = ((wx - (originX - range)) / (range * 2)) * s;
-      const my = ((wy - (originY - range)) / (range * 2)) * s;
-      return [mx, my];
-    }
-
     // Structure markers (villages / dungeons / quests)
     if (!inDungeon) {
       for (const sObj of state.structures.values()) {
-        const [mx, my] = worldToMap(sObj.wx + 0.5, sObj.wy + 0.5);
+        const [mx, my] = worldToFullMap(sObj.wx + 0.5, sObj.wy + 0.5, cam);
         if (mx < -4 || my < -4 || mx > s + 4 || my > s + 4) continue;
         let col = "#f0c96a";
         let size = 4;
@@ -6229,14 +6403,42 @@ const QUESTIONS = {
       }
     } else {
       for (const m of state.dungeon.monsters) {
-        const [mx, my] = worldToMap(m.x, m.y);
+        const [mx, my] = worldToFullMap(m.x, m.y, cam);
         fullMapCtx.fillStyle = "#ff4040";
         fullMapCtx.fillRect(mx - 2, my - 2, 4, 4);
       }
     }
 
+    // Destination pins
+    const pins = activeMapPins();
+    pins.forEach((p, idx) => {
+      const [mx, my] = worldToFullMap(p.x, p.y, cam);
+      if (mx < -10 || my < -16 || mx > s + 10 || my > s + 10) return;
+      drawMapPinMarker(fullMapCtx, mx, my, state.animT * 6 + idx);
+      // dashed line from player to pin
+      const [plx0, ply0] = worldToFullMap(px, py, cam);
+      fullMapCtx.save();
+      fullMapCtx.strokeStyle = "rgba(255,80,110,0.45)";
+      fullMapCtx.lineWidth = 1;
+      fullMapCtx.setLineDash([4, 4]);
+      fullMapCtx.beginPath();
+      fullMapCtx.moveTo(plx0, ply0);
+      fullMapCtx.lineTo(mx, my);
+      fullMapCtx.stroke();
+      fullMapCtx.restore();
+      const dist = Math.round(Math.hypot(p.x - px, p.y - py));
+      fullMapCtx.font = "bold 11px VT323, monospace";
+      fullMapCtx.textAlign = "center";
+      fullMapCtx.lineWidth = 3;
+      fullMapCtx.strokeStyle = "rgba(0,0,0,0.75)";
+      fullMapCtx.strokeText(`${dist}`, mx, my + 14);
+      fullMapCtx.fillStyle = "#ffc0d0";
+      fullMapCtx.fillText(`${dist}`, mx, my + 14);
+      fullMapCtx.textAlign = "left";
+    });
+
     // Player
-    const [plx, ply] = worldToMap(px, py);
+    const [plx, ply] = worldToFullMap(px, py, cam);
     fullMapCtx.fillStyle = "#000";
     fullMapCtx.fillRect(plx - 4, ply - 4, 8, 8);
     fullMapCtx.fillStyle = "#ffffff";
@@ -6249,10 +6451,13 @@ const QUESTIONS = {
     fullMapCtx.fillRect(plx + Math.cos(ang) * 5 - 1, ply + Math.sin(ang) * 5 - 1, 3, 3);
 
     if ($("map-coords")) {
+      const near = nearestActivePin();
+      const pinBit = near ? ` · 📌 ${Math.round(near.dist)} away` : "";
       $("map-coords").textContent = inDungeon
-        ? `Floor ${state.dungeon.floor}/10 · ${Math.floor(px)}, ${Math.floor(py)}`
-        : `${Math.floor(px)}, ${Math.floor(py)} · ${BIOME_NAMES[biomeAt(Math.floor(px), Math.floor(py))] || ""}`;
+        ? `Floor ${state.dungeon.floor}/10 · ${Math.floor(px)}, ${Math.floor(py)}${pinBit}`
+        : `${Math.floor(px)}, ${Math.floor(py)} · ${BIOME_NAMES[biomeAt(Math.floor(px), Math.floor(py))] || ""}${pinBit}`;
     }
+    updateMapPinUI();
   }
 
   let last = 0;
@@ -6339,6 +6544,7 @@ const QUESTIONS = {
     state.tempPwrT = 0;
     state.selectedItem = null;
     state.projectiles = [];
+    state.mapPins = [];
     state.attackAnim = 0;
     state.attackArc = 0;
     state.mineTarget = null;
@@ -6758,11 +6964,15 @@ const QUESTIONS = {
     });
   }
 
-  // Pan / zoom on full map canvas
+  // Pan / zoom / click-to-pin on full map canvas
   if (fullMapCanvas) {
     const wrap = fullMapCanvas.parentElement;
     fullMapCanvas.addEventListener("pointerdown", (e) => {
+      if (e.button != null && e.button !== 0) return;
       mapView.dragging = true;
+      mapView.moved = false;
+      mapView.downX = e.clientX;
+      mapView.downY = e.clientY;
       mapView.lastX = e.clientX;
       mapView.lastY = e.clientY;
       if (wrap) wrap.classList.add("dragging");
@@ -6770,27 +6980,44 @@ const QUESTIONS = {
     });
     fullMapCanvas.addEventListener("pointermove", (e) => {
       if (!mapView.dragging || !isMapOpen()) return;
-      const range = state.dungeon?.active
-        ? Math.max(state.dungeon.w, state.dungeon.h) / 2
-        : (mapView.ranges[mapView.zoom] || 96);
-      const scale = (range * 2) / fullMapCanvas.width;
       const dx = (e.clientX - mapView.lastX);
       const dy = (e.clientY - mapView.lastY);
+      if (!mapView.moved) {
+        const total = Math.hypot(e.clientX - mapView.downX, e.clientY - mapView.downY);
+        if (total > MAP_PIN_CLICK_PX) mapView.moved = true;
+      }
+      if (!mapView.moved) return;
       mapView.lastX = e.clientX;
       mapView.lastY = e.clientY;
       // Drag map under cursor (natural: drag right → look left)
+      const range = state.dungeon?.active
+        ? Math.max(state.dungeon.w, state.dungeon.h) / 2
+        : (mapView.ranges[mapView.zoom] || 96);
       const rect = fullMapCanvas.getBoundingClientRect();
       const pxScale = (range * 2) / rect.width;
       mapView.panX -= dx * pxScale;
       mapView.panY -= dy * pxScale;
       drawFullMap();
     });
-    const endDrag = () => {
+    const endDrag = (e) => {
+      const wasDrag = mapView.dragging;
+      const wasMove = mapView.moved;
+      const cx = e?.clientX ?? mapView.lastX;
+      const cy = e?.clientY ?? mapView.lastY;
       mapView.dragging = false;
+      mapView.moved = false;
       if (wrap) wrap.classList.remove("dragging");
+      // Tap (no meaningful drag) → place / remove pin
+      if (wasDrag && !wasMove && isMapOpen()) {
+        handleMapPinClick(cx, cy);
+      }
     };
     fullMapCanvas.addEventListener("pointerup", endDrag);
-    fullMapCanvas.addEventListener("pointercancel", endDrag);
+    fullMapCanvas.addEventListener("pointercancel", () => {
+      mapView.dragging = false;
+      mapView.moved = false;
+      if (wrap) wrap.classList.remove("dragging");
+    });
     fullMapCanvas.addEventListener("wheel", (e) => {
       if (!isMapOpen()) return;
       e.preventDefault();
@@ -6800,6 +7027,12 @@ const QUESTIONS = {
       else i = Math.max(0, i - 1);
       setMapZoom(order[i]);
     }, { passive: false });
+  }
+  if ($("map-clear-pins")) {
+    $("map-clear-pins").addEventListener("click", (e) => {
+      e.preventDefault();
+      clearMapPinsForRealm();
+    });
   }
 
   document.querySelectorAll(".mc-equip[data-equip]").forEach((btn) => {
