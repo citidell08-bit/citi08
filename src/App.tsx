@@ -30,7 +30,6 @@ function App() {
     createDeck,
     renameCompanion,
     dismissLevelUp,
-    resetProgress,
   } = useGameState()
 
   const focus = useFocusSession(completeFocusSession)
@@ -62,12 +61,7 @@ function App() {
       </div>
 
       {tab === 'home' && (
-        <Home
-          state={state}
-          onNavigate={changeTab}
-          onRename={renameCompanion}
-          onReset={resetProgress}
-        />
+        <Home state={state} onNavigate={changeTab} onRename={renameCompanion} />
       )}
       {tab === 'focus' && (
         <FocusTimer

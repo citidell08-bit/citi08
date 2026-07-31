@@ -5,7 +5,7 @@ import { COINS_PER_ACHIEVEMENT, coinsForLevelsGained, GAME_COSTS } from '../lib/
 import { todayKey, uid, yesterdayKey } from '../lib/dates'
 import { freshQuestIssuedAt, shouldResetQuestBoard } from '../lib/questReset'
 import { levelFromXp } from '../lib/xp'
-import { createInitialState, loadState, saveState } from '../lib/storage'
+import { loadState, saveState } from '../lib/storage'
 import type {
   Deck,
   Flashcard,
@@ -245,21 +245,45 @@ export function useGameState() {
 
   function checkAchievements(stateSnap: GameState): GameState {
     let next = stateSnap
+    const level = levelFromXp(next.xp)
+    const ownedThemes = stateSnap.ownedThemes?.length ?? 1
+    const paidThemes = ownedThemes - 1
+
     if (stateSnap.totalSessions >= 1) next = unlock(next, 'first_focus')
     if (stateSnap.totalFocusMinutes >= 60) next = unlock(next, 'hour_club')
+    if (stateSnap.totalFocusMinutes >= 180) next = unlock(next, 'focus_marathon')
+    if (stateSnap.totalSessions >= 10) next = unlock(next, 'deep_den')
     if (stateSnap.totalCardsReviewed >= 25) next = unlock(next, 'card_curious')
+    if (stateSnap.totalCardsReviewed >= 100) next = unlock(next, 'card_scholar')
     if (stateSnap.streak >= 3) next = unlock(next, 'streak_3')
     if (stateSnap.streak >= 7) next = unlock(next, 'streak_7')
-    if (levelFromXp(next.xp) >= 5) next = unlock(next, 'level_5')
+    if (stateSnap.streak >= 14) next = unlock(next, 'streak_14')
+    if (level >= 5) next = unlock(next, 'level_5')
+    if (level >= 10) next = unlock(next, 'level_10')
     if (stateSnap.decks.some((d) => !d.id.startsWith('deck_sample'))) {
       next = unlock(next, 'deck_maker')
     }
+    if (stateSnap.totalCoinsEarned >= 250) next = unlock(next, 'coin_pocket')
+    if (stateSnap.totalCoinsEarned >= 500) next = unlock(next, 'coin_hoard')
+    if (paidThemes >= 1) next = unlock(next, 'theme_shopper')
+    if (ownedThemes >= 4) next = unlock(next, 'theme_collector')
     if (stateSnap.totalGamesPlayed >= 1) next = unlock(next, 'first_game')
     if (stateSnap.totalGamesWon >= 5) next = unlock(next, 'arcade_five')
+    if (stateSnap.totalGamesWon >= 20) next = unlock(next, 'arcade_twenty')
+    if (stateSnap.ownedGames.length >= 4) next = unlock(next, 'full_cabinet')
     if (stateSnap.bestMemoryMoves != null && stateSnap.bestMemoryMoves <= 16) {
       next = unlock(next, 'memory_sharp')
     }
     if (stateSnap.bestDashScore >= 120) next = unlock(next, 'dash_runner')
+    if (stateSnap.bestDashScore >= 200) next = unlock(next, 'dash_ace')
+    if (stateSnap.bestMathScore >= 12) next = unlock(next, 'math_ace')
+    if (stateSnap.bestGlowScore >= 10) next = unlock(next, 'glow_sharp')
+
+    const hasDaily = next.achievements.some((a) => a.id === 'quest_clear' && a.unlockedAt)
+    const hasWeekly = next.achievements.some((a) => a.id === 'quest_week' && a.unlockedAt)
+    const hasMonthly = next.achievements.some((a) => a.id === 'quest_month' && a.unlockedAt)
+    if (hasDaily && hasWeekly && hasMonthly) next = unlock(next, 'quest_trinity')
+
     return next
   }
 
@@ -310,11 +334,12 @@ export function useGameState() {
       }
       allowed = true
       queueMicrotask(() => pushToast('Game unlocked', { coins: -cost }))
-      return persist({
+      const next = {
         ...prev,
         coins: prev.coins - cost,
         ownedGames: [...prev.ownedGames, gameId],
-      })
+      }
+      return persist(checkAchievements(next))
     })
     return allowed
   }
@@ -333,12 +358,13 @@ export function useGameState() {
       }
       allowed = true
       queueMicrotask(() => pushToast(`${theme.title} unlocked`, { coins: -theme.cost }))
-      return persist({
+      const next = {
         ...prev,
         coins: prev.coins - theme.cost,
         ownedThemes: [...prev.ownedThemes, themeId],
         activeTheme: themeId,
-      })
+      }
+      return persist(checkAchievements(next))
     })
     return allowed
   }
@@ -420,19 +446,6 @@ export function useGameState() {
     setLevelUp(null)
   }
 
-  function resetProgress() {
-    const name = state.companionName
-    const decks = state.decks
-    const initial = refreshQuests({
-      ...createInitialState(),
-      companionName: name,
-      decks,
-      achievements: createInitialState().achievements,
-    })
-    setState(persist(initial))
-    pushToast('Progress reset — fresh start!')
-  }
-
   return {
     state,
     toasts,
@@ -446,7 +459,6 @@ export function useGameState() {
     createDeck,
     renameCompanion,
     dismissLevelUp,
-    resetProgress,
   }
 }
 

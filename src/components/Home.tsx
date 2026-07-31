@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { progressToNextLevel } from '../lib/xp'
 import type { GameState, Tab } from '../types'
 import { Companion } from './Companion'
@@ -8,11 +7,9 @@ interface Props {
   state: GameState
   onNavigate: (tab: Tab) => void
   onRename: (name: string) => void
-  onReset: () => void
 }
 
-export function Home({ state, onNavigate, onRename, onReset }: Props) {
-  const [confirmReset, setConfirmReset] = useState(false)
+export function Home({ state, onNavigate, onRename }: Props) {
   const { level, current, needed, ratio } = progressToNextLevel(state.xp)
   const unlocked = state.achievements.filter((a) => a.unlockedAt).length
 
@@ -110,7 +107,9 @@ export function Home({ state, onNavigate, onRename, onReset }: Props) {
 
       <section className="panel achievements-panel">
         <h2 className="section-title">Achievements</h2>
-        <p className="section-sub">Milestones earned along the way.</p>
+        <p className="section-sub">
+          {unlocked}/{state.achievements.length} unlocked — keep studying and playing to earn more.
+        </p>
         <ul className="achievement-grid">
           {state.achievements.map((a) => (
             <li key={a.id} className={a.unlockedAt ? 'unlocked' : 'locked'}>
@@ -122,41 +121,6 @@ export function Home({ state, onNavigate, onRename, onReset }: Props) {
             </li>
           ))}
         </ul>
-        {!confirmReset ? (
-          <button
-            type="button"
-            className="btn btn-ghost reset-btn"
-            onClick={() => setConfirmReset(true)}
-          >
-            Reset progress
-          </button>
-        ) : (
-          <div className="reset-confirm panel" role="alertdialog" aria-label="Confirm reset">
-            <p>
-              Reset wipes XP, coins, quests, and scores. This cannot be undone.
-              <strong> One more chance — keep your progress?</strong>
-            </p>
-            <div className="reset-confirm-actions">
-              <button
-                type="button"
-                className="btn btn-ember"
-                onClick={() => setConfirmReset(false)}
-              >
-                Keep progress
-              </button>
-              <button
-                type="button"
-                className="btn btn-ghost reset-btn"
-                onClick={() => {
-                  setConfirmReset(false)
-                  onReset()
-                }}
-              >
-                Yes, reset everything
-              </button>
-            </div>
-          </div>
-        )}
       </section>
     </div>
   )
@@ -188,6 +152,14 @@ function iconFor(icon: string): string {
       return '✦'
     case 'dash':
       return '▶'
+    case 'coin':
+      return '◉'
+    case 'paint':
+      return '✦'
+    case 'math':
+      return '∑'
+    case 'glow':
+      return '◎'
     default:
       return '○'
   }
