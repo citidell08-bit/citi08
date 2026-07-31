@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Ruin Scholar — Gamified Study Companion</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%231a1410'/%3E%3Cpath fill='%23d4a84b' d='M3 12V4h2l3 5 3-5h2v8h-2V7L8 12 5 7v5H3z'/%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css?v=durability1" />
+</head>
+<body>
+  <div id="app">
+    <!-- START SCREEN -->
+    <section id="start-screen" class="screen active" aria-label="Start menu">
+      <div class="start-backdrop" aria-hidden="true"></div>
+      <div class="start-panel">
+        <p class="brand">Ruin Scholar</p>
+        <h1 class="tagline">Study the ruins. Survive the trials.</h1>
+        <p class="lede">Villages, dungeons, and knowledge. Answer right for loot — fail, and wake at the gate.</p>
+
+        <form id="start-form" class="start-form">
+          <label class="field">
+            <span>Your name</span>
+            <input type="text" id="player-name" maxlength="24" placeholder="Type your name" autocomplete="off" required />
+          </label>
+
+          <div class="field-row">
+            <label class="field">
+              <span>Subject</span>
+              <select id="subject-select" required>
+                <option value="math">Mathematics</option>
+                <option value="science">Science</option>
+                <option value="history">History</option>
+                <option value="english">English &amp; Literature</option>
+                <option value="geography">Geography</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>Your grade</span>
+              <select id="grade-select" required>
+                <option value="3">Grade 3</option>
+                <option value="4">Grade 4</option>
+                <option value="5">Grade 5</option>
+                <option value="6">Grade 6</option>
+                <option value="7">Grade 7</option>
+                <option value="8" selected>Grade 8</option>
+                <option value="9">Grade 9</option>
+                <option value="10">Grade 10</option>
+                <option value="11">Grade 11</option>
+                <option value="12">Grade 12</option>
+              </select>
+            </label>
+          </div>
+
+          <fieldset class="book-field">
+            <legend>Your book</legend>
+            <label class="field">
+              <span>Book / textbook name</span>
+              <input type="text" id="custom-book" maxlength="48" placeholder="Type the book you are using" autocomplete="off" required />
+            </label>
+            <label class="field">
+              <span>What are you studying in it?</span>
+              <input type="text" id="book-topics" maxlength="100" placeholder="e.g. fractions, chapter 5, cells, Civil War" autocomplete="off" required />
+            </label>
+            <p class="book-pick-label muted">Or tap a suggested book to fill name + topics:</p>
+            <input type="hidden" id="book-select" name="book" value="" />
+            <div id="book-list" class="book-list" role="radiogroup" aria-label="Suggested textbooks"></div>
+          </fieldset>
+          <p id="book-hint" class="book-hint">Type your book and what you’re studying — quests use this.</p>
+
+          <fieldset class="timer-field">
+            <legend>Study timer</legend>
+            <p class="timer-help muted">Leave unlocks when the timer ends.</p>
+            <label class="toggle-field timer-auto-toggle">
+              <input type="checkbox" id="timer-auto" checked />
+              <span>Auto time for my grade</span>
+            </label>
+            <div class="timer-presets" id="timer-presets" role="group" aria-label="Quick times">
+              <button type="button" class="timer-preset" data-mins="15">15m</button>
+              <button type="button" class="timer-preset" data-mins="25">25m</button>
+              <button type="button" class="timer-preset" data-mins="45">45m</button>
+              <button type="button" class="timer-preset" data-mins="60">60m</button>
+            </div>
+            <label class="field timer-manual">
+              <span>Minutes (set manually)</span>
+              <input type="number" id="timer-minutes" min="1" max="180" step="1" value="25" required />
+            </label>
+            <p id="timer-hint" class="book-hint">Suggested: 25 minutes — change it anytime.</p>
+          </fieldset>
+
+          <fieldset class="difficulty-field">
+            <legend>Difficulty</legend>
+            <div class="diff-grid" role="radiogroup" aria-label="Difficulty">
+              <label class="diff-option">
+                <input type="radio" name="difficulty" value="easy" checked />
+                <span class="diff-card">
+                  <strong>Easy</strong>
+                  <small>Fewer monsters · basic loot</small>
+                </span>
+              </label>
+              <label class="diff-option">
+                <input type="radio" name="difficulty" value="medium" />
+                <span class="diff-card">
+                  <strong>Medium</strong>
+                  <small>More foes · better gear</small>
+                </span>
+              </label>
+              <label class="diff-option">
+                <input type="radio" name="difficulty" value="hard" />
+                <span class="diff-card">
+                  <strong>Hard</strong>
+                  <small>Packed monsters · rare armor</small>
+                </span>
+              </label>
+              <label class="diff-option raid">
+                <input type="radio" name="difficulty" value="raid" />
+                <span class="diff-card">
+                  <strong>Raid</strong>
+                  <small>Monster swarms · legendary gear</small>
+                </span>
+              </label>
+            </div>
+          </fieldset>
+
+          <button type="submit" class="btn primary" id="btn-start">Enter the Ruins</button>
+        </form>
+
+        <p class="hint-keys">Move: WASD · Attack: LMB/Space · Mine: pickaxe + click stone · Shield: HOLD F / 🛡 BLOCK (after loot) · E interact · H heal · I bag</p>
+      </div>
+    </section>
+
+    <!-- GAME SCREEN -->
+    <section id="game-screen" class="screen" aria-label="Game">
+      <div id="game-wrap">
+        <canvas id="game-canvas" width="960" height="540" tabindex="0" aria-label="Game world"></canvas>
+
+        <div id="hud" class="hud">
+          <div class="hud-left">
+            <div class="hud-stat" title="Level">
+              <span class="hud-label">LVL</span>
+              <span id="hud-level">1</span>
+            </div>
+            <div class="hud-stat" title="Knowledge points">
+              <span class="hud-label">KP</span>
+              <span id="hud-kp">0</span>
+            </div>
+            <div class="hud-stat" title="Defense from armor">
+              <span class="hud-label">DEF</span>
+              <span id="hud-def">0</span>
+            </div>
+            <div class="hud-stat" title="Power from tools">
+              <span class="hud-label">PWR</span>
+              <span id="hud-pwr">0</span>
+            </div>
+            <div class="hud-stat" title="Study session timer">
+              <span class="hud-label">TIME</span>
+              <span id="hud-timer">25:00</span>
+            </div>
+            <div class="hud-stat hud-clock-stat" title="In-world clock">
+              <span class="hud-label">CLK</span>
+              <span id="hud-clock">10:00 AM</span>
+            </div>
+            <div class="hud-stat hidden" id="hud-floor-wrap" title="Dungeon floor">
+              <span class="hud-label">FLOOR</span>
+              <span id="hud-floor">1/10</span>
+            </div>
+            <div class="hud-stat" title="Health">
+              <span class="hud-label">HP</span>
+              <span id="hud-hp">100</span>
+            </div>
+            <div class="hud-stat hidden" id="hud-breath-wrap" title="Breath">
+              <span class="hud-label">AIR</span>
+              <span id="hud-breath">100</span>
+            </div>
+          </div>
+          <div class="hud-center">
+            <span id="hud-coords">0, 0</span>
+            <div class="hud-tod-wrap">
+              <span id="hud-tod" class="hud-tod">Day</span>
+              <span id="hud-clock-center" class="hud-clock-center">10:00 AM</span>
+            </div>
+            <span id="hud-biome">Grassland Ruins</span>
+            <span id="hud-study" class="hud-study"></span>
+          </div>
+          <div class="hud-right">
+            <button type="button" class="hud-btn hud-btn-block ready-pulse" id="btn-hud-block" title="HOLD to raise your equipped shield (also F / Shift)">🛡 BLOCK</button>
+            <button type="button" class="hud-btn hud-btn-quake hidden" id="btn-hud-quake" title="EARTHSHATTER — hold to charge (V)">⛏ QUAKE</button>
+            <button type="button" class="hud-btn hud-btn-map" id="btn-map" title="Full map (M)">MAP</button>
+            <button type="button" class="hud-btn" id="btn-inventory" title="Inventory (I)">Bag</button>
+            <button type="button" class="hud-btn" id="btn-settings" title="Settings (Esc)">⚙</button>
+          </div>
+        </div>
+
+        <div id="block-banner" class="block-banner hidden" aria-live="polite">🛡 BLOCKING — release F / Shift / 🛡 to lower</div>
+
+        <div id="shield-tip" class="shield-tip hidden" aria-live="polite">
+          <span class="shield-tip-icon" aria-hidden="true">🛡</span>
+          <span id="shield-tip-text">No shield yet — loot one, equip it in I, then HOLD F or 🛡 BLOCK</span>
+        </div>
+
+        <div id="equip-strip" class="equip-strip hidden" aria-hidden="true"></div>
+
+        <div id="hotbar" class="mc-hotbar" aria-label="Hotbar">
+          <div id="hotbar-slots" class="mc-hotbar-row"></div>
+        </div>
+
+        <div id="held-cursor" class="mc-held hidden" aria-hidden="true"></div>
+
+        <div id="minimap" class="minimap" aria-hidden="true" title="Click to open full map" role="button" tabindex="0">
+          <canvas id="minimap-canvas" width="120" height="120"></canvas>
+          <div class="minimap-legend">
+            <span class="lg-village">Village</span>
+            <span class="lg-dungeon">Dungeon</span>
+          </div>
+          <div class="minimap-expand">CLICK · MAP</div>
+        </div>
+
+        <button type="button" id="btn-map-fab" class="map-fab" title="Open map (M)">MAP</button>
+
+        <div id="interact-prompt" class="interact-prompt hidden">
+          Press <kbd>E</kbd> / Tap to interact
+        </div>
+
+        <div id="breath-bar-wrap" class="breath-bar-wrap hidden" aria-hidden="true">
+          <div class="breath-bar-label">BREATH</div>
+          <div class="breath-bar-track">
+            <div id="breath-bar-fill" class="breath-bar-fill"></div>
+          </div>
+        </div>
+
+        <div id="combat-hint" class="combat-hint hidden">LMB/Space attack · F/Shift/🛡 block · H heal · E interact</div>
+
+        <div id="spell-bar" class="spell-bar hidden" aria-label="Book spells">
+          <div id="spell-bar-label" class="spell-bar-label">Equip a book to cast</div>
+          <div class="spell-bar-row">
+            <button type="button" class="spell-btn spell-fire" id="btn-spell-fire" title="Firebolt — tap cast · hold to charge (Z)">🔥<span>Z</span></button>
+            <button type="button" class="spell-btn spell-water" id="btn-spell-water" title="Tideburst — tap cast · hold to charge (X)">💧<span>X</span></button>
+            <button type="button" class="spell-btn spell-air" id="btn-spell-air" title="Gale Spike — tap cast · hold to charge (C)">💨<span>C</span></button>
+          </div>
+        </div>
+
+        <div id="toast" class="toast hidden" role="status"></div>
+
+        <div id="mobile-controls" class="mobile-controls" aria-label="Touch controls">
+          <div class="dpad">
+            <button type="button" data-dir="up" class="pad-btn">▲</button>
+            <div class="dpad-mid">
+              <button type="button" data-dir="left" class="pad-btn">◀</button>
+              <button type="button" data-dir="right" class="pad-btn">▶</button>
+            </div>
+            <button type="button" data-dir="down" class="pad-btn">▼</button>
+          </div>
+          <div class="mobile-actions">
+            <button type="button" id="btn-block" class="action-btn block-btn" title="Hold to block (F)">🛡</button>
+            <button type="button" id="btn-quake" class="action-btn quake-btn hidden" title="Hold to Earthshatter (V)">⛏</button>
+            <button type="button" id="btn-interact" class="action-btn">E</button>
+            <button type="button" id="btn-heal" class="action-btn heal-btn" title="Drink potion (H)">H</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SETTINGS MODAL -->
+    <div id="settings-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+      <div class="modal-panel">
+        <header class="modal-header">
+          <h2 id="settings-title">Settings</h2>
+          <button type="button" class="modal-close" data-close="settings-modal" aria-label="Close">×</button>
+        </header>
+        <div class="modal-body settings-body">
+          <label class="slider-field">
+            <span>Field of view <em id="fov-value">11</em></span>
+            <input type="range" id="setting-fov" min="7" max="17" step="2" value="11" />
+          </label>
+          <label class="slider-field">
+            <span>Render distance <em id="render-value">6</em> chunks</span>
+            <input type="range" id="setting-render" min="3" max="10" step="1" value="6" />
+          </label>
+          <label class="slider-field">
+            <span>Move speed <em id="speed-value">1.0</em>×</span>
+            <input type="range" id="setting-speed" min="0.6" max="1.6" step="0.1" value="1" />
+          </label>
+          <label class="toggle-field">
+            <input type="checkbox" id="setting-minimap" checked />
+            <span>Show minimap</span>
+          </label>
+          <label class="toggle-field">
+            <input type="checkbox" id="setting-particles" checked />
+            <span>Particle effects</span>
+          </label>
+          <label class="toggle-field">
+            <input type="checkbox" id="setting-sound" checked />
+            <span>Sound effects</span>
+          </label>
+          <label class="toggle-field">
+            <input type="checkbox" id="setting-music" checked />
+            <span>Ambient music &amp; nature</span>
+          </label>
+          <label class="slider-field">
+            <span>SFX volume <em id="sfx-volume-value">1.00</em></span>
+            <input type="range" id="setting-sfx-volume" min="0" max="1" step="0.05" value="1" />
+          </label>
+          <label class="toggle-field">
+            <input type="checkbox" id="setting-mobile" />
+            <span>Force on-screen controls</span>
+          </label>
+
+          <div class="controls-help" aria-label="Controls">
+            <h3 class="controls-title">Controls</h3>
+            <ul class="controls-list">
+              <li><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> / arrows — Move (footstep sounds)</li>
+              <li><kbd>LMB</kbd> / <kbd>Space</kbd> — <strong>Tap</strong> = quick sword/bow attack · <strong>Hold</strong> = charge (bar appears), release for power</li>
+              <li><kbd>F</kbd> / <kbd>Shift</kbd> / <kbd>🛡 BLOCK</kbd> — Hold to raise shield</li>
+              <li><kbd>RMB</kbd> — Also hold to block</li>
+              <li><kbd>E</kbd> — Interact (chest, quest, portal, stairs)</li>
+              <li><kbd>H</kbd> — Drink healing potion</li>
+              <li><kbd>1</kbd>–<kbd>9</kbd> — Hotbar (put bow/sword/book in hand)</li>
+              <li><kbd>Z</kbd> / <kbd>X</kbd> / <kbd>C</kbd> — Spells: tap=normal · <strong>hold to charge</strong> for more dmg (rarer book = stronger)</li>
+              <li><kbd>I</kbd> — Inventory · right-click gear to equip</li>
+              <li><kbd>M</kbd> — World map</li>
+              <li><kbd>Esc</kbd> — Settings / pause</li>
+            </ul>
+            <p class="muted controls-note">You spawn with an <strong>empty inventory</strong>. Loot gear from chests/quests/dungeons. <strong>Sword, bow & spells:</strong> tap = normal attack/cast; <em>hold</em> to charge (bar appears) for more damage. Spells: <kbd>Z</kbd> Fire · <kbd>X</kbd> Water · <kbd>C</kbd> Air (equip a book first). Rarer books hit harder. Shield: HOLD <kbd>F</kbd> / <strong>🛡 BLOCK</strong>.</p>
+          </div>
+
+          <div class="settings-actions">
+            <button type="button" class="btn ghost" id="btn-resume">Resume</button>
+            <button type="button" class="btn danger" id="btn-quit" disabled title="Finish your study timer first">Leave (locked)</button>
+            <p id="quit-timer-hint" class="quit-timer-hint muted">Study timer still running — leave unlocks when time is up.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FULL MAP MODAL -->
+    <div id="map-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="map-title">
+      <div class="modal-panel map-panel">
+        <header class="modal-header">
+          <h2 id="map-title">World Map</h2>
+          <button type="button" class="modal-close" data-close="map-modal" aria-label="Close">×</button>
+        </header>
+        <div class="modal-body map-body">
+          <div class="map-toolbar">
+            <button type="button" class="btn ghost map-zoom-btn" data-map-zoom="near" id="map-zoom-near">Near</button>
+            <button type="button" class="btn ghost map-zoom-btn active" data-map-zoom="mid" id="map-zoom-mid">Area</button>
+            <button type="button" class="btn ghost map-zoom-btn" data-map-zoom="far" id="map-zoom-far">Far</button>
+            <button type="button" class="btn ghost" id="map-clear-pins" title="Clear all pins on this map">Clear pins</button>
+            <span id="map-coords" class="muted map-coords">0, 0</span>
+          </div>
+          <div class="map-canvas-wrap">
+            <canvas id="fullmap-canvas" width="480" height="480" aria-label="Full world map — click to pin a destination"></canvas>
+          </div>
+          <div class="map-legend">
+            <span class="ml-you">You</span>
+            <span class="ml-pin">Pin</span>
+            <span class="ml-village">Village</span>
+            <span class="ml-dungeon">Dungeon</span>
+            <span class="ml-quest">Quest</span>
+            <span class="ml-water">Water</span>
+            <span class="ml-chest">Chest</span>
+          </div>
+          <p class="muted map-hint">Click map to <strong>pin</strong> a destination · click a pin to remove · drag to pan · <kbd>M</kbd> close</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- INVENTORY / EQUIP MODAL — Minecraft-style -->
+    <div id="inventory-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="inv-title">
+      <div class="modal-panel inv-panel mc-inv-panel">
+        <header class="modal-header">
+          <h2 id="inv-title">Inventory</h2>
+          <button type="button" class="modal-close" data-close="inventory-modal" aria-label="Close">×</button>
+        </header>
+        <div class="modal-body inv-body mc-inv-body">
+          <p id="inv-select-hint" class="inv-select-hint muted">Click to pick up · click again to place · 1–9 hotbar · armor slots on the left</p>
+          <div class="mc-inv-top">
+            <div class="mc-armor-col" aria-label="Equipment">
+              <button type="button" class="mc-slot mc-equip" data-equip="weapon" id="slot-weapon" title="Sword">
+                <span class="mc-ghost">⚔</span>
+                <span class="mc-stack" id="slot-weapon-icon"></span>
+              </button>
+              <button type="button" class="mc-slot mc-equip" data-equip="bow" id="slot-bow" title="Bow">
+                <span class="mc-ghost">🏹</span>
+                <span class="mc-stack" id="slot-bow-icon"></span>
+              </button>
+              <button type="button" class="mc-slot mc-equip" data-equip="armor" id="slot-armor" title="Armor / Shield — hold Q or RMB to block">
+                <span class="mc-ghost">🛡</span>
+                <span class="mc-stack" id="slot-armor-icon"></span>
+              </button>
+              <button type="button" class="mc-slot mc-equip" data-equip="tool" id="slot-tool" title="Pickaxe">
+                <span class="mc-ghost">⛏</span>
+                <span class="mc-stack" id="slot-tool-icon"></span>
+              </button>
+              <button type="button" class="mc-slot mc-equip" data-equip="book" id="slot-book" title="Book">
+                <span class="mc-ghost">📖</span>
+                <span class="mc-stack" id="slot-book-icon"></span>
+              </button>
+            </div>
+            <div class="mc-player-preview" aria-hidden="true">
+              <div class="doll-head"></div>
+              <div class="doll-body"></div>
+              <div class="doll-legs"></div>
+              <p class="equip-stats">DEF <strong id="inv-def">0</strong> · PWR <strong id="inv-pwr">0</strong> · KNOW <strong id="inv-know">0</strong></p>
+            </div>
+            <div class="mc-craft-note">
+              <p class="muted">Hand = hotbar (1–9)</p>
+              <p class="muted">Potions: place on hotbar, press <kbd>H</kbd> or right-click slot</p>
+              <span id="eq-weapon" class="hidden">—</span>
+              <span id="eq-bow" class="hidden">—</span>
+              <span id="eq-armor" class="hidden">—</span>
+              <span id="eq-tool" class="hidden">—</span>
+              <span id="eq-book" class="hidden">—</span>
+              <span id="slot-weapon-name" class="hidden">Empty</span>
+              <span id="slot-bow-name" class="hidden">Empty</span>
+              <span id="slot-armor-name" class="hidden">Empty</span>
+              <span id="slot-tool-name" class="hidden">Empty</span>
+              <span id="slot-book-name" class="hidden">Empty</span>
+            </div>
+          </div>
+          <div class="mc-inv-label">Inventory</div>
+          <div id="inventory-grid" class="mc-bag-grid" aria-label="Inventory slots"></div>
+          <div class="mc-inv-label">Hotbar</div>
+          <div id="inv-hotbar-grid" class="mc-hotbar-row mc-inv-hotbar" aria-label="Hotbar slots"></div>
+          <p id="inventory-empty" class="muted hidden">Empty — loot chests &amp; quests for gear.</p>
+          <ul id="inventory-list" class="inventory-list hidden" aria-hidden="true"></ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- QUEST MODAL -->
+    <div id="quest-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="quest-title">
+      <div class="modal-panel quest-panel">
+        <header class="modal-header">
+          <h2 id="quest-title">Village Trial</h2>
+          <span id="quest-rank" class="rank-badge">Rank C</span>
+        </header>
+        <div class="modal-body">
+          <p id="quest-flavor" class="flavor"></p>
+          <p id="quest-book-tag" class="book-tag"></p>
+          <div class="question-block">
+            <p id="quest-question" class="question-text"></p>
+            <div id="quest-choices" class="choices"></div>
+          </div>
+          <p id="quest-feedback" class="feedback hidden"></p>
+        </div>
+      </div>
+    </div>
+
+    <!-- BOSS MODAL -->
+    <div id="boss-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="boss-title">
+      <div class="modal-panel boss-panel">
+        <header class="modal-header boss-header">
+          <h2 id="boss-title">Dungeon Guardian</h2>
+          <div id="boss-phase" class="boss-phase">Question 1 / 3</div>
+        </header>
+        <div class="modal-body">
+          <div class="boss-art" aria-hidden="true">
+            <div class="boss-silhouette"></div>
+            <div class="boss-hp">
+              <div id="boss-hp-bar" class="boss-hp-bar"></div>
+            </div>
+          </div>
+          <p id="boss-flavor" class="flavor"></p>
+          <p id="boss-book-tag" class="book-tag"></p>
+          <div class="question-block">
+            <p id="boss-question" class="question-text"></p>
+            <div id="boss-choices" class="choices"></div>
+          </div>
+          <p id="boss-feedback" class="feedback hidden"></p>
+        </div>
+      </div>
+    </div>
+
+    <!-- DUNGEON PORTAL MODAL -->
+    <div id="dungeon-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="dungeon-portal-title">
+      <div class="modal-panel dungeon-portal-panel">
+        <header class="modal-header boss-header">
+          <h2 id="dungeon-portal-title">Dungeon Portal</h2>
+        </header>
+        <div class="modal-body">
+          <div class="portal-art" aria-hidden="true">
+            <div class="portal-ring"></div>
+          </div>
+          <p id="dungeon-portal-flavor" class="flavor">A ranked Gate opens — Solo Leveling style. Harder ranks mean deadlier floors.</p>
+          <p id="dungeon-portal-name" class="book-tag"></p>
+          <fieldset class="difficulty-field portal-diff">
+            <legend>Gate rank difficulty</legend>
+            <div id="portal-diff-grid" class="diff-grid" role="radiogroup" aria-label="Gate difficulty">
+              <button type="button" class="diff-pick selected" data-diff="easy">
+                <strong>E-Rank</strong>
+                <small>Weaker mobs · starter loot</small>
+              </button>
+              <button type="button" class="diff-pick" data-diff="medium">
+                <strong>C-Rank</strong>
+                <small>Fair monsters · solid loot</small>
+              </button>
+              <button type="button" class="diff-pick" data-diff="hard">
+                <strong>B-Rank</strong>
+                <small>Tough packs · rare gear</small>
+              </button>
+              <button type="button" class="diff-pick raid" data-diff="raid">
+                <strong>S-Rank</strong>
+                <small>Brutal · legendary chests</small>
+              </button>
+            </div>
+            <input type="hidden" id="portal-diff-value" value="easy" />
+          </fieldset>
+          <p class="portal-note">10 floors · mob damage scales with gate difficulty · Floor 10 = Monarch / study boss · chests drop potions</p>
+          <div class="settings-actions">
+            <button type="button" class="btn ghost" id="btn-portal-cancel">Step Away</button>
+            <button type="button" class="btn primary" id="btn-portal-enter">Enter Portal</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SESSION COMPLETE / LEAVE -->
+    <div id="session-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="session-title">
+      <div class="modal-panel result-panel">
+        <h2 id="session-title">Study time complete!</h2>
+        <p id="session-body">Your timer is done. Great work — you can leave the ruins now.</p>
+        <div class="settings-actions session-actions">
+          <button type="button" class="btn ghost" id="btn-session-keep">Keep exploring</button>
+          <button type="button" class="btn primary" id="btn-session-leave">Leave to menu</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- RESULT OVERLAY -->
+    <div id="result-modal" class="modal hidden" role="dialog" aria-modal="true">
+      <div class="modal-panel result-panel">
+        <h2 id="result-title"></h2>
+        <p id="result-body"></p>
+        <button type="button" class="btn primary" id="btn-result-ok">Continue</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="script.js?v=durability1"></script>
+  <script>
+    // Fallback only — skips if main script already handled the key/button
+    (function () {
+      function isM(e) {
+        return e.code === "KeyM" || e.key === "m" || e.key === "M";
+      }
+      function toggle() {
+        if (window.__ruinMapBtnLock || window.__ruinMapHandled) return;
+        if (typeof window.toggleRuinMap === "function") window.toggleRuinMap();
+        else {
+          var modal = document.getElementById("map-modal");
+          if (modal) modal.classList.toggle("hidden");
+        }
+      }
+      document.addEventListener("keydown", function (e) {
+        if (!isM(e) || e.repeat) return;
+        if (window.__ruinMapHandled) return;
+        e.preventDefault();
+        toggle();
+      });
+    })();
+  </script>
+</body>
+</html>
