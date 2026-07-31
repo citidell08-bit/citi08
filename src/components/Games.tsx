@@ -89,9 +89,9 @@ export function Games({ state, onComplete, onSpend, onNavigate }: Props) {
   return (
     <div className="games">
       <header>
-        <h2 className="section-title">Arcade</h2>
+        <h2 className="section-title">Cyber Arcade</h2>
         <p className="section-sub">
-          Earn coins from quests and level-ups, then spend them on brain-break games.
+          Complete quests for coins, then spend them to jump straight into a timed mini-game.
         </p>
       </header>
 

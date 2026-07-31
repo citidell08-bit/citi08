@@ -80,7 +80,7 @@ function App() {
               Level {levelUp.level}!
             </h2>
             <p className="section-sub">
-              {state.companionName} leveled up and minted{' '}
+              Cyber Kith leveled up — {state.companionName} minted{' '}
               <strong className="coin-inline">+{levelUp.coins} coins</strong>
               {levelUp.coins > COINS_PER_LEVEL ? ' across those levels' : ''}.
             </p>

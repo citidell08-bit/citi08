@@ -38,7 +38,7 @@ export const DEFAULT_ACHIEVEMENTS: Achievement[] = [
   },
   {
     id: 'level_5',
-    title: 'Rising Kith',
+    title: 'Rising Cyber Kith',
     description: 'Reach companion level 5.',
     icon: 'star',
     unlockedAt: null,

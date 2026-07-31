@@ -47,7 +47,13 @@ export function useGameState() {
     }
   }
 
-  function awardXp(prev: GameState, amount: number, reason: string): GameState {
+  function awardXp(
+    prev: GameState,
+    amount: number,
+    reason: string,
+    opts?: { notify?: boolean },
+  ): GameState {
+    const notify = opts?.notify !== false
     const before = levelFromXp(prev.xp)
     const nextXp = prev.xp + amount
     const after = levelFromXp(nextXp)
@@ -64,10 +70,10 @@ export function useGameState() {
       const levelCoins = coinsForLevelsGained(before, after)
       next = awardCoins(next, levelCoins)
       queueMicrotask(() => setLevelUp({ level: after, coins: levelCoins }))
-      queueMicrotask(() =>
-        pushToast(reason, { xp: amount, coins: levelCoins }),
-      )
-    } else {
+      if (notify) {
+        queueMicrotask(() => pushToast(reason, { xp: amount, coins: levelCoins }))
+      }
+    } else if (notify) {
       queueMicrotask(() => pushToast(reason, { xp: amount }))
     }
 
@@ -104,7 +110,7 @@ export function useGameState() {
       if (!q.completed && q.progress >= q.target) {
         q.completed = true
         bonusXp += q.xpReward
-        bonusCoins += q.coinReward
+        bonusCoins += q.coinReward ?? 15
       }
     }
 
@@ -113,10 +119,13 @@ export function useGameState() {
     }
 
     if (bonusXp > 0) {
-      next = awardXp(next, bonusXp, 'Quest reward')
-      if (bonusCoins > 0) {
-        queueMicrotask(() => pushToast('Quest coins', { coins: bonusCoins }))
-      }
+      next = awardXp(next, bonusXp, 'Quest complete', { notify: false })
+    }
+
+    if (bonusXp > 0 || bonusCoins > 0) {
+      queueMicrotask(() =>
+        pushToast('Quest complete!', { xp: bonusXp || undefined, coins: bonusCoins || undefined }),
+      )
     }
 
     if (quests.every((q) => q.completed)) {

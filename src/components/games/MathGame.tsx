@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import type { MiniGameResult } from '../../types'
+import { GameTimer } from './GameTimer'
 
 interface Props {
   onFinish: (result: MiniGameResult) => void
@@ -27,7 +28,7 @@ const DURATION = 30
 
 export function MathGame({ onFinish, onBack }: Props) {
   const [seconds, setSeconds] = useState(DURATION)
-  const [running, setRunning] = useState(false)
+  const [running, setRunning] = useState(true)
   const [score, setScore] = useState(0)
   const [streak, setStreak] = useState(0)
   const [problem, setProblem] = useState<Problem>(() => nextProblem())
@@ -61,20 +62,6 @@ export function MathGame({ onFinish, onBack }: Props) {
     return () => window.clearTimeout(id)
   }, [running, seconds, finished, onFinish])
 
-  function start() {
-    scoreRef.current = 0
-    streakRef.current = 0
-    reportedRef.current = false
-    setSeconds(DURATION)
-    setScore(0)
-    setStreak(0)
-    setProblem(nextProblem())
-    setInput('')
-    setFinished(false)
-    setFeedback(null)
-    setRunning(true)
-  }
-
   function submit(e: FormEvent) {
     e.preventDefault()
     if (!running || finished) return
@@ -99,32 +86,27 @@ export function MathGame({ onFinish, onBack }: Props) {
   }
 
   return (
-    <div className="mini-game">
+    <div className="mini-game play-stage">
       <div className="mini-top">
         <button type="button" className="btn btn-ghost" onClick={onBack}>
           ← Arcade
         </button>
         <div className="mini-stats">
-          <span>{seconds}s</span>
           <span>Score {score}</span>
           <span>Streak {streak}</span>
         </div>
       </div>
 
-      <h2 className="section-title">Quick Sum</h2>
-      <p className="section-sub">Solve as many as you can in {DURATION} seconds.</p>
+      <div className="play-header">
+        <div>
+          <h2 className="section-title">Quick Sum</h2>
+          <p className="section-sub">Solve as many as you can before time runs out.</p>
+        </div>
+        <GameTimer seconds={seconds} total={DURATION} pulsing={running && !finished} />
+      </div>
 
-      <div className={`panel math-panel ${feedback ?? ''}`}>
-        {!running && !finished && (
-          <div className="mini-end">
-            <p>Warm up your brain between study blocks.</p>
-            <button type="button" className="btn btn-ember" onClick={start}>
-              Start round
-            </button>
-          </div>
-        )}
-
-        {running && (
+      <div className={`panel math-panel play-board ${feedback ?? ''}`}>
+        {!finished ? (
           <>
             <div className="math-prompt" aria-live="polite">
               {problem.prompt}
@@ -136,24 +118,23 @@ export function MathGame({ onFinish, onBack }: Props) {
                 autoFocus
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Answer"
+                placeholder="Type answer"
                 aria-label="Answer"
               />
               <button type="submit" className="btn btn-primary">
                 Go
               </button>
             </form>
+            <p className="play-hint">Timer is live — type fast and hit Go.</p>
           </>
-        )}
-
-        {finished && (
+        ) : (
           <div className="mini-end">
             <p>
               You scored <strong>{score}</strong>
               {score >= 8 ? ' — solid round!' : '.'}
             </p>
-            <button type="button" className="btn btn-primary" onClick={start}>
-              Play again
+            <button type="button" className="btn btn-primary" onClick={onBack}>
+              Back to arcade
             </button>
           </div>
         )}

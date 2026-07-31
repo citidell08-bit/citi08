@@ -18,10 +18,10 @@ export function Home({ state, onNavigate, onRename, onReset }: Props) {
     <div className="home">
       <header className="hero">
         <div className="hero-copy">
-          <p className="eyebrow">Study companion</p>
-          <h1 className="brand-mark">Kith</h1>
+          <p className="eyebrow">Gamified study companion</p>
+          <h1 className="brand-mark">Cyber Kith</h1>
           <p className="lede">
-            Clear quests, level up for coins, then spend them on arcade games with{' '}
+            Clear quests for coins, level up, then spend coins on timed arcade games with{' '}
             {state.companionName}.
           </p>
           <div className="hero-actions">
@@ -83,7 +83,7 @@ export function Home({ state, onNavigate, onRename, onReset }: Props) {
       </section>
 
       <section className="panel rename-panel">
-        <h2 className="section-title">Name your kith</h2>
+        <h2 className="section-title">Name your Cyber Kith</h2>
         <p className="section-sub">Companions remember who they study with.</p>
         <form
           className="rename-form"

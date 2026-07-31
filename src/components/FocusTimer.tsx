@@ -84,7 +84,7 @@ export function FocusTimer({ onComplete }: Props) {
       <header>
         <h2 className="section-title">Focus den</h2>
         <p className="section-sub">
-          Sit with your kith for a timed session. Finish to earn XP and quest progress.
+          Sit with Cyber Kith for a timed session. Finish to earn XP, coins, and quest progress.
         </p>
       </header>
 
