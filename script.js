@@ -691,21 +691,38 @@ const QUESTIONS = {
     }
 
     function drinkGulp() {
-      tone(300, 0.07, "sine", 0.11, 0, 170);
-      tone(210, 0.09, "sine", 0.09, 0.09, 130);
-      tone(260, 0.08, "sine", 0.09, 0.2, 150);
+      // Clear liquid gulps while the bottle is at the mouth
+      tone(340, 0.09, "sine", 0.2, 0, 150);
+      tone(220, 0.11, "sine", 0.16, 0.08, 120);
+      tone(280, 0.1, "triangle", 0.14, 0.18, 160);
+      noiseBurst(0.05, 0.08, 900, 0.02);
     }
 
     function healChime() {
-      tone(523.25, 0.14, "sine", 0.13, 0);
-      tone(659.25, 0.16, "sine", 0.12, 0.07);
-      tone(783.99, 0.22, "triangle", 0.13, 0.14);
-      tone(1046.5, 0.28, "sine", 0.1, 0.2);
+      // Bright, unmistakable heal flourish
+      noiseBurst(0.12, 0.14, 2400);
+      tone(523.25, 0.18, "sine", 0.22, 0);
+      tone(659.25, 0.2, "triangle", 0.2, 0.06);
+      tone(783.99, 0.26, "sine", 0.2, 0.12);
+      tone(1046.5, 0.34, "triangle", 0.18, 0.18);
+      tone(1318.5, 0.28, "sine", 0.12, 0.26);
+      // Soft sparkle trail
+      tone(1568, 0.2, "sine", 0.08, 0.32, 2100);
     }
 
     function potionPop() {
-      tone(720, 0.06, "triangle", 0.1, 0, 420);
-      noiseBurst(0.05, 0.12, 1800);
+      // Cork / bottle uncork when drinking starts
+      tone(820, 0.08, "triangle", 0.18, 0, 380);
+      tone(520, 0.1, "sine", 0.12, 0.03, 260);
+      noiseBurst(0.07, 0.18, 1800);
+    }
+
+    function healBurst() {
+      // Extra HP-restore sting used on successful heal
+      tone(392, 0.12, "sine", 0.14, 0, 523);
+      tone(523.25, 0.16, "triangle", 0.18, 0.05);
+      tone(659.25, 0.22, "sine", 0.16, 0.12);
+      noiseBurst(0.1, 0.12, 2800, 0.04);
     }
 
     function hurt() {
@@ -743,7 +760,7 @@ const QUESTIONS = {
     return {
       unlock, setVolume, setEnabled, setMusicEnabled, syncAmbience, stopAmbience,
       swordSlash, swordHit, fist, bow,
-      footstep, drinkGulp, healChime, potionPop, hurt, mine, ui,
+      footstep, drinkGulp, healChime, healBurst, potionPop, hurt, mine, ui,
       chestOpen, chestLoot,
     };
   })();
@@ -1864,6 +1881,8 @@ const QUESTIONS = {
       showToast(`Drank ${item.name} · +${gained} HP`);
       spawnParticles(state.player.x, state.player.y, 22, "heal");
       if (gained > 0) spawnFloatText(state.player.x, state.player.y - 0.6, `+${gained}`, "#ff90a8");
+      SFX.unlock();
+      SFX.healBurst();
       SFX.healChime();
       state.lowHpWarned = false;
     } else if (item.effect === "breath") {
@@ -1942,14 +1961,17 @@ const QUESTIONS = {
     state.drinkUid = item.uid;
     state.drinkItem = { ...item };
     state.drinkHealAmt = 0;
-    state.drinkSfxCd = 0.05;
+    state.drinkSfxCd = 0.12;
     state.hitCd = Math.max(state.hitCd, 0.9);
     state.mineTarget = null;
     showToast(`Drinking ${item.name}…`);
     spawnParticles(state.player.x, state.player.y - 0.2, 6, item.effect === "breath" ? "bubble" : "heal");
     SFX.unlock();
     SFX.potionPop();
-    SFX.drinkGulp();
+    // First gulp slightly delayed so the bottle pop is clear
+    setTimeout(() => {
+      if (state.drinkAnim > 0) SFX.drinkGulp();
+    }, 90);
     return true;
   }
 
