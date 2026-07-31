@@ -57,4 +57,25 @@ export const DEFAULT_ACHIEVEMENTS: Achievement[] = [
     icon: 'book',
     unlockedAt: null,
   },
+  {
+    id: 'first_game',
+    title: 'Game On',
+    description: 'Play your first mini-game.',
+    icon: 'game',
+    unlockedAt: null,
+  },
+  {
+    id: 'arcade_five',
+    title: 'Arcade Owl',
+    description: 'Win 5 mini-games.',
+    icon: 'trophy',
+    unlockedAt: null,
+  },
+  {
+    id: 'memory_sharp',
+    title: 'Sharp Nest',
+    description: 'Finish Memory Nest in 16 moves or fewer.',
+    icon: 'brain',
+    unlockedAt: null,
+  },
 ]

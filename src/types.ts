@@ -1,4 +1,6 @@
-export type Tab = 'home' | 'focus' | 'cards' | 'quests'
+export type Tab = 'home' | 'focus' | 'cards' | 'play' | 'quests'
+
+export type MiniGameId = 'memory' | 'math' | 'glow'
 
 export interface Flashcard {
   id: string
@@ -21,7 +23,7 @@ export interface Quest {
   progress: number
   xpReward: number
   completed: boolean
-  type: 'focus_minutes' | 'cards_reviewed' | 'sessions' | 'streak_keep'
+  type: 'focus_minutes' | 'cards_reviewed' | 'sessions' | 'games_played'
 }
 
 export interface Achievement {
@@ -44,6 +46,11 @@ export interface GameState {
   totalFocusMinutes: number
   totalSessions: number
   totalCardsReviewed: number
+  totalGamesPlayed: number
+  totalGamesWon: number
+  bestMemoryMoves: number | null
+  bestMathScore: number
+  bestGlowScore: number
   streak: number
   longestStreak: number
   lastActiveDate: string | null
@@ -59,4 +66,12 @@ export interface Toast {
   id: string
   message: string
   xp?: number
+}
+
+export interface MiniGameResult {
+  gameId: MiniGameId
+  won: boolean
+  score: number
+  xp: number
+  label: string
 }

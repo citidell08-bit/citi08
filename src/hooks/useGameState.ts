@@ -3,7 +3,7 @@ import { generateDailyQuests } from '../data/quests'
 import { todayKey, uid, yesterdayKey } from '../lib/dates'
 import { levelFromXp } from '../lib/xp'
 import { createInitialState, loadState, saveState } from '../lib/storage'
-import type { Deck, Flashcard, GameState, Quest, Toast } from '../types'
+import type { Deck, Flashcard, GameState, MiniGameResult, Quest, Toast } from '../types'
 
 export function useGameState() {
   const [state, setState] = useState<GameState>(() => loadState())
@@ -130,6 +130,11 @@ export function useGameState() {
     if (prev.decks.some((d) => !d.id.startsWith('deck_sample'))) {
       next = unlock(next, 'deck_maker')
     }
+    if (prev.totalGamesPlayed >= 1) next = unlock(next, 'first_game')
+    if (prev.totalGamesWon >= 5) next = unlock(next, 'arcade_five')
+    if (prev.bestMemoryMoves != null && prev.bestMemoryMoves <= 16) {
+      next = unlock(next, 'memory_sharp')
+    }
     return next
   }
 
@@ -160,6 +165,35 @@ export function useGameState() {
       }
       next = awardXp(next, xpGain, knewIt ? 'Card mastered' : 'Card practiced')
       next = bumpQuest(next, 'cards_reviewed', 1)
+      next = checkAchievements(next)
+      return next
+    })
+  }
+
+  function completeMiniGame(result: MiniGameResult) {
+    setState((prev) => {
+      let next = markActive(prev)
+      next = {
+        ...next,
+        totalGamesPlayed: next.totalGamesPlayed + 1,
+        totalGamesWon: next.totalGamesWon + (result.won ? 1 : 0),
+        bestMathScore:
+          result.gameId === 'math'
+            ? Math.max(next.bestMathScore, result.score)
+            : next.bestMathScore,
+        bestGlowScore:
+          result.gameId === 'glow'
+            ? Math.max(next.bestGlowScore, result.score)
+            : next.bestGlowScore,
+        bestMemoryMoves:
+          result.gameId === 'memory' && result.won
+            ? next.bestMemoryMoves == null
+              ? result.score
+              : Math.min(next.bestMemoryMoves, result.score)
+            : next.bestMemoryMoves,
+      }
+      next = awardXp(next, result.xp, result.label)
+      next = bumpQuest(next, 'games_played', 1)
       next = checkAchievements(next)
       return next
     })
@@ -210,6 +244,7 @@ export function useGameState() {
     levelUp,
     completeFocusSession,
     reviewCard,
+    completeMiniGame,
     createDeck,
     renameCompanion,
     dismissLevelUp,

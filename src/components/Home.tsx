@@ -21,15 +21,15 @@ export function Home({ state, onNavigate, onRename, onReset }: Props) {
           <p className="eyebrow">Study companion</p>
           <h1 className="brand-mark">Kith</h1>
           <p className="lede">
-            Focus, flip cards, clear quests — and watch {state.companionName} grow with every
+            Focus, flip cards, play mini-games — and watch {state.companionName} grow with every
             session.
           </p>
           <div className="hero-actions">
             <button type="button" className="btn btn-primary" onClick={() => onNavigate('focus')}>
               Start focus
             </button>
-            <button type="button" className="btn btn-ghost" onClick={() => onNavigate('cards')}>
-              Review cards
+            <button type="button" className="btn btn-ghost" onClick={() => onNavigate('play')}>
+              Play games
             </button>
           </div>
         </div>
@@ -61,6 +61,10 @@ export function Home({ state, onNavigate, onRename, onReset }: Props) {
           <div className="stat">
             <strong>{state.totalCardsReviewed}</strong>
             <span>Cards reviewed</span>
+          </div>
+          <div className="stat">
+            <strong>{state.totalGamesPlayed}</strong>
+            <span>Games played</span>
           </div>
           <div className="stat">
             <strong>
@@ -135,6 +139,12 @@ function iconFor(icon: string): string {
       return '✧'
     case 'book':
       return '▣'
+    case 'game':
+      return '◈'
+    case 'trophy':
+      return '♛'
+    case 'brain':
+      return '✦'
     default:
       return '○'
   }

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Flashcards } from './components/Flashcards'
 import { FocusTimer } from './components/FocusTimer'
+import { Games } from './components/Games'
 import { Home } from './components/Home'
 import { Nav } from './components/Nav'
 import { Quests } from './components/Quests'
@@ -17,6 +18,7 @@ function App() {
     levelUp,
     completeFocusSession,
     reviewCard,
+    completeMiniGame,
     createDeck,
     renameCompanion,
     dismissLevelUp,
@@ -37,6 +39,7 @@ function App() {
       {tab === 'cards' && (
         <Flashcards decks={state.decks} onReview={reviewCard} onCreateDeck={createDeck} />
       )}
+      {tab === 'play' && <Games state={state} onComplete={completeMiniGame} />}
       {tab === 'quests' && <Quests state={state} />}
 
       <Nav tab={tab} onChange={setTab} />

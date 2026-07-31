@@ -33,5 +33,15 @@ export function generateDailyQuests(): Quest[] {
       completed: false,
       type: 'sessions',
     },
+    {
+      id: uid('quest'),
+      title: 'Play Break',
+      description: 'Play 2 mini-games.',
+      target: 2,
+      progress: 0,
+      xpReward: 25,
+      completed: false,
+      type: 'games_played',
+    },
   ]
 }
