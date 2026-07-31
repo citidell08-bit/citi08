@@ -2772,9 +2772,23 @@ const QUESTIONS = {
         btn.classList.toggle("slot-pulse", !!(state.heldItem && state.heldItem.slot === slot && !item));
       }
       const chip = $(`eq-${slot}`);
-      if (chip) chip.textContent = shortName(item && item.name);
+      if (chip) {
+        if (item && hasDurability(item)) {
+          ensureDurability(item);
+          chip.textContent = `${shortName(item.name)} ${item.dur}/${item.maxDur}`;
+        } else {
+          chip.textContent = shortName(item && item.name);
+        }
+      }
       const nameEl = $(`slot-${slot}-name`);
-      if (nameEl) nameEl.textContent = item ? item.name : "Empty";
+      if (nameEl) {
+        if (item && hasDurability(item)) {
+          ensureDurability(item);
+          nameEl.textContent = `${item.name} · ${item.dur}/${item.maxDur}`;
+        } else {
+          nameEl.textContent = item ? item.name : "Empty";
+        }
+      }
     });
     const s = gearStats();
     if ($("hud-def")) $("hud-def").textContent = String(s.def);
