@@ -7,7 +7,7 @@ import {
 } from '../data/quests'
 import { SAMPLE_DECK } from '../data/sampleDecks'
 import type { GameState, MiniGameId, Quest, QuestPeriod } from '../types'
-import { monthKey, todayKey, weekKey } from './dates'
+import { freshQuestIssuedAt, type QuestIssuedAt } from './questReset'
 
 const VALID_GAMES: MiniGameId[] = ['memory', 'math', 'glow', 'dash']
 const VALID_PERIODS: QuestPeriod[] = ['daily', 'weekly', 'monthly']
@@ -16,6 +16,7 @@ const STORAGE_KEY = 'kith.game.v1'
 const STARTER_COINS = 100
 
 export function createInitialState(): GameState {
+  const now = Date.now()
   return {
     xp: 0,
     coins: STARTER_COINS,
@@ -36,9 +37,7 @@ export function createInitialState(): GameState {
     lastActiveDate: null,
     decks: [SAMPLE_DECK],
     quests: generateAllQuests(),
-    questDate: todayKey(),
-    questWeek: weekKey(),
-    questMonth: monthKey(),
+    questIssuedAt: freshQuestIssuedAt(now),
     achievements: DEFAULT_ACHIEVEMENTS.map((a) => ({ ...a })),
     companionName: 'Ember',
     xpHistory: [],
@@ -49,7 +48,11 @@ export function loadState(): GameState {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return createInitialState()
-    const parsed = JSON.parse(raw) as Partial<GameState>
+    const parsed = JSON.parse(raw) as Partial<GameState> & {
+      questDate?: string | null
+      questWeek?: string | null
+      questMonth?: string | null
+    }
     const base: GameState = {
       ...createInitialState(),
       ...parsed,
@@ -62,9 +65,7 @@ export function loadState(): GameState {
       ownedGames: normalizeOwnedGames(parsed.ownedGames),
       achievements: mergeAchievements(parsed.achievements),
       quests: normalizeQuests(parsed.quests),
-      questDate: typeof parsed.questDate === 'string' ? parsed.questDate : null,
-      questWeek: typeof parsed.questWeek === 'string' ? parsed.questWeek : null,
-      questMonth: typeof parsed.questMonth === 'string' ? parsed.questMonth : null,
+      questIssuedAt: normalizeIssuedAt(parsed.questIssuedAt),
       decks:
         Array.isArray(parsed.decks) && parsed.decks.length > 0
           ? parsed.decks
@@ -100,6 +101,18 @@ function mergeAchievements(
     const prev = byId.get(def.id)
     return prev ? { ...def, unlockedAt: prev.unlockedAt } : { ...def }
   })
+}
+
+function normalizeIssuedAt(raw: unknown): QuestIssuedAt {
+  const now = Date.now()
+  const fallback = freshQuestIssuedAt(now)
+  if (!raw || typeof raw !== 'object') return fallback
+  const obj = raw as Partial<QuestIssuedAt>
+  return {
+    daily: typeof obj.daily === 'number' ? obj.daily : now,
+    weekly: typeof obj.weekly === 'number' ? obj.weekly : now,
+    monthly: typeof obj.monthly === 'number' ? obj.monthly : now,
+  }
 }
 
 function normalizeQuests(quests: Quest[] | undefined): Quest[] {

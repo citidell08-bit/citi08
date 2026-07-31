@@ -1,4 +1,10 @@
+import { useEffect, useState } from 'react'
 import { PERIOD_LABEL } from '../data/quests'
+import {
+  formatResetCountdown,
+  msUntilQuestReset,
+  QUEST_RESET_MS,
+} from '../lib/questReset'
 import type { GameState, Quest, QuestPeriod } from '../types'
 import './Quests.css'
 
@@ -9,9 +15,9 @@ interface Props {
 const PERIOD_ORDER: QuestPeriod[] = ['daily', 'weekly', 'monthly']
 
 const PERIOD_BLURB: Record<QuestPeriod, string> = {
-  daily: 'Resets each day — or instantly when you clear the whole board.',
-  weekly: 'Bigger goals for the week. Clears and refreshes when you finish them all.',
-  monthly: 'Long-haul challenges. Clear the set to roll a new month board early.',
+  daily: 'Quick goals. Clear the board to replay instantly — or wait for the 1 hour reset.',
+  weekly: 'Bigger mid-tier goals. Finish them all to refresh, or let the hour timer roll.',
+  monthly: 'Long-haul challenges. Clear the set or wait ~1 hour for a new board.',
 }
 
 function QuestCard({ q }: { q: Quest }) {
@@ -41,23 +47,39 @@ function QuestCard({ q }: { q: Quest }) {
 }
 
 export function Quests({ state }: Props) {
+  const [now, setNow] = useState(() => Date.now())
+
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 1000)
+    return () => window.clearInterval(id)
+  }, [])
+
   const byPeriod = (period: QuestPeriod) => state.quests.filter((q) => q.period === period)
   const totalDone = state.quests.filter((q) => q.completed).length
+  const soonestMs = Math.min(
+    ...PERIOD_ORDER.map((p) => msUntilQuestReset(state.questIssuedAt?.[p] ?? now, now)),
+  )
 
   return (
     <div className="quests">
       <header>
         <h2 className="section-title">Quest boards</h2>
         <p className="section-sub">
-          Daily, weekly, and monthly goals. Finish a whole board and it resets with a fresh set —
-          plus new boards arrive on each period boundary.
+          Finish every quest on a board and it resets so you can play again. Boards also refresh
+          automatically about every hour.
         </p>
       </header>
 
       <div className="panel quest-summary">
-        <strong>
-          {totalDone}/{state.quests.length} active clears
-        </strong>
+        <div>
+          <strong>
+            {totalDone}/{state.quests.length} active clears
+          </strong>
+          <p className="quest-timer-line">
+            Next auto-reset in <strong>{formatResetCountdown(soonestMs)}</strong>
+            <span> · {Math.round(QUEST_RESET_MS / 60000)} min cycle</span>
+          </p>
+        </div>
         <span>
           {state.coins} coins · Streak {state.streak}
         </span>
@@ -67,6 +89,7 @@ export function Quests({ state }: Props) {
         const list = byPeriod(period)
         if (list.length === 0) return null
         const done = list.filter((q) => q.completed).length
+        const left = msUntilQuestReset(state.questIssuedAt?.[period] ?? now, now)
         return (
           <section key={period} className="quest-period">
             <div className="quest-period-head">
@@ -74,9 +97,14 @@ export function Quests({ state }: Props) {
                 <h3 className="quest-period-title">{PERIOD_LABEL[period]} quests</h3>
                 <p className="section-sub">{PERIOD_BLURB[period]}</p>
               </div>
-              <span className="quest-period-count">
-                {done}/{list.length}
-              </span>
+              <div className="quest-period-badges">
+                <span className="quest-period-count">
+                  {done}/{list.length}
+                </span>
+                <span className="quest-period-timer" title="Time until this board auto-resets">
+                  ⟳ {formatResetCountdown(left)}
+                </span>
+              </div>
             </div>
             <ul className="quest-list">
               {list.map((q) => (

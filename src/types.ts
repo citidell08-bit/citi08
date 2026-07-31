@@ -68,12 +68,16 @@ export interface GameState {
   lastActiveDate: string | null
   decks: Deck[]
   quests: Quest[]
-  /** Local YYYY-MM-DD when daily quests were issued. */
-  questDate: string | null
-  /** Local YYYY-Www when weekly quests were issued. */
-  questWeek: string | null
-  /** Local YYYY-MM when monthly quests were issued. */
-  questMonth: string | null
+  /** When each board was issued — boards auto-reset ~1 hour later. */
+  questIssuedAt: {
+    daily: number
+    weekly: number
+    monthly: number
+  }
+  /** @deprecated Kept for older saves; migrated into questIssuedAt. */
+  questDate?: string | null
+  questWeek?: string | null
+  questMonth?: string | null
   achievements: Achievement[]
   companionName: string
   xpHistory: XpEvent[]

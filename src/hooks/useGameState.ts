@@ -1,7 +1,8 @@
 import { startTransition, useEffect, useState } from 'react'
 import { generateQuestsForPeriod, PERIOD_LABEL } from '../data/quests'
 import { COINS_PER_ACHIEVEMENT, coinsForLevelsGained, GAME_COSTS } from '../lib/coins'
-import { monthKey, todayKey, uid, weekKey, yesterdayKey } from '../lib/dates'
+import { todayKey, uid, yesterdayKey } from '../lib/dates'
+import { freshQuestIssuedAt, shouldResetQuestBoard } from '../lib/questReset'
 import { levelFromXp } from '../lib/xp'
 import { createInitialState, loadState, saveState } from '../lib/storage'
 import type {
@@ -37,9 +38,12 @@ export function useGameState() {
     const onVis = () => {
       if (document.visibilityState === 'visible') refresh()
     }
+    // Poll so the ~1 hour board timer rolls over while the app is open
+    const interval = window.setInterval(refresh, 15_000)
     window.addEventListener('focus', refresh)
     document.addEventListener('visibilitychange', onVis)
     return () => {
+      window.clearInterval(interval)
       window.removeEventListener('focus', refresh)
       document.removeEventListener('visibilitychange', onVis)
     }
@@ -143,7 +147,11 @@ export function useGameState() {
       )
     }
 
-    // When a whole period board is cleared, unlock + roll a fresh set immediately
+    const issuedAt = { ...next.questIssuedAt }
+    const now = Date.now()
+    let clearedAny = false
+
+    // When a whole board is cleared, unlock + roll a fresh set immediately (play again)
     for (const period of PERIODS) {
       const inPeriod = quests.filter((q) => q.period === period)
       if (inPeriod.length === 0) continue
@@ -155,13 +163,22 @@ export function useGameState() {
 
       const fresh = generateQuestsForPeriod(period)
       quests = [...quests.filter((q) => q.period !== period), ...fresh]
-      next = { ...next, quests }
+      issuedAt[period] = now
+      clearedAny = true
 
       queueMicrotask(() =>
         pushToast(`${PERIOD_LABEL[period]} quests cleared — fresh set ready!`),
       )
     }
 
+    // If every active quest finished in one go, refresh all boards
+    if (!clearedAny && quests.length > 0 && quests.every((q) => q.completed)) {
+      quests = PERIODS.flatMap((period) => generateQuestsForPeriod(period))
+      Object.assign(issuedAt, freshQuestIssuedAt(now))
+      queueMicrotask(() => pushToast('All quests cleared — boards refreshed!'))
+    }
+
+    next = { ...next, quests, questIssuedAt: issuedAt }
     return next
   }
 
@@ -373,44 +390,23 @@ export function useGameState() {
   }
 }
 
-/** Roll daily / weekly / monthly boards when their calendar period changes. */
+/** Roll boards when their ~1 hour timer elapses (or if a board is missing). */
 export function refreshQuests(state: GameState): GameState {
-  const today = todayKey()
-  const week = weekKey()
-  const month = monthKey()
+  const now = Date.now()
   let quests = [...state.quests]
+  const issuedAt = { ...(state.questIssuedAt ?? freshQuestIssuedAt(now)) }
   let changed = false
-  let questDate = state.questDate
-  let questWeek = state.questWeek
-  let questMonth = state.questMonth
 
-  if (questDate !== today) {
-    quests = [...quests.filter((q) => q.period !== 'daily'), ...generateQuestsForPeriod('daily')]
-    questDate = today
-    changed = true
-  }
-  if (questWeek !== week) {
-    quests = [...quests.filter((q) => q.period !== 'weekly'), ...generateQuestsForPeriod('weekly')]
-    questWeek = week
-    changed = true
-  }
-  if (questMonth !== month) {
-    quests = [
-      ...quests.filter((q) => q.period !== 'monthly'),
-      ...generateQuestsForPeriod('monthly'),
-    ]
-    questMonth = month
-    changed = true
-  }
-
-  // Ensure each period has at least one quest board
   for (const period of PERIODS) {
-    if (!quests.some((q) => q.period === period)) {
-      quests = [...quests, ...generateQuestsForPeriod(period)]
+    const hasBoard = quests.some((q) => q.period === period)
+    const issued = typeof issuedAt[period] === 'number' ? issuedAt[period] : 0
+    if (!hasBoard || shouldResetQuestBoard(issued, now)) {
+      quests = [...quests.filter((q) => q.period !== period), ...generateQuestsForPeriod(period)]
+      issuedAt[period] = now
       changed = true
     }
   }
 
   if (!changed) return state
-  return { ...state, quests, questDate, questWeek, questMonth }
+  return { ...state, quests, questIssuedAt: issuedAt }
 }

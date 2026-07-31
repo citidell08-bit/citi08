@@ -22,8 +22,16 @@
   letter-spacing: -0.03em;
 }
 
-.quest-period-count {
+.quest-period-badges {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.35rem;
   flex-shrink: 0;
+}
+
+.quest-period-count,
+.quest-period-timer {
   padding: 0.35rem 0.7rem;
   border-radius: 999px;
   border: 1px solid rgba(56, 189, 248, 0.35);
@@ -31,6 +39,29 @@
   color: var(--ember);
   font-weight: 700;
   font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.quest-period-timer {
+  color: var(--mist);
+  background: rgba(0, 0, 0, 0.2);
+  font-variant-numeric: tabular-nums;
+}
+
+.quest-timer-line {
+  margin: 0.35rem 0 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.quest-timer-line strong {
+  color: var(--ember);
+  font-family: inherit;
+  letter-spacing: 0;
+}
+
+.quest-timer-line span {
+  color: var(--muted);
 }
 
 .quest-summary {
