@@ -1642,6 +1642,90 @@ select {
   border-color: #c07080 !important;
 }
 
+.spell-bar {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--hotbar-h, 72px) + 14px);
+  transform: translateX(-50%);
+  z-index: 8;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  pointer-events: auto;
+  padding: 0.35rem 0.55rem;
+  border: 2px solid #6a5888;
+  border-radius: var(--radius);
+  background: rgba(18, 14, 28, 0.9);
+}
+
+.spell-bar.hidden {
+  display: none;
+}
+
+.spell-bar.on-cd .spell-btn {
+  opacity: 0.55;
+}
+
+.spell-bar-label {
+  font-family: var(--font-display);
+  font-size: 0.32rem;
+  color: #d0c0e8;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.spell-bar-row {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.spell-btn {
+  width: 48px;
+  height: 48px;
+  border: 2px solid #8870a8;
+  border-radius: 8px;
+  background: rgba(40, 30, 60, 0.95);
+  color: #fff;
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.1rem;
+  padding: 0;
+}
+
+.spell-btn span {
+  font-family: var(--font-display);
+  font-size: 0.34rem;
+  color: #c8b8e0;
+}
+
+.spell-btn:disabled {
+  cursor: not-allowed;
+}
+
+.spell-btn.ready:hover {
+  filter: brightness(1.15);
+}
+
+.spell-fire { border-color: #e07040; background: rgba(70, 28, 18, 0.95); }
+.spell-water { border-color: #5090e0; background: rgba(18, 36, 70, 0.95); }
+.spell-air { border-color: #c0d8f0; background: rgba(36, 48, 64, 0.95); }
+
+@media (max-width: 720px) {
+  .spell-bar {
+    bottom: calc(var(--hotbar-h, 64px) + 70px);
+  }
+  .spell-btn {
+    width: 44px;
+    height: 44px;
+  }
+}
+
 .mc-slot.rarity-uncommon { box-shadow: inset 0 0 0 1px #8fb87a; }
 .mc-slot.rarity-rare { box-shadow: inset 0 0 0 1px #6aa0d4; }
 .mc-slot.rarity-epic { box-shadow: inset 0 0 0 1px #c080e0; }

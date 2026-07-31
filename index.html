@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=bowcharge1" />
+  <link rel="stylesheet" href="style.css?v=spells1" />
 </head>
 <body>
   <div id="app">
@@ -232,6 +232,15 @@
 
         <div id="combat-hint" class="combat-hint hidden">LMB/Space attack · F/Shift/🛡 block · H heal · E interact</div>
 
+        <div id="spell-bar" class="spell-bar hidden" aria-label="Book spells">
+          <div id="spell-bar-label" class="spell-bar-label">Equip a book to cast</div>
+          <div class="spell-bar-row">
+            <button type="button" class="spell-btn spell-fire" id="btn-spell-fire" title="Firebolt (Z)">🔥<span>Z</span></button>
+            <button type="button" class="spell-btn spell-water" id="btn-spell-water" title="Tideburst (X)">💧<span>X</span></button>
+            <button type="button" class="spell-btn spell-air" id="btn-spell-air" title="Gale Spike (C)">💨<span>C</span></button>
+          </div>
+        </div>
+
         <div id="toast" class="toast hidden" role="status"></div>
 
         <div id="mobile-controls" class="mobile-controls" aria-label="Touch controls">
@@ -306,12 +315,13 @@
               <li><kbd>RMB</kbd> — Also hold to block</li>
               <li><kbd>E</kbd> — Interact (chest, quest, portal, stairs)</li>
               <li><kbd>H</kbd> — Drink healing potion</li>
-              <li><kbd>1</kbd>–<kbd>9</kbd> — Hotbar (put bow/sword in hand)</li>
+              <li><kbd>1</kbd>–<kbd>9</kbd> — Hotbar (put bow/sword/book in hand)</li>
+              <li><kbd>Z</kbd> / <kbd>X</kbd> / <kbd>C</kbd> — Book spells: Fire / Water / Air (rarer book = more dmg)</li>
               <li><kbd>I</kbd> — Inventory · right-click gear to equip</li>
               <li><kbd>M</kbd> — World map</li>
               <li><kbd>Esc</kbd> — Settings / pause</li>
             </ul>
-            <p class="muted controls-note">You spawn with an <strong>empty inventory</strong>. Loot gear from chests/quests/dungeons. <strong>Bow:</strong> put it on the hotbar, then <em>hold</em> <kbd>LMB</kbd> / <kbd>Space</kbd> to charge (bar under you) and release for a deadlier power shot. Shield: equip in <kbd>I</kbd>, then HOLD <kbd>F</kbd> / <strong>🛡 BLOCK</strong>.</p>
+            <p class="muted controls-note">You spawn with an <strong>empty inventory</strong>. Loot gear from chests/quests/dungeons. <strong>Sword & bow:</strong> tap = normal, hold = charge. <strong>Books:</strong> equip a book, then cast <kbd>Z</kbd> Fire · <kbd>X</kbd> Water · <kbd>C</kbd> Air — rarer books deal more spell damage. Shield: HOLD <kbd>F</kbd> / <strong>🛡 BLOCK</strong>.</p>
           </div>
 
           <div class="settings-actions">
@@ -525,7 +535,7 @@
     </div>
   </div>
 
-  <script src="script.js?v=bowcharge1"></script>
+  <script src="script.js?v=spells1"></script>
   <script>
     // Fallback only — skips if main script already handled the key/button
     (function () {

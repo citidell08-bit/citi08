@@ -41,33 +41,47 @@
     { key: "slate_chalk", name: "Slate & Chalk", slot: "tool", rarity: "common", pwr: 0, def: 0, know: 1 },
     { key: "linen_cloak", name: "Linen Cloak", slot: "armor", rarity: "common", pwr: 0, def: 1, know: 0 },
     { key: "wood_shield", name: "Wood Buckler", slot: "armor", rarity: "common", pwr: 0, def: 2, know: 0, shield: true },
-    { key: "primer", name: "Pocket Primer", slot: "book", rarity: "common", pwr: 0, def: 0, know: 2 },
+    { key: "primer", name: "Pocket Primer", slot: "book", rarity: "common", pwr: 0, def: 0, know: 2, spells: true },
     { key: "iron_quill", name: "Iron Quill Blade", slot: "weapon", rarity: "uncommon", pwr: 3, def: 0, know: 1 },
     { key: "leather_vest", name: "Scholar's Leather", slot: "armor", rarity: "uncommon", pwr: 0, def: 3, know: 0 },
     { key: "iron_shield", name: "Iron Kite Shield", slot: "armor", rarity: "uncommon", pwr: 0, def: 5, know: 0, shield: true },
     { key: "compass", name: "Ruin Compass", slot: "tool", rarity: "uncommon", pwr: 1, def: 0, know: 2 },
     { key: "hunter_bow", name: "Hunter Bow", slot: "bow", rarity: "uncommon", pwr: 4, def: 0, know: 0, range: 6.5 },
     { key: "iron_pick", name: "Iron Pickaxe", slot: "tool", rarity: "uncommon", pwr: 1, def: 0, know: 0, mine: 2 },
-    { key: "field_notes", name: "Field Notes", slot: "book", rarity: "uncommon", pwr: 0, def: 0, know: 4 },
+    { key: "field_notes", name: "Field Notes", slot: "book", rarity: "uncommon", pwr: 0, def: 0, know: 4, spells: true },
     { key: "bronze_saber", name: "Bronze Saber", slot: "weapon", rarity: "rare", pwr: 5, def: 1, know: 0 },
     { key: "chain_hood", name: "Chain Hood", slot: "armor", rarity: "rare", pwr: 0, def: 5, know: 1 },
     { key: "tower_shield", name: "Tower Shield", slot: "armor", rarity: "rare", pwr: 0, def: 7, know: 0, shield: true },
     { key: "pick_lens", name: "Crystal Pick-Lens", slot: "tool", rarity: "rare", pwr: 3, def: 0, know: 3, mine: 3 },
     { key: "longbow", name: "Ruin Longbow", slot: "bow", rarity: "rare", pwr: 6, def: 0, know: 1, range: 7.5 },
-    { key: "annotated", name: "Annotated Codex", slot: "book", rarity: "rare", pwr: 1, def: 0, know: 6 },
+    { key: "annotated", name: "Annotated Codex", slot: "book", rarity: "rare", pwr: 1, def: 0, know: 6, spells: true },
     { key: "runed_edge", name: "Runed Edge", slot: "weapon", rarity: "epic", pwr: 8, def: 2, know: 2 },
     { key: "guardian_plate", name: "Guardian Plate", slot: "armor", rarity: "epic", pwr: 1, def: 9, know: 1 },
     { key: "aegis_shield", name: "Aegis Shield", slot: "armor", rarity: "epic", pwr: 0, def: 11, know: 1, shield: true },
     { key: "aether_hammer", name: "Aether Hammer", slot: "tool", rarity: "epic", pwr: 6, def: 1, know: 4, mine: 4 },
     { key: "storm_bow", name: "Storm Bow", slot: "bow", rarity: "epic", pwr: 9, def: 1, know: 1, range: 8.5 },
-    { key: "elder_tome", name: "Elder Tome", slot: "book", rarity: "epic", pwr: 2, def: 1, know: 10 },
+    { key: "elder_tome", name: "Elder Tome", slot: "book", rarity: "epic", pwr: 2, def: 1, know: 10, spells: true },
     { key: "eclipse_blade", name: "Eclipse Blade", slot: "weapon", rarity: "legendary", pwr: 12, def: 3, know: 3 },
     { key: "starfall_mail", name: "Starfall Mail", slot: "armor", rarity: "legendary", pwr: 2, def: 14, know: 2 },
     { key: "eclipse_aegis", name: "Eclipse Aegis", slot: "armor", rarity: "legendary", pwr: 1, def: 16, know: 1, shield: true },
     { key: "world_spade", name: "Worldspade", slot: "tool", rarity: "legendary", pwr: 9, def: 2, know: 6, mine: 5 },
     { key: "eclipse_bow", name: "Eclipse Bow", slot: "bow", rarity: "legendary", pwr: 12, def: 2, know: 2, range: 10 },
-    { key: "codex_eternity", name: "Codex of Eternity", slot: "book", rarity: "legendary", pwr: 4, def: 2, know: 16 },
+    { key: "codex_eternity", name: "Codex of Eternity", slot: "book", rarity: "legendary", pwr: 4, def: 2, know: 16, spells: true },
   ];
+
+  const SPELLS = {
+    fire: { key: "fire", name: "Firebolt", color: "#ff6030", glow: "#ffb060", icon: "🔥", keyCode: "KeyZ", keyLabel: "Z" },
+    water: { key: "water", name: "Tideburst", color: "#4090ff", glow: "#90d0ff", icon: "💧", keyCode: "KeyX", keyLabel: "X" },
+    air: { key: "air", name: "Gale Spike", color: "#d0e8ff", glow: "#ffffff", icon: "💨", keyCode: "KeyC", keyLabel: "C" },
+  };
+
+  const SPELL_RARITY_MUL = {
+    common: 1,
+    uncommon: 1.4,
+    rare: 1.85,
+    epic: 2.4,
+    legendary: 3.2,
+  };
 
   const POTION_TABLE = [
     { key: "heal_small", name: "Minor Healing Potion", type: "consumable", effect: "heal", amount: 30, rarity: "common" },
@@ -321,6 +335,9 @@ const QUESTIONS = {
     blockFlash: 0,
     attackCharge: null, // { kind:'bow'|'melee', t, max, tx, ty, fullPing, shown }
     mouseWorld: { x: 0, y: 0 },
+    spellCd: 0,
+    spellAnim: 0,
+    spellFlash: null, // { element, t }
     projectiles: [],
     nextId: 1,
   };
@@ -976,12 +993,32 @@ const QUESTIONS = {
       tone(300, 0.1, "triangle", 0.09, 0.18, 240);
     }
 
+    function spellCast(element) {
+      if (element === "fire") {
+        noiseBurst(0.12, 0.55, 900);
+        tone(220, 0.12, "sawtooth", 0.35, 0, 140);
+        tone(480, 0.16, "triangle", 0.28, 0.04, 220);
+        tone(720, 0.14, "sine", 0.2, 0.08, 360);
+      } else if (element === "water") {
+        noiseBurst(0.14, 0.4, 700);
+        tone(280, 0.14, "sine", 0.32, 0, 160);
+        tone(420, 0.16, "triangle", 0.26, 0.05, 240);
+        tone(180, 0.12, "sine", 0.18, 0.1, 90);
+      } else {
+        // air
+        noiseBurst(0.1, 0.45, 2200);
+        tone(620, 0.1, "triangle", 0.3, 0, 900);
+        tone(980, 0.14, "sine", 0.24, 0.04, 1400);
+        tone(1400, 0.1, "sine", 0.16, 0.08, 2000);
+      }
+    }
+
     return {
       unlock, setVolume, setEnabled, setMusicEnabled, syncAmbience, stopAmbience,
       swordSlash, swordHit, fist, bow, bowPull, bowFull,
       footstep, drinkGulp, healChime, healBurst, potionPop, hurt, mine, ui,
       chestOpen, chestLoot, block, shieldRaise, bowDry, questOk, questFail,
-      portalEnter, portalExit, levelUp, equip, monsterDie, stairs,
+      portalEnter, portalExit, levelUp, equip, monsterDie, stairs, spellCast,
     };
   })();
 
@@ -1843,14 +1880,15 @@ const QUESTIONS = {
       const gr = state.dungeon.gateRank || "E";
       $("hud-floor").textContent = `${state.dungeon.floor}/10`;
       $("hud-biome").textContent = `${gr}-Rank · ${state.dungeon.name} · ${FLOOR_THEMES[state.dungeon.floor - 1].name}`;
-      $("combat-hint").textContent = `${gr}-Rank · Fl.${state.dungeon.floor}/10 · HOLD LMB bow charge · F/🛡 block · E chests`;
+      $("combat-hint").textContent = `${gr}-Rank · Fl.${state.dungeon.floor}/10 · Tap/HOLD attack · Z/X/C spells · F/🛡 block · E`;
     } else {
       $("hud-biome").textContent = BIOME_NAMES[biomeAt(Math.floor(state.player.x), Math.floor(state.player.y))] || "Grassland Ruins";
       if ($("combat-hint")) {
-        $("combat-hint").textContent = "Loot gear · LMB sword · HOLD LMB/Space with bow to CHARGE · F/🛡 BLOCK · E interact";
+        $("combat-hint").textContent = "Tap/HOLD attack · Book spells Z🔥 X💧 C💨 · F/🛡 BLOCK · E interact";
       }
     }
     updateBlockUI();
+    updateSpellUI();
   }
 
   const HOTBAR_SIZE = 9;
@@ -2090,6 +2128,7 @@ const QUESTIONS = {
       row.appendChild(btn);
     }
     updateHeldCursor();
+    updateSpellUI();
   }
 
   function updateHeldCursor() {
@@ -2402,8 +2441,11 @@ const QUESTIONS = {
     if (item.def) stats.push(`DEF ${item.def}`);
     if (item.pwr) stats.push(`PWR ${item.pwr}`);
     if (item.shield || (item.slot === "armor" && item.def)) stats.push("HOLD F / top-right 🛡 BLOCK");
+    if (item.slot === "book") stats.push("spells Z/X/C · Fire/Water/Air");
+    if (item.know) stats.push(`KNOW ${item.know}`);
     showToast(`Equipped ${item.name}${stats.length ? ` · ${stats.join(" · ")}` : ""}`);
     updateBlockUI();
+    updateSpellUI();
   }
 
   function tryPlaceInSlot(slot) {
@@ -2470,6 +2512,7 @@ const QUESTIONS = {
     }
     recalcHp();
     updateBlockUI();
+    updateSpellUI();
   }
 
   function updateInventoryUI() {
@@ -3209,11 +3252,11 @@ const QUESTIONS = {
     }
   }
 
-  function damageMonster(monster, dmg) {
-    if (!monster) return;
+  function damageMonster(monster, dmg, opts = {}) {
+    if (!monster || monster.hp <= 0) return;
     monster.hp -= dmg;
     monster.hitFlash = 0.2;
-    spawnParticles(monster.x, monster.y, 8, "spark");
+    if (!opts.silent) spawnParticles(monster.x, monster.y, 8, "spark");
     if (monster.hp <= 0) {
       SFX.monsterDie();
       spawnParticles(monster.x, monster.y, 12, "spark");
@@ -3232,7 +3275,7 @@ const QUESTIONS = {
         state.dungeon.bossStarted = true;
         setTimeout(() => startBoss({ name: `${state.dungeon.name} Guardian`, rank: state.dungeon.rank, done: false }), 400);
       }
-    } else {
+    } else if (!opts.silent) {
       showToast(`Hit ${monster.type} for ${dmg}!`);
     }
   }
@@ -3504,6 +3547,93 @@ const QUESTIONS = {
     }
   }
 
+  function getSpellBook() {
+    const eq = state.equipped.book;
+    if (eq && eq.slot === "book") return eq;
+    const hand = getHandItem();
+    if (hand && hand.slot === "book") return hand;
+    return null;
+  }
+
+  function spellDamageForBook(book) {
+    if (!book) return 0;
+    const mul = SPELL_RARITY_MUL[book.rarity] || 1;
+    const know = gearStats().know;
+    return Math.max(1, Math.round((7 + (book.pwr || 0) * 2 + know * 0.65) * mul));
+  }
+
+  function updateSpellUI() {
+    const bar = $("spell-bar");
+    if (!bar) return;
+    const book = getSpellBook();
+    const ready = !!(state.running && book && state.spellCd <= 0 && !state.paused && !isBlocking() && state.drinkAnim <= 0);
+    bar.classList.toggle("hidden", !state.running || !book);
+    bar.classList.toggle("on-cd", !!(book && state.spellCd > 0));
+    const dmg = book ? spellDamageForBook(book) : 0;
+    const label = $("spell-bar-label");
+    if (label) {
+      label.textContent = book
+        ? `${book.name} · ${book.rarity} · ~${dmg} dmg`
+        : "Equip a book to cast";
+    }
+    ["fire", "water", "air"].forEach((el) => {
+      const btn = $(`btn-spell-${el}`);
+      if (!btn) return;
+      btn.disabled = !ready;
+      btn.classList.toggle("ready", ready);
+      btn.title = book
+        ? `${SPELLS[el].name} (${SPELLS[el].keyLabel}) · ${book.rarity} book · ~${dmg} dmg`
+        : "Equip a spellbook first";
+    });
+  }
+
+  function castSpell(element) {
+    const spell = SPELLS[element];
+    if (!spell) return false;
+    if (!state.running || state.paused) return false;
+    if (state.drinkAnim > 0) { showToast("Drinking…"); return false; }
+    if (isBlocking()) { showToast("Lower shield to cast (release F / 🛡)"); return false; }
+    if (state.attackCharge) { showToast("Release your attack charge first"); return false; }
+    const book = getSpellBook();
+    if (!book) {
+      showToast("Equip a book (I → Book slot) or put one on the hotbar!", true);
+      return false;
+    }
+    if (state.spellCd > 0) {
+      showToast("Spell recharging…");
+      return false;
+    }
+    try { SFX.unlock(); } catch (_) {}
+
+    const aim = state.mouseWorld || {
+      x: state.player.x + Math.cos(state.player.facing || 0) * 4,
+      y: state.player.y + Math.sin(state.player.facing || 0) * 4,
+    };
+    const dx = aim.x - state.player.x;
+    const dy = aim.y - state.player.y;
+    const dist = Math.hypot(dx, dy) || 1;
+    state.player.facing = Math.atan2(dy, dx);
+
+    const dmg = spellDamageForBook(book);
+    const spd = element === "air" ? 12 : element === "fire" ? 9 : 8;
+    const life = element === "air" ? 0.85 : 1.05;
+    state.spellCd = element === "air" ? 0.55 : 0.75;
+    state.spellAnim = 0.28;
+    state.spellFlash = { element, t: 0.22 };
+    state.projectiles.push({
+      x: state.player.x, y: state.player.y,
+      vx: (dx / dist) * spd, vy: (dy / dist) * spd,
+      life, dmg, kind: "spell", element,
+      rarity: book.rarity,
+    });
+    spawnParticles(state.player.x, state.player.y, 8, element === "water" ? "splash" : "spark");
+    spawnFloatText(state.player.x, state.player.y - 0.6, spell.name.toUpperCase(), spell.color);
+    try { SFX.spellCast(element); } catch (_) {}
+    showToast(`${spell.icon} ${spell.name} · ${book.rarity} (${dmg} dmg)`);
+    updateSpellUI();
+    return true;
+  }
+
   function updateProjectiles(dt) {
     if (!state.projectiles.length) return;
     state.projectiles = state.projectiles.filter((p) => {
@@ -3511,11 +3641,37 @@ const QUESTIONS = {
       p.y += p.vy * dt;
       p.life -= dt;
       if (p.life <= 0) return false;
-      if (isSolidTile(getTile(Math.floor(p.x), Math.floor(p.y)))) return false;
+      if (isSolidTile(getTile(Math.floor(p.x), Math.floor(p.y)))) {
+        if (p.kind === "spell") {
+          spawnParticles(p.x, p.y, 10, p.element === "water" ? "splash" : "spark");
+        }
+        return false;
+      }
+      // Spell trail
+      if (p.kind === "spell" && Math.random() < 0.35) {
+        spawnParticles(p.x, p.y, 1, p.element === "water" ? "splash" : "spark");
+      }
+      const hitR = p.kind === "spell" ? (p.element === "fire" ? 0.65 : 0.5) : 0.45;
       for (const m of iterCombatMobs()) {
-        if (Math.hypot(m.x - p.x, m.y - p.y) < 0.45) {
+        if (Math.hypot(m.x - p.x, m.y - p.y) < hitR) {
           damageMonster(m, p.dmg);
-          spawnParticles(p.x, p.y, 6, "spark");
+          if (p.kind === "spell") {
+            spawnParticles(p.x, p.y, p.element === "fire" ? 14 : 10, p.element === "water" ? "splash" : "spark");
+            if (p.element === "water") {
+              m.slowT = Math.max(m.slowT || 0, 1.4);
+              spawnFloatText(m.x, m.y - 0.4, "SLOW", "#90d0ff");
+            } else if (p.element === "air") {
+              const ang = Math.atan2(m.y - state.player.y, m.x - state.player.x);
+              m.x += Math.cos(ang) * 0.85;
+              m.y += Math.sin(ang) * 0.85;
+              spawnFloatText(m.x, m.y - 0.4, "PUSH", "#d0e8ff");
+            } else if (p.element === "fire") {
+              m.burnT = Math.max(m.burnT || 0, 1.6);
+              spawnFloatText(m.x, m.y - 0.4, "BURN", "#ff8040");
+            }
+          } else {
+            spawnParticles(p.x, p.y, 6, "spark");
+          }
           return false;
         }
       }
@@ -3624,14 +3780,31 @@ const QUESTIONS = {
     }
   }
 
+  function tickMonsterStatus(m, dt) {
+    if ((m.slowT || 0) > 0) m.slowT = Math.max(0, m.slowT - dt);
+    if ((m.burnT || 0) > 0) {
+      m.burnT = Math.max(0, m.burnT - dt);
+      m.burnTick = (m.burnTick || 0) - dt;
+      if (m.burnTick <= 0 && m.hp > 0) {
+        m.burnTick = 0.35;
+        const burn = Math.max(1, Math.floor(2 + (SPELL_RARITY_MUL[(getSpellBook() || {}).rarity] || 1)));
+        damageMonster(m, burn, { silent: true });
+        spawnParticles(m.x, m.y, 3, "spark");
+      }
+    }
+  }
+
   function updateMonsters(dt) {
     const px = state.player.x, py = state.player.y;
     if (state.dungeon?.active) {
       for (const m of state.dungeon.monsters) {
+        tickMonsterStatus(m, dt);
+        if (m.hp <= 0) continue;
         const dx = px - m.x, dy = py - m.y;
         const dist = Math.hypot(dx, dy);
         if (dist < 8 && dist > 0.4) {
-          const spd = m.spd * dt;
+          const slow = (m.slowT || 0) > 0 ? 0.45 : 1;
+          const spd = m.spd * dt * slow;
           const nx = m.x + (dx / dist) * spd;
           const ny = m.y + (dy / dist) * spd;
           if (!isSolidTile(getTile(Math.floor(nx), Math.floor(m.y)))) m.x = nx;
@@ -3651,11 +3824,14 @@ const QUESTIONS = {
     }
     // Overworld night mobs
     state.nightMobs = state.nightMobs.filter((m) => {
+      tickMonsterStatus(m, dt);
+      if (m.hp <= 0) return false;
       const dx = px - m.x, dy = py - m.y;
       const dist = Math.hypot(dx, dy);
       if (dist > 28) return false; // despawn far away
       if (dist < 9 && dist > 0.4) {
-        const spd = m.spd * dt;
+        const slow = (m.slowT || 0) > 0 ? 0.45 : 1;
+        const spd = m.spd * dt * slow;
         const nx = m.x + (dx / dist) * spd;
         const ny = m.y + (dy / dist) * spd;
         if (!isSolidTile(getOverworldTile(Math.floor(nx), Math.floor(m.y)))) m.x = nx;
@@ -3854,6 +4030,15 @@ const QUESTIONS = {
     if (state.hitCd > 0) state.hitCd -= dt;
     if (state.hurtCd > 0) state.hurtCd -= dt;
     if (state.blockFlash > 0) state.blockFlash = Math.max(0, state.blockFlash - dt);
+    if (state.spellCd > 0) {
+      state.spellCd = Math.max(0, state.spellCd - dt);
+      if (state.spellCd <= 0) updateSpellUI();
+    }
+    if (state.spellAnim > 0) state.spellAnim = Math.max(0, state.spellAnim - dt);
+    if (state.spellFlash) {
+      state.spellFlash.t -= dt;
+      if (state.spellFlash.t <= 0) state.spellFlash = null;
+    }
     // Keep block state honest if armor was unequipped
     if (state.blocking && !canBlock()) state.blocking = false;
     if ((state.tempPwrT || 0) > 0) {
@@ -4805,18 +4990,27 @@ const QUESTIONS = {
       ctx.textAlign = "left";
     }
 
-    // Projectiles (arrows)
+    // Projectiles (arrows + spells)
     for (const p of state.projectiles) {
       const ax = Math.floor((p.x - camX) * tileSize + w / 2);
       const ay = Math.floor((p.y - camY) * tileSize + h / 2);
       const ang = Math.atan2(p.vy, p.vx);
-      const hot = !!p.charged;
-      outlineRect(ax - 1, ay - 1, hot ? 9 : 6, 2, hot ? "#ffe060" : "#e8d0a0");
-      pxRect(ax + Math.cos(ang) * 4, ay + Math.sin(ang) * 2, 3, 2, hot ? "#fff0a0" : "#c0c8d0");
-      if (hot) {
+      if (p.kind === "spell") {
+        const sp = SPELLS[p.element] || SPELLS.fire;
         ctx.globalAlpha = 0.35;
-        pxRect(ax - 2, ay - 3, 10, 6, "#ffd060");
+        pxRect(ax - 5, ay - 5, 10, 10, sp.glow);
         ctx.globalAlpha = 1;
+        outlineRect(ax - 3, ay - 3, 7, 7, sp.color);
+        pxRect(ax + Math.cos(ang) * 3, ay + Math.sin(ang) * 3, 3, 3, sp.glow);
+      } else {
+        const hot = !!p.charged;
+        outlineRect(ax - 1, ay - 1, hot ? 9 : 6, 2, hot ? "#ffe060" : "#e8d0a0");
+        pxRect(ax + Math.cos(ang) * 4, ay + Math.sin(ang) * 2, 3, 2, hot ? "#fff0a0" : "#c0c8d0");
+        if (hot) {
+          ctx.globalAlpha = 0.35;
+          pxRect(ax - 2, ay - 3, 10, 6, "#ffd060");
+          ctx.globalAlpha = 1;
+        }
       }
     }
 
@@ -5365,6 +5559,9 @@ const QUESTIONS = {
     state.blockFlash = 0;
     state.attackCharge = null;
     state.mouseWorld = { x: 8.5, y: 8.5 };
+    state.spellCd = 0;
+    state.spellAnim = 0;
+    state.spellFlash = null;
     // Spawn with empty inventory / no equipped gear — loot quests, chests, dungeons
     state.inventory = [];
     state.slots = Array(INV_SIZE).fill(null);
@@ -5372,6 +5569,7 @@ const QUESTIONS = {
     state.hotbarSel = 0;
     state.equipped = { weapon: null, armor: null, tool: null, book: null, bow: null };
     updateBlockUI();
+    updateSpellUI();
 
     ensureChunk(0, 0);
     $("start-screen").classList.remove("active");
@@ -5388,9 +5586,10 @@ const QUESTIONS = {
     requestAnimationFrame(() => {
       resizeCanvas();
       draw();
-      showToast("Empty pack — loot chests, quests & dungeons for sword, pickaxe, bow & shield. HOLD F / 🛡 BLOCK when you find armor.");
+      showToast("Empty pack — loot gear. Equip a book for Z/X/C spells. HOLD F / 🛡 BLOCK with a shield.");
       updateSessionTimerUI();
       updateBlockUI();
+      updateSpellUI();
     });
   }
 
@@ -5410,6 +5609,7 @@ const QUESTIONS = {
     $("start-screen").classList.add("active");
     $("combat-hint").classList.add("hidden");
     $("hud-floor-wrap").classList.add("hidden");
+    updateSpellUI();
   }
 
   function applyMobileVisibility() {
@@ -5572,6 +5772,27 @@ const QUESTIONS = {
       if (modalIsOpen("quest-modal") || modalIsOpen("boss-modal") || modalIsOpen("result-modal")) return;
       e.preventDefault();
       drinkHandPotion();
+      return;
+    }
+    if (e.code === "KeyZ" || e.key === "z" || e.key === "Z") {
+      if (!state.running || state.paused) return;
+      if (modalIsOpen("quest-modal") || modalIsOpen("boss-modal") || modalIsOpen("result-modal") || modalIsOpen("inventory-modal") || modalIsOpen("settings-modal")) return;
+      e.preventDefault();
+      castSpell("fire");
+      return;
+    }
+    if (e.code === "KeyX" || e.key === "x" || e.key === "X") {
+      if (!state.running || state.paused) return;
+      if (modalIsOpen("quest-modal") || modalIsOpen("boss-modal") || modalIsOpen("result-modal") || modalIsOpen("inventory-modal") || modalIsOpen("settings-modal")) return;
+      e.preventDefault();
+      castSpell("water");
+      return;
+    }
+    if (e.code === "KeyC" || e.key === "c" || e.key === "C") {
+      if (!state.running || state.paused) return;
+      if (modalIsOpen("quest-modal") || modalIsOpen("boss-modal") || modalIsOpen("result-modal") || modalIsOpen("inventory-modal") || modalIsOpen("settings-modal")) return;
+      e.preventDefault();
+      castSpell("air");
       return;
     }
     if (e.code === "KeyF" || e.key === "f" || e.key === "F"
@@ -5869,6 +6090,14 @@ const QUESTIONS = {
   });
   $("btn-interact").addEventListener("click", (e) => { e.preventDefault(); tryInteract(); });
   $("btn-heal").addEventListener("click", (e) => { e.preventDefault(); drinkHandPotion(); });
+  ["fire", "water", "air"].forEach((el) => {
+    const btn = $(`btn-spell-${el}`);
+    if (!btn) return;
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      castSpell(el);
+    });
+  });
   function bindBlockButton(el) {
     if (!el) return;
     const blockOn = (e) => { e.preventDefault(); setBlocking(true); };
