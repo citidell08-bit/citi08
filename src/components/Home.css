@@ -39,13 +39,26 @@
   margin-bottom: 0.9rem;
 }
 
-.xp-pill {
+.pill-stack {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  justify-content: flex-end;
+}
+
+.xp-pill,
+.coin-pill {
   padding: 0.4rem 0.75rem;
   border-radius: 999px;
   background: var(--ember-soft);
   color: var(--ember);
   font-weight: 700;
   white-space: nowrap;
+}
+
+.xp-pill {
+  background: rgba(94, 234, 212, 0.14);
+  color: var(--glow);
 }
 
 .rename-form {

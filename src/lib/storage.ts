@@ -9,6 +9,8 @@ const STORAGE_KEY = 'kith.game.v1'
 export function createInitialState(): GameState {
   return {
     xp: 0,
+    coins: 0,
+    totalCoinsEarned: 0,
     totalFocusMinutes: 0,
     totalSessions: 0,
     totalCardsReviewed: 0,
@@ -37,8 +39,10 @@ export function loadState(): GameState {
     return {
       ...createInitialState(),
       ...parsed,
+      coins: parsed.coins ?? 0,
+      totalCoinsEarned: parsed.totalCoinsEarned ?? 0,
       achievements: mergeAchievements(parsed.achievements),
-      quests: ensureGameQuest(parsed.quests),
+      quests: normalizeQuests(parsed.quests),
     }
   } catch {
     return createInitialState()
@@ -59,20 +63,27 @@ function mergeAchievements(
   })
 }
 
-function ensureGameQuest(quests: Quest[] | undefined): Quest[] {
-  const list = quests ?? generateDailyQuests()
-  if (list.some((q) => q.type === 'games_played')) return list
-  return [
-    ...list,
-    {
+function normalizeQuests(quests: Quest[] | undefined): Quest[] {
+  const defaults = generateDailyQuests()
+  const defaultByType = new Map(defaults.map((q) => [q.type, q]))
+  const list = (quests ?? defaults).map((q) => ({
+    ...q,
+    coinReward: q.coinReward ?? defaultByType.get(q.type)?.coinReward ?? 10,
+  }))
+
+  if (!list.some((q) => q.type === 'games_played')) {
+    list.push({
       id: uid('quest'),
       title: 'Play Break',
-      description: 'Play 2 mini-games.',
+      description: 'Play 2 mini-games with your coins.',
       target: 2,
       progress: 0,
       xpReward: 25,
+      coinReward: 18,
       completed: false,
       type: 'games_played',
-    },
-  ]
+    })
+  }
+
+  return list
 }

@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react'
-import type { GameState, MiniGameId, MiniGameResult } from '../types'
+import { GAME_COSTS } from '../lib/coins'
+import type { GameState, MiniGameId, MiniGameResult, Tab } from '../types'
 import { GlowGame } from './games/GlowGame'
 import { MathGame } from './games/MathGame'
 import { MemoryGame } from './games/MemoryGame'
@@ -34,11 +35,17 @@ const CATALOG: {
 interface Props {
   state: GameState
   onComplete: (result: MiniGameResult) => void
+  onSpend: (gameId: MiniGameId) => boolean
+  onNavigate: (tab: Tab) => void
 }
 
-export function Games({ state, onComplete }: Props) {
+export function Games({ state, onComplete, onSpend, onNavigate }: Props) {
   const [active, setActive] = useState<MiniGameId | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const rewardedRef = useRef(new Set<string>())
+
+  const questsDone = state.quests.filter((q) => q.completed).length
+  const arcadeUnlocked = questsDone > 0 || state.totalCoinsEarned > 0
 
   const handleFinish = useCallback(
     (result: MiniGameResult) => {
@@ -50,6 +57,24 @@ export function Games({ state, onComplete }: Props) {
     },
     [onComplete],
   )
+
+  function tryPlay(gameId: MiniGameId) {
+    setError(null)
+    if (!arcadeUnlocked) {
+      setError('Complete a daily quest first to unlock the arcade.')
+      return
+    }
+    const cost = GAME_COSTS[gameId]
+    if (state.coins < cost) {
+      setError(`Need ${cost} coins to play. Finish quests or level up to earn more.`)
+      return
+    }
+    if (!onSpend(gameId)) {
+      setError(`Need ${cost} coins to play.`)
+      return
+    }
+    setActive(gameId)
+  }
 
   if (active === 'memory') {
     return <MemoryGame onFinish={handleFinish} onBack={() => setActive(null)} />
@@ -66,11 +91,33 @@ export function Games({ state, onComplete }: Props) {
       <header>
         <h2 className="section-title">Arcade</h2>
         <p className="section-sub">
-          Brain-break mini-games that still feed your XP and daily quests.
+          Earn coins from quests and level-ups, then spend them on brain-break games.
         </p>
       </header>
 
+      <div className="panel coin-banner">
+        <div>
+          <strong className="coin-balance">
+            <span aria-hidden="true">◉</span> {state.coins} coins
+          </strong>
+          <p>
+            {arcadeUnlocked
+              ? 'Arcade unlocked — pick a game and spend coins to play.'
+              : 'Clear at least one daily quest to unlock play. Level-ups also mint coins.'}
+          </p>
+        </div>
+        {!arcadeUnlocked && (
+          <button type="button" className="btn btn-ember" onClick={() => onNavigate('quests')}>
+            View quests
+          </button>
+        )}
+      </div>
+
       <div className="panel games-scoreboard">
+        <div className="stat">
+          <strong>{state.coins}</strong>
+          <span>Coins</span>
+        </div>
         <div className="stat">
           <strong>{state.totalGamesPlayed}</strong>
           <span>Played</span>
@@ -93,19 +140,31 @@ export function Games({ state, onComplete }: Props) {
         </div>
       </div>
 
-      <ul className="game-catalog">
-        {CATALOG.map((game) => (
-          <li key={game.id} className="panel game-card">
-            <div>
-              <em>{game.badge}</em>
-              <strong>{game.title}</strong>
-              <p>{game.blurb}</p>
-            </div>
-            <button type="button" className="btn btn-primary" onClick={() => setActive(game.id)}>
-              Play
-            </button>
-          </li>
-        ))}
+      {error && <p className="games-error">{error}</p>}
+
+      <ul className={`game-catalog ${arcadeUnlocked ? '' : 'locked'}`}>
+        {CATALOG.map((game) => {
+          const cost = GAME_COSTS[game.id]
+          const canAfford = state.coins >= cost
+          return (
+            <li key={game.id} className="panel game-card">
+              <div>
+                <em>{game.badge}</em>
+                <strong>{game.title}</strong>
+                <p>{game.blurb}</p>
+                <span className="game-cost">Entry {cost} coins</span>
+              </div>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => tryPlay(game.id)}
+                disabled={!arcadeUnlocked || !canAfford}
+              >
+                {!arcadeUnlocked ? 'Locked' : canAfford ? `Play · ${cost}` : `Need ${cost}`}
+              </button>
+            </li>
+          )
+        })}
       </ul>
     </div>
   )

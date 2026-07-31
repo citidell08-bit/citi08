@@ -13,7 +13,7 @@ export function Quests({ state }: Props) {
       <header>
         <h2 className="section-title">Daily quests</h2>
         <p className="section-sub">
-          Fresh goals each day. Clear them all for a bonus achievement.
+          Fresh goals each day. Earn XP and coins — then spend coins in the arcade.
         </p>
       </header>
 
@@ -21,7 +21,9 @@ export function Quests({ state }: Props) {
         <strong>
           {done}/{state.quests.length} cleared
         </strong>
-        <span>Streak {state.streak} · Best {state.longestStreak}</span>
+        <span>
+          {state.coins} coins · Streak {state.streak}
+        </span>
       </div>
 
       <ul className="quest-list">
@@ -34,7 +36,9 @@ export function Quests({ state }: Props) {
                   <strong>{q.title}</strong>
                   <p>{q.description}</p>
                 </div>
-                <em>+{q.xpReward} XP</em>
+                <em>
+                  +{q.xpReward} XP · +{q.coinReward} ◉
+                </em>
               </div>
               <div className="xp-track" aria-hidden="true">
                 <div className="xp-fill" style={{ width: `${ratio * 100}%` }} />

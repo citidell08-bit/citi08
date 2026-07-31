@@ -4,3 +4,43 @@ button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+.coin-chip {
+  position: fixed;
+  top: 1.15rem;
+  left: max(1rem, calc((100% - 1120px) / 2));
+  z-index: 35;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.8rem;
+  border-radius: 999px;
+  background: rgba(8, 24, 21, 0.88);
+  border: 1px solid rgba(240, 180, 41, 0.35);
+  color: var(--ember);
+  font-weight: 700;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(12px);
+}
+
+.toast .coins {
+  color: var(--ember);
+  font-weight: 700;
+  margin-right: 0.4rem;
+}
+
+.toast .coins.spend {
+  color: var(--danger);
+}
+
+.coin-inline {
+  color: var(--ember);
+}
+
+@media (max-width: 839px) {
+  .coin-chip {
+    top: auto;
+    bottom: 5.35rem;
+    left: 1rem;
+  }
+}

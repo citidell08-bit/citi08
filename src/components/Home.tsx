@@ -21,8 +21,8 @@ export function Home({ state, onNavigate, onRename, onReset }: Props) {
           <p className="eyebrow">Study companion</p>
           <h1 className="brand-mark">Kith</h1>
           <p className="lede">
-            Focus, flip cards, play mini-games — and watch {state.companionName} grow with every
-            session.
+            Clear quests, level up for coins, then spend them on arcade games with{' '}
+            {state.companionName}.
           </p>
           <div className="hero-actions">
             <button type="button" className="btn btn-primary" onClick={() => onNavigate('focus')}>
@@ -44,12 +44,19 @@ export function Home({ state, onNavigate, onRename, onReset }: Props) {
               {current} / {needed} XP to next level
             </p>
           </div>
-          <div className="xp-pill">+{state.xp} XP</div>
+          <div className="pill-stack">
+            <div className="xp-pill">+{state.xp} XP</div>
+            <div className="coin-pill">{state.coins} coins</div>
+          </div>
         </div>
         <div className="xp-track" aria-hidden="true">
           <div className="xp-fill" style={{ width: `${Math.min(100, ratio * 100)}%` }} />
         </div>
         <div className="stat-row" style={{ marginTop: '1.1rem' }}>
+          <div className="stat">
+            <strong>{state.coins}</strong>
+            <span>Coins</span>
+          </div>
           <div className="stat">
             <strong>{state.streak}</strong>
             <span>Day streak</span>

@@ -22,6 +22,7 @@ export interface Quest {
   target: number
   progress: number
   xpReward: number
+  coinReward: number
   completed: boolean
   type: 'focus_minutes' | 'cards_reviewed' | 'sessions' | 'games_played'
 }
@@ -43,6 +44,8 @@ export interface XpEvent {
 
 export interface GameState {
   xp: number
+  coins: number
+  totalCoinsEarned: number
   totalFocusMinutes: number
   totalSessions: number
   totalCardsReviewed: number
@@ -66,6 +69,7 @@ export interface Toast {
   id: string
   message: string
   xp?: number
+  coins?: number
 }
 
 export interface MiniGameResult {
@@ -74,4 +78,9 @@ export interface MiniGameResult {
   score: number
   xp: number
   label: string
+}
+
+export interface LevelUpInfo {
+  level: number
+  coins: number
 }

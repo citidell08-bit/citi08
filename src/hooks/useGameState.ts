@@ -1,14 +1,24 @@
 import { startTransition, useEffect, useState } from 'react'
 import { generateDailyQuests } from '../data/quests'
+import { COINS_PER_ACHIEVEMENT, coinsForLevelsGained, GAME_COSTS } from '../lib/coins'
 import { todayKey, uid, yesterdayKey } from '../lib/dates'
 import { levelFromXp } from '../lib/xp'
 import { createInitialState, loadState, saveState } from '../lib/storage'
-import type { Deck, Flashcard, GameState, MiniGameResult, Quest, Toast } from '../types'
+import type {
+  Deck,
+  Flashcard,
+  GameState,
+  LevelUpInfo,
+  MiniGameId,
+  MiniGameResult,
+  Quest,
+  Toast,
+} from '../types'
 
 export function useGameState() {
   const [state, setState] = useState<GameState>(() => loadState())
   const [toasts, setToasts] = useState<Toast[]>([])
-  const [levelUp, setLevelUp] = useState<number | null>(null)
+  const [levelUp, setLevelUp] = useState<LevelUpInfo | null>(null)
 
   useEffect(() => {
     saveState(state)
@@ -20,23 +30,28 @@ export function useGameState() {
     })
   }, [])
 
-  function pushToast(message: string, xp?: number) {
-    const toast: Toast = { id: uid('toast'), message, xp }
+  function pushToast(message: string, extras?: { xp?: number; coins?: number }) {
+    const toast: Toast = { id: uid('toast'), message, xp: extras?.xp, coins: extras?.coins }
     setToasts((t) => [...t, toast])
     window.setTimeout(() => {
       setToasts((t) => t.filter((x) => x.id !== toast.id))
     }, 2800)
   }
 
+  function awardCoins(prev: GameState, amount: number): GameState {
+    if (amount <= 0) return prev
+    return {
+      ...prev,
+      coins: prev.coins + amount,
+      totalCoinsEarned: prev.totalCoinsEarned + amount,
+    }
+  }
+
   function awardXp(prev: GameState, amount: number, reason: string): GameState {
     const before = levelFromXp(prev.xp)
     const nextXp = prev.xp + amount
     const after = levelFromXp(nextXp)
-    if (after > before) {
-      queueMicrotask(() => setLevelUp(after))
-    }
-    queueMicrotask(() => pushToast(reason, amount))
-    return {
+    let next: GameState = {
       ...prev,
       xp: nextXp,
       xpHistory: [
@@ -44,6 +59,19 @@ export function useGameState() {
         ...prev.xpHistory,
       ].slice(0, 40),
     }
+
+    if (after > before) {
+      const levelCoins = coinsForLevelsGained(before, after)
+      next = awardCoins(next, levelCoins)
+      queueMicrotask(() => setLevelUp({ level: after, coins: levelCoins }))
+      queueMicrotask(() =>
+        pushToast(reason, { xp: amount, coins: levelCoins }),
+      )
+    } else {
+      queueMicrotask(() => pushToast(reason, { xp: amount }))
+    }
+
+    return next
   }
 
   function markActive(prev: GameState): GameState {
@@ -70,16 +98,25 @@ export function useGameState() {
     const quests = updater(prev.quests).map((q) => ({ ...q }))
     let next: GameState = { ...prev, quests }
     let bonusXp = 0
+    let bonusCoins = 0
 
     for (const q of quests) {
       if (!q.completed && q.progress >= q.target) {
         q.completed = true
         bonusXp += q.xpReward
+        bonusCoins += q.coinReward
       }
+    }
+
+    if (bonusCoins > 0) {
+      next = awardCoins(next, bonusCoins)
     }
 
     if (bonusXp > 0) {
       next = awardXp(next, bonusXp, 'Quest reward')
+      if (bonusCoins > 0) {
+        queueMicrotask(() => pushToast('Quest coins', { coins: bonusCoins }))
+      }
     }
 
     if (quests.every((q) => q.completed)) {
@@ -110,13 +147,17 @@ export function useGameState() {
         ? { ...a, unlockedAt: new Date().toISOString() }
         : a,
     )
+    let next: GameState = { ...prev, achievements }
     if (wasLocked) {
+      next = awardCoins(next, COINS_PER_ACHIEVEMENT)
       const newly = achievements.find((a) => a.id === id)
       if (newly) {
-        queueMicrotask(() => pushToast(`Achievement: ${newly.title}`))
+        queueMicrotask(() =>
+          pushToast(`Achievement: ${newly.title}`, { coins: COINS_PER_ACHIEVEMENT }),
+        )
       }
     }
-    return { ...prev, achievements }
+    return next
   }
 
   function checkAchievements(prev: GameState): GameState {
@@ -170,6 +211,17 @@ export function useGameState() {
     })
   }
 
+  function spendCoinsForGame(gameId: MiniGameId): boolean {
+    const cost = GAME_COSTS[gameId]
+    if (state.coins < cost) return false
+    setState((prev) => {
+      if (prev.coins < cost) return prev
+      queueMicrotask(() => pushToast('Arcade entry', { coins: -cost }))
+      return { ...prev, coins: prev.coins - cost }
+    })
+    return true
+  }
+
   function completeMiniGame(result: MiniGameResult) {
     setState((prev) => {
       let next = markActive(prev)
@@ -192,7 +244,14 @@ export function useGameState() {
               : Math.min(next.bestMemoryMoves, result.score)
             : next.bestMemoryMoves,
       }
+      // Small coin tip for a win so arcade isn't only a sink
+      if (result.won) {
+        next = awardCoins(next, 5)
+      }
       next = awardXp(next, result.xp, result.label)
+      if (result.won) {
+        queueMicrotask(() => pushToast('Win bonus', { coins: 5 }))
+      }
       next = bumpQuest(next, 'games_played', 1)
       next = checkAchievements(next)
       return next
@@ -244,6 +303,7 @@ export function useGameState() {
     levelUp,
     completeFocusSession,
     reviewCard,
+    spendCoinsForGame,
     completeMiniGame,
     createDeck,
     renameCompanion,
