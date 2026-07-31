@@ -151,30 +151,17 @@ function noiseBurst(
   src.stop(start + duration + 0.02)
 }
 
-/** UI click — real mouse/button click + neon sparkle on top. */
+/** Plain mechanical UI click — switch thump + sharp snap. */
 export function playClickSfx(): void {
   unlockAudio()
-  // Classic click: low switch thump + sharp plastic snap
-  tone(180, 0.018, { type: 'sine', gain: 0.09, attack: 0.0005, slideTo: 90 })
-  noiseBurst(0.012, {
-    gain: 0.09,
-    filterFreq: 2800,
-    filterEnd: 900,
+  tone(160, 0.02, { type: 'sine', gain: 0.1, attack: 0.0004, slideTo: 70 })
+  noiseBurst(0.014, {
+    gain: 0.1,
+    filterFreq: 2400,
+    filterEnd: 700,
     filterType: 'bandpass',
   })
-  tone(1400, 0.012, { type: 'square', gain: 0.08, attack: 0.0005, slideTo: 480 })
-  // Tiny second tick — sells the “click” of a real button
-  noiseBurst(0.008, {
-    gain: 0.045,
-    delay: 0.016,
-    filterFreq: 3600,
-    filterEnd: 1400,
-    filterType: 'bandpass',
-  })
-  tone(1100, 0.01, { type: 'square', gain: 0.04, attack: 0.0005, delay: 0.016, slideTo: 600 })
-  // Keep the neon layer
-  tone(3400, 0.03, { type: 'sine', gain: 0.05, attack: 0.001, slideTo: 2600 })
-  tone(5200, 0.022, { type: 'triangle', gain: 0.032, delay: 0.005, slideTo: 4000 })
+  tone(1200, 0.012, { type: 'square', gain: 0.085, attack: 0.0004, slideTo: 380 })
 }
 
 /** Short cue when a mini-game starts. */
