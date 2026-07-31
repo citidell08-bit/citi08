@@ -27,10 +27,13 @@ export function GlowGame({ onFinish, onBack }: Props) {
   const scoreRef = useRef(0)
   const reportedRef = useRef(false)
   const roundRef = useRef(0)
+  const finishedRef = useRef(false)
   const onFinishRef = useRef(onFinish)
   const spawnRef = useRef<(nextRound: number) => void>(() => {})
+  const playAgainRef = useRef<() => void>(() => {})
 
   onFinishRef.current = onFinish
+  finishedRef.current = finished
 
   function clearTimer() {
     if (timerRef.current) {
@@ -126,6 +129,8 @@ export function GlowGame({ onFinish, onBack }: Props) {
     spawnRef.current(1)
   }
 
+  playAgainRef.current = playAgain
+
   useEffect(() => {
     spawnRef.current(1)
     return () => {
@@ -133,6 +138,18 @@ export function GlowGame({ onFinish, onBack }: Props) {
       clearTick()
       clearMiss()
     }
+  }, [])
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (!finishedRef.current) return
+      if (e.code === 'Space' || e.code === 'Enter') {
+        e.preventDefault()
+        playAgainRef.current()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
   }, [])
 
   const endGameRef = useRef(endGame)
@@ -149,7 +166,12 @@ export function GlowGame({ onFinish, onBack }: Props) {
   }, [running, seconds, finished])
 
   function tap(index: number) {
-    if (!running || finished || active == null) return
+    // After fail/finish, any board tap starts a new random round
+    if (finished) {
+      playAgain()
+      return
+    }
+    if (!running || active == null) return
     if (index === active) {
       clearTimer()
       clearTick()
@@ -185,7 +207,9 @@ export function GlowGame({ onFinish, onBack }: Props) {
       <div className="play-header">
         <div>
           <h2 className="section-title">Glow Catch</h2>
-          <p className="section-sub">Tap the lit cell before it fades. Watch the timer.</p>
+          <p className="section-sub">
+            Tap the lit cell before it fades. When the round ends, tap the board to go again.
+          </p>
         </div>
         <div className="hud-row">
           <div className="dash-score-badge" aria-live="polite">
@@ -196,16 +220,40 @@ export function GlowGame({ onFinish, onBack }: Props) {
         </div>
       </div>
 
-      <div className={`panel glow-panel play-board ${missFlash ? 'miss' : ''}`}>
+      <div
+        className={`panel glow-panel play-board ${missFlash ? 'miss' : ''} ${finished ? 'glow-ended' : ''}`}
+        onClick={finished ? () => playAgain() : undefined}
+        role={finished ? 'button' : undefined}
+        tabIndex={finished ? 0 : undefined}
+        onKeyDown={
+          finished
+            ? (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  playAgain()
+                }
+              }
+            : undefined
+        }
+        aria-label={finished ? 'Round over — tap to play again' : undefined}
+      >
         <div className="glow-grid" aria-label="Glow catch board">
           {Array.from({ length: CELLS }, (_, i) => (
             <button
               key={i}
               type="button"
-              className={`glow-cell ${active === i ? 'lit' : ''}`}
-              onClick={() => tap(i)}
-              aria-label={active === i ? 'Glowing target — tap now' : `Cell ${i + 1}`}
-              disabled={finished}
+              className={`glow-cell ${active === i ? 'lit' : ''} ${finished ? 'restartable' : ''}`}
+              onClick={(e) => {
+                e.stopPropagation()
+                tap(i)
+              }}
+              aria-label={
+                finished
+                  ? 'Tap to play again'
+                  : active === i
+                    ? 'Glowing target — tap now'
+                    : `Cell ${i + 1}`
+              }
             />
           ))}
         </div>
@@ -217,13 +265,27 @@ export function GlowGame({ onFinish, onBack }: Props) {
               {score >= 7 ? ' — sharp!' : '.'}
             </p>
             <p className="section-sub memory-again-hint">
-              Play again for a fresh random glow sequence.
+              Tap the board (or press Space) for a fresh random round.
             </p>
             <div className="dash-end-actions">
-              <button type="button" className="btn btn-ember" onClick={playAgain}>
+              <button
+                type="button"
+                className="btn btn-ember"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  playAgain()
+                }}
+              >
                 Play again
               </button>
-              <button type="button" className="btn btn-ghost" onClick={onBack}>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onBack()
+                }}
+              >
                 Back to arcade
               </button>
             </div>

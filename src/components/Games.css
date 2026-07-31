@@ -355,6 +355,15 @@
   animation: shake 180ms ease;
 }
 
+.glow-panel.glow-ended {
+  cursor: pointer;
+}
+
+.glow-cell.restartable {
+  cursor: pointer;
+  opacity: 0.55;
+}
+
 @keyframes glow-pop {
   from {
     transform: scale(0.92);
