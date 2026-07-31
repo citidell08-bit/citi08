@@ -67,18 +67,37 @@ export function setMusicEnabled(on: boolean): void {
   }
 }
 
-/** Switch soundtrack — use 'hub' outside games. */
+/** Kill any already-scheduled notes so the previous track can't bleed through. */
+function hardCutBus(): void {
+  if (!musicBus) return
+  try {
+    musicBus.gain.value = 0
+    musicBus.disconnect()
+  } catch {
+    // ignore
+  }
+  musicBus = null
+}
+
+/** Switch soundtrack — use 'hub' outside games. Stops the previous track immediately. */
 export function setBgmTrack(next: BgmTrack): void {
-  if (track === next) return
+  if (track === next && running && musicBus) return
   track = next
   step = 0
+  hardCutBus()
+
+  if (!enabled) return
+  unlockAudio()
   const graph = getAudioGraph()
-  if (graph && running && enabled) {
-    nextNoteTime = graph.ac.currentTime + 0.05
-    fadeMusic(TRACK[next].volume, 0.35)
-  } else if (enabled) {
-    startBgm()
+  if (!graph) return
+
+  // Always rebuild the bus + restart scheduling on the new track
+  running = false
+  if (timer != null) {
+    window.clearInterval(timer)
+    timer = null
   }
+  startBgm()
 }
 
 function ensureMusicBus(): GainNode | null {
@@ -415,10 +434,15 @@ function scheduleMemory(ac: AudioContext, bus: GainNode, start: number, beat: nu
   }
 }
 
-function scheduleBar(ac: AudioContext, bus: GainNode, start: number) {
-  const cfg = TRACK[track]
+function scheduleBar(
+  ac: AudioContext,
+  bus: GainNode,
+  start: number,
+  activeTrack: BgmTrack,
+) {
+  const cfg = TRACK[activeTrack]
   const beat = 60 / cfg.bpm
-  switch (track) {
+  switch (activeTrack) {
     case 'dash':
       scheduleDash(ac, bus, start, beat)
       break
@@ -441,14 +465,18 @@ function scheduler() {
   const bus = ensureMusicBus()
   if (!graph || !bus || !running || !enabled) return
 
+  // Capture track for this schedule pass so a mid-loop switch can't mix bars
+  const activeTrack = track
   const { ac } = graph
-  const cfg = TRACK[track]
+  const cfg = TRACK[activeTrack]
   const beat = 60 / cfg.bpm
   const barLen = beat * cfg.bars
-  const horizon = ac.currentTime + 0.4
+  const horizon = ac.currentTime + 0.35
 
   while (nextNoteTime < horizon) {
-    scheduleBar(ac, bus, nextNoteTime)
+    // Abort if track changed while we were filling the horizon
+    if (track !== activeTrack || bus !== musicBus) return
+    scheduleBar(ac, bus, nextNoteTime, activeTrack)
     nextNoteTime += barLen
     step += 1
   }

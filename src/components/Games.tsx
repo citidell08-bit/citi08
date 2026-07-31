@@ -75,11 +75,15 @@ export function Games({ state, onComplete, onSpend, onNavigate, onActiveChange }
     return () => onActiveChange?.(null)
   }, [active, onActiveChange])
 
-  // Per-game soundtrack — restore hub music when leaving a run
+  // Game track while playing; hub everywhere else (don't reset hub in cleanup —
+  // that raced and briefly forced menu music over the game bed).
   useEffect(() => {
     setBgmTrack(active ?? 'hub')
-    return () => setBgmTrack('hub')
   }, [active])
+
+  useEffect(() => {
+    return () => setBgmTrack('hub')
+  }, [])
 
   const questsDone = state.quests.filter((q) => q.completed).length
   const arcadeUnlocked =
@@ -120,6 +124,7 @@ export function Games({ state, onComplete, onSpend, onNavigate, onActiveChange }
     }
 
     playStartSfx()
+    setBgmTrack(gameId)
     setActive(gameId)
   }
 
