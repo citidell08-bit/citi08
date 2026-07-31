@@ -7,7 +7,7 @@ import {
   type LlmPrefs,
   type LlmProvider,
 } from '../lib/llm'
-import { ensurePuter } from '../lib/puterAi'
+import { preloadPuter } from '../lib/puterAi'
 import { unlockAudio } from '../lib/sfx'
 import { uid } from '../lib/dates'
 import type { GameState, Tab } from '../types'
@@ -57,9 +57,7 @@ export function Assistant({ state, open, onOpenChange, onNavigate, hidden = fals
   useEffect(() => {
     if (!open) return
     const id = window.setTimeout(() => inputRef.current?.focus(), 80)
-    void ensurePuter().catch(() => {
-      /* optional preload */
-    })
+    void preloadPuter()
     return () => window.clearTimeout(id)
   }, [open])
 

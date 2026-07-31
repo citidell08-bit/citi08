@@ -66,7 +66,7 @@ function resolveEndpoint(prefs: LlmPrefs): Endpoint[] {
   const openai: Endpoint = {
     label: 'Ember cloud',
     url: 'https://api.openai.com/v1/chat/completions',
-    model: 'gpt-4o',
+    model: 'gpt-4o-mini',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${openaiKey}`,
@@ -102,39 +102,18 @@ function resolveEndpoint(prefs: LlmPrefs): Endpoint[] {
 function buildSystemPrompt(state: GameState): string {
   const level = levelFromXp(state.xp)
   const { current, needed } = progressToNextLevel(state.xp)
-  const daily = state.quests
-    .filter((q) => q.period === 'daily')
-    .map(
-      (q) =>
-        `${q.custom ? '[Yours] ' : ''}${q.title}: ${q.progress}/${q.target}${q.completed ? ' ✓' : ''}`,
-    )
+  const openDaily = state.quests
+    .filter((q) => q.period === 'daily' && !q.completed)
+    .slice(0, 3)
+    .map((q) => `${q.title} ${q.progress}/${q.target}`)
     .join('; ')
-  const owned = state.ownedGames.join(', ') || 'none'
 
-  return `You are ${state.companionName}, the Cyber Kith — a brilliant study companion who simply knows things. Never discuss providers, APIs, models, looking things up, or other AI products. Speak as if every answer is your own knowledge.
+  return `You are ${state.companionName}, Cyber Kith. You know everything — never mention APIs/models/looking things up. Be warm, sharp, brief (short paragraphs or bullets).
 
-Answer accurately, clearly, and helpfully — like a genius friend who already knows. Tie it back to studying or Cyber Kith when relevant.
+App: Home/Focus/Cards/Play/Quests/Themes. Start 0 coins. Coins from quests, +25/level, arcade. Games (${GAME_COSTS.math}–${GAME_COSTS.dash}◉ once): Dash, Memory, Sum, Glow. Daily quests refresh when cleared + midnight. Streak needs daily play.
 
-Personality: warm, sharp, encouraging, lightly cyber. Confident. Never say you are a script or empty bot.
-
-App facts:
-- Tabs: Home, Focus, Cards, Play, Quests, Themes.
-- Start at 0 coins/XP; grind focus, cards, quests.
-- Coins from quests, +25/level, +10/achievement, arcade pickups.
-- Games cost once (${GAME_COSTS.math}–${GAME_COSTS.dash} ◉): Spike Dash, Memory Nest, Quick Sum, Glow Catch.
-- Daily quests refresh when cleared + at midnight; custom quests exist (max 8).
-- Day streak grows if you return tomorrow; resets if you skip a day.
-- Home → Reset progress wipes the save.
-
-Player now:
-- ${state.companionName}, Lv ${level} (${current}/${needed} XP), ${state.xp} XP total
-- ${state.coins} ◉, streak ${state.streak} (best ${state.longestStreak})
-- Focus ${state.totalFocusMinutes}m / ${state.totalSessions} sessions, ${state.totalCardsReviewed} cards, games owned: ${owned}
-- Daily quests: ${daily || 'none'}
-
-Format:
-- Lead with the answer. Short paragraphs or bullets.
-- Optional single nav tag at the very end only: [[go:focus|Open Focus]] (tabs: home, focus, cards, play, quests, store).`
+Player: Lv ${level} (${current}/${needed} XP), ${state.coins}◉, streak ${state.streak}, focus ${state.totalFocusMinutes}m, cards ${state.totalCardsReviewed}. Open dailies: ${openDaily || 'none'}.
+Optional end tag only if useful: [[go:focus|Open Focus]] (home|focus|cards|play|quests|store).`
 }
 
 const GO_RE = /\[\[go:(home|focus|cards|play|quests|store)\|([^\]]+)\]\]\s*$/i
@@ -166,8 +145,8 @@ async function completeChat(
     body: JSON.stringify({
       model: endpoint.model,
       stream: false,
-      temperature: 0.7,
-      max_tokens: 900,
+      temperature: 0.45,
+      max_tokens: 420,
       messages: [{ role: 'system', content: system }, ...history],
     }),
   })
@@ -211,8 +190,8 @@ async function streamChat(
     body: JSON.stringify({
       model: endpoint.model,
       stream: true,
-      temperature: 0.7,
-      max_tokens: 900,
+      temperature: 0.45,
+      max_tokens: 420,
       messages: [{ role: 'system', content: system }, ...history],
     }),
   })
@@ -305,12 +284,12 @@ export async function askLiveAssistant(
 ): Promise<LiveReply> {
   const prefs = loadLlmPrefs()
   const system = buildSystemPrompt(state)
-  const turns = history.slice(-12)
+  const turns = history.slice(-6)
   const messages = [{ role: 'system' as const, content: system }, ...turns]
   const name = state.companionName
   let lastError = ''
 
-  // 1) Primary live model — presented as Ember knowing the answer
+  // 1) Primary live model — stream first for instant feel
   if (prefs.provider === 'chatgpt' || prefs.provider === 'auto') {
     onClear?.()
     onStatus?.(`${name} is thinking…`)
@@ -329,17 +308,16 @@ export async function askLiveAssistant(
     }
   }
 
-  // 2) User API keys + free cloud proxies
+  // 2) Backup endpoints — stream first (faster first token)
   const endpoints = resolveEndpoint(prefs)
   for (const endpoint of endpoints) {
     onClear?.()
     onStatus?.(`${name} is thinking…`)
     try {
       try {
-        const full = await completeChat(endpoint, system, turns, signal)
-        onClear?.()
-        onDelta(full)
-        const parsed = parseGoTag(full)
+        const raw = await streamChat(endpoint, system, turns, onDelta, signal)
+        if (!raw.trim()) throw new Error('empty stream')
+        const parsed = parseGoTag(raw)
         onStatus?.(null)
         return {
           text: parsed.clean,
@@ -347,13 +325,13 @@ export async function askLiveAssistant(
           goLabel: parsed.goLabel,
           source: name,
         }
-      } catch (completeErr) {
+      } catch (streamErr) {
         onClear?.()
-        onStatus?.(`${name} is thinking…`)
-        const raw = await streamChat(endpoint, system, turns, onDelta, signal)
-        if (!raw.trim()) throw completeErr
-        const parsed = parseGoTag(raw)
+        const full = await completeChat(endpoint, system, turns, signal)
+        onDelta(full)
+        const parsed = parseGoTag(full)
         onStatus?.(null)
+        void streamErr
         return {
           text: parsed.clean,
           goTo: parsed.goTo,

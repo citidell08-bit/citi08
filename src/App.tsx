@@ -10,6 +10,7 @@ import { useFocusSession } from './hooks/useFocusSession'
 import { useGameState } from './hooks/useGameState'
 import { installBgm } from './lib/bgm'
 import { installClickSfx, playAccessGrantedSfx, unlockAudio } from './lib/sfx'
+import { preloadPuter } from './lib/puterAi'
 import type { MiniGameId, Tab } from './types'
 import { Companion } from './components/Companion'
 import { MusicToggle } from './components/MusicToggle'
@@ -45,6 +46,9 @@ function App() {
 
   useEffect(() => installClickSfx(), [])
   useEffect(() => installBgm(), [])
+  useEffect(() => {
+    preloadPuter()
+  }, [])
 
   useEffect(() => {
     if (levelUp == null) return
