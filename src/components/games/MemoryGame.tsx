@@ -2,7 +2,31 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { MiniGameResult } from '../../types'
 import { GameTimer } from './GameTimer'
 
-const SYMBOLS = ['◆', '●', '▲', '★', '✚', '◈', '⬡', '✦']
+/** Larger pool so each round can draw a different random set of icons. */
+const SYMBOL_POOL = [
+  '◆',
+  '●',
+  '▲',
+  '★',
+  '✚',
+  '◈',
+  '⬡',
+  '✦',
+  '◇',
+  '◎',
+  '△',
+  '✶',
+  '⬢',
+  '✧',
+  '◉',
+  '▣',
+  '✵',
+  '⊕',
+  '❄',
+  '☾',
+]
+
+const PAIR_COUNT = 8
 const DURATION = 60
 
 interface Tile {
@@ -25,10 +49,17 @@ function shuffle<T>(arr: T[]): T[] {
   return a
 }
 
+/** Unique symbols from the pool, then shuffled into a fresh board. */
+function pickSymbols(count: number): string[] {
+  const unique = [...new Set(SYMBOL_POOL)]
+  return shuffle(unique).slice(0, count)
+}
+
 function makeBoard(round: number): Tile[] {
-  const pairs = SYMBOLS.flatMap((symbol, i) => [
-    { id: `r${round}-a${i}`, symbol, matched: false },
-    { id: `r${round}-b${i}`, symbol, matched: false },
+  const symbols = pickSymbols(PAIR_COUNT)
+  const pairs = symbols.flatMap((symbol, i) => [
+    { id: `r${round}-a${i}-${symbol}`, symbol, matched: false },
+    { id: `r${round}-b${i}-${symbol}`, symbol, matched: false },
   ])
   return shuffle(pairs)
 }
@@ -44,11 +75,20 @@ export function MemoryGame({ onFinish, onBack }: Props) {
   const [running, setRunning] = useState(true)
   const reportedRef = useRef(false)
   const movesRef = useRef(0)
+  const flipTimerRef = useRef<number | null>(null)
   const onFinishRef = useRef(onFinish)
   onFinishRef.current = onFinish
 
   const matchedCount = useMemo(() => tiles.filter((t) => t.matched).length, [tiles])
   const won = done && matchedCount === tiles.length
+
+  useEffect(() => {
+    return () => {
+      if (flipTimerRef.current != null) {
+        window.clearTimeout(flipTimerRef.current)
+      }
+    }
+  }, [])
 
   useEffect(() => {
     if (!running || done) return
@@ -87,6 +127,10 @@ export function MemoryGame({ onFinish, onBack }: Props) {
   }
 
   function playAgain() {
+    if (flipTimerRef.current != null) {
+      window.clearTimeout(flipTimerRef.current)
+      flipTimerRef.current = null
+    }
     const nextRound = round + 1
     reportedRef.current = false
     movesRef.current = 0
@@ -115,7 +159,8 @@ export function MemoryGame({ onFinish, onBack }: Props) {
     const [a, b] = nextFlipped
     const match = tiles[a].symbol === tiles[b].symbol
 
-    window.setTimeout(() => {
+    flipTimerRef.current = window.setTimeout(() => {
+      flipTimerRef.current = null
       if (match) {
         let cleared = false
         setTiles((prev) => {
@@ -142,9 +187,10 @@ export function MemoryGame({ onFinish, onBack }: Props) {
         </button>
         <div className="mini-stats">
           <span className="score-pill">Score {(matchedCount / 2) * 100}</span>
+          <span>Round {round}</span>
           <span>Moves {moves}</span>
           <span>
-            Pairs {matchedCount / 2}/{SYMBOLS.length}
+            Pairs {matchedCount / 2}/{PAIR_COUNT}
           </span>
         </div>
       </div>
@@ -189,9 +235,12 @@ export function MemoryGame({ onFinish, onBack }: Props) {
                 ? `Nest cleared in ${moves} moves!`
                 : 'Time is up — try a new random board.'}
             </p>
+            <p className="section-sub memory-again-hint">
+              Play again for a fresh random layout and icons.
+            </p>
             <div className="dash-end-actions">
               <button type="button" className="btn btn-ember" onClick={playAgain}>
-                Play again
+                New random board
               </button>
               <button type="button" className="btn btn-ghost" onClick={onBack}>
                 Back to arcade
