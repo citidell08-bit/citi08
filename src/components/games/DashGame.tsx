@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { isJumpKey } from '../../lib/gameInput'
-import { playCrashSfx, playJumpSfx, playRestartSfx, playWinSfx, unlockAudio } from '../../lib/sfx'
+import {
+  playAccessDeniedSfx,
+  playJumpSfx,
+  playRestartSfx,
+  playWinSfx,
+  unlockAudio,
+} from '../../lib/sfx'
 import type { MiniGameResult } from '../../types'
 import './DashGame.css'
 
@@ -255,7 +261,7 @@ export function DashGame({ onFinish, onBack }: Props) {
       st.dead = true
       st.shake = 10
       st.jumpBufferedUntil = 0
-      playCrashSfx()
+      playAccessDeniedSfx()
       for (let i = 0; i < 18; i++) {
         st.particles.push({
           x: PLAYER_X + PLAYER_SIZE / 2,
@@ -515,7 +521,10 @@ export function DashGame({ onFinish, onBack }: Props) {
         {finalScore != null && !alive && (
           <div className="mini-end overlay-end">
             <p>
-              Final score <strong>{finalScore}</strong>
+              {finalScore != null && finalScore >= WIN_SCORE
+                ? 'Access granted'
+                : 'Access denied'}{' '}
+              — final score <strong>{finalScore}</strong>
               {finalScore >= WIN_SCORE ? ' — run cleared!' : '. Click the track to try again.'}
             </p>
             <div className="dash-end-actions">
