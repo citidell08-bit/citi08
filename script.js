@@ -35,7 +35,7 @@
   const RARITY_ORDER = ["common", "uncommon", "rare", "epic", "legendary"];
 
   const LOOT_TABLE = [
-    { key: "wood_blade", name: "Wood Practice Blade", slot: "weapon", rarity: "common", pwr: 1, def: 0, know: 0 },
+    { key: "wood_blade", name: "Wood Sword", slot: "weapon", rarity: "common", pwr: 1, def: 0, know: 0 },
     { key: "short_bow", name: "Short Bow", slot: "bow", rarity: "common", pwr: 2, def: 0, know: 0, range: 5.5 },
     { key: "wood_pick", name: "Wood Pickaxe", slot: "tool", rarity: "common", pwr: 0, def: 0, know: 0, mine: 1 },
     { key: "slate_chalk", name: "Slate & Chalk", slot: "tool", rarity: "common", pwr: 0, def: 0, know: 1 },
@@ -1715,13 +1715,14 @@ const QUESTIONS = {
       const gr = state.dungeon.gateRank || "E";
       $("hud-floor").textContent = `${state.dungeon.floor}/10`;
       $("hud-biome").textContent = `${gr}-Rank · ${state.dungeon.name} · ${FLOOR_THEMES[state.dungeon.floor - 1].name}`;
-      $("combat-hint").textContent = `${gr}-Rank · Fl.${state.dungeon.floor}/10 · LMB/Space attack · F/🛡 block · H heal · E chests`;
+      $("combat-hint").textContent = `${gr}-Rank · Fl.${state.dungeon.floor}/10 · Sword:LMB · Pick:click stone · Shield:HOLD F / 🛡 BLOCK`;
     } else {
       $("hud-biome").textContent = BIOME_NAMES[biomeAt(Math.floor(state.player.x), Math.floor(state.player.y))] || "Grassland Ruins";
       if ($("combat-hint")) {
-        $("combat-hint").textContent = "LMB/Space attack · F/Shift/🛡 BLOCK · put bow on hotbar to shoot · H heal · E interact";
+        $("combat-hint").textContent = "1 Sword · 2 Bow · 3 Pickaxe · HOLD F or top-right 🛡 BLOCK to raise shield";
       }
     }
+    updateBlockUI();
   }
 
   const HOTBAR_SIZE = 9;
@@ -1817,10 +1818,34 @@ const QUESTIONS = {
     const banner = $("block-banner");
     const hudBtn = $("btn-hud-block");
     const mobBtn = $("btn-block");
+    const tip = $("shield-tip");
+    const tipText = $("shield-tip-text");
     const on = isBlocking();
+    const ready = !!(state.running && canBlock());
     if (banner) banner.classList.toggle("hidden", !on);
-    if (hudBtn) hudBtn.classList.toggle("active", on);
-    if (mobBtn) mobBtn.classList.toggle("active", on);
+    if (hudBtn) {
+      hudBtn.classList.toggle("active", on);
+      hudBtn.classList.toggle("ready-pulse", ready && !on);
+      hudBtn.title = on
+        ? "Release to lower shield"
+        : ready
+          ? "HOLD this button (or F / Shift) to raise your shield"
+          : "Equip a shield/armor in Inventory (I) first";
+    }
+    if (mobBtn) {
+      mobBtn.classList.toggle("active", on);
+      mobBtn.classList.toggle("ready-pulse", ready && !on);
+    }
+    if (tip) {
+      tip.classList.toggle("hidden", !state.running);
+      tip.classList.toggle("blocking", on);
+      tip.classList.toggle("ready", ready && !on);
+    }
+    if (tipText) {
+      if (on) tipText.innerHTML = "<strong>BLOCKING</strong> — release <kbd>F</kbd> / <kbd>Shift</kbd> / top-right <strong>🛡 BLOCK</strong>";
+      else if (ready) tipText.innerHTML = "Your shield is equipped — <strong>HOLD F</strong> or the top-right <strong>🛡 BLOCK</strong> button";
+      else tipText.innerHTML = "No shield equipped — open <kbd>I</kbd> Inventory → put a 🛡 in the Armor slot";
+    }
   }
 
   function setBlocking(on) {
@@ -3654,6 +3679,100 @@ const QUESTIONS = {
     pxRect(x + 1, y + 1, Math.max(1, w - 2), Math.max(1, h - 2), fill);
   }
 
+  function gearMetal(item, kind) {
+    if (!item) return kind === "wood" ? "#8a6030" : "#c0c8d0";
+    const r = item.rarity || "common";
+    if (kind === "blade") {
+      if (r === "legendary") return "#e8f0ff";
+      if (r === "epic") return "#d0a0ff";
+      if (r === "rare") return "#c8a050";
+      if (r === "uncommon") return "#b0b8c8";
+      return "#d8c090"; // wood sword
+    }
+    if (kind === "pick") {
+      if (r === "legendary") return "#ffe060";
+      if (r === "epic") return "#a0e0ff";
+      if (r === "rare") return "#90c0e0";
+      if (r === "uncommon") return "#c0c8d0";
+      return "#c4a060"; // wood pick head
+    }
+    return "#c0a878";
+  }
+
+  /** Draw a recognizable sword (handle + guard + tapered blade) along angle. */
+  function drawSwordArt(cx, cy, ang, len, item) {
+    const blade = gearMetal(item, "blade");
+    const edge = "#ffffffaa";
+    const guard = item && item.rarity === "legendary" ? "#f0d060" : "#c8a040";
+    const grip = "#6a4020";
+    ctx.save();
+    ctx.translate(Math.floor(cx), Math.floor(cy));
+    ctx.rotate(ang);
+    // pommel
+    outlineRect(-2, len * 0.38, 4, 4, "#8a6820");
+    // grip
+    outlineRect(-2, len * 0.08, 4, len * 0.32, grip);
+    pxRect(-1, len * 0.12, 2, len * 0.24, "#8a5830");
+    // crossguard
+    outlineRect(-7, len * 0.02, 14, 4, guard);
+    pxRect(-5, len * 0.04, 10, 1, "#ffe8a0");
+    // blade body
+    outlineRect(-3, -len * 0.55, 6, len * 0.58, blade);
+    // center fuller / shine
+    pxRect(-1, -len * 0.5, 2, len * 0.45, edge);
+    // tip
+    outlineRect(-2, -len * 0.62, 4, 5, blade);
+    outlineRect(-1, -len * 0.68, 2, 5, blade);
+    ctx.restore();
+  }
+
+  /** Draw a recognizable pickaxe (haft + dual pointed head). */
+  function drawPickaxeArt(cx, cy, ang, len, item) {
+    const head = gearMetal(item, "pick");
+    const haft = "#7a4a22";
+    ctx.save();
+    ctx.translate(Math.floor(cx), Math.floor(cy));
+    ctx.rotate(ang);
+    // haft
+    outlineRect(-2, -len * 0.15, 4, len * 0.7, haft);
+    pxRect(-1, -len * 0.1, 2, len * 0.55, "#9a6838");
+    // head bar
+    outlineRect(-10, -len * 0.28, 20, 6, head);
+    pxRect(-8, -len * 0.25, 16, 2, "#ffffff66");
+    // pointed tips (left & right)
+    outlineRect(-14, -len * 0.26, 5, 4, head);
+    outlineRect(-16, -len * 0.22, 4, 3, head);
+    outlineRect(9, -len * 0.26, 5, 4, head);
+    outlineRect(12, -len * 0.22, 4, 3, head);
+    // binding
+    outlineRect(-3, -len * 0.2, 6, 4, "#5a3818");
+    ctx.restore();
+  }
+
+  /** Draw a round / kite shield facing the camera plane. */
+  function drawShieldArt(cx, cy, w, h, item, raised) {
+    const face = item && item.shield
+      ? (item.rarity === "legendary" ? "#f0d060" : item.rarity === "epic" ? "#b070e0" : item.rarity === "rare" ? "#6088c8" : item.rarity === "uncommon" ? "#9098a8" : "#c8a878")
+      : "#a09070";
+    const rim = "#3a2810";
+    const boss = "#ffe060";
+    const x = Math.floor(cx - w / 2);
+    const y = Math.floor(cy - h / 2);
+    // outer rim
+    outlineRect(x, y, w, h, face, rim);
+    // inner panel
+    pxRect(x + 2, y + 2, w - 4, h - 4, face);
+    pxRect(x + 3, y + 3, w - 6, Math.max(2, Math.floor(h * 0.35)), "#ffffff33");
+    // vertical / cross straps
+    pxRect(x + Math.floor(w / 2) - 1, y + 3, 2, h - 6, "#5a3820");
+    pxRect(x + 3, y + Math.floor(h / 2) - 1, w - 6, 2, "#5a3820");
+    // boss / gem
+    outlineRect(x + Math.floor(w / 2) - 2, y + Math.floor(h / 2) - 2, 5, 5, boss);
+    if (raised) {
+      pxRect(x - 1, y - 1, w + 2, 2, "#a0d0ff88");
+    }
+  }
+
   /** Pixel-Dungeons silhouette + realistic light/AO rim */
   function shadeTile(px, py, ts) {
     pxRect(px, py, ts, 1, "rgba(255,255,255,0.12)");
@@ -4105,23 +4224,21 @@ const QUESTIONS = {
       outlineRect(ppx - right * (s * 0.55) - 2, ppy - s * 0.05 + bob, 6, 8, "#e06040");
     }
 
-    // SHIELD / armor block stance — raise guard in front
-    if (blocking && blockArmor) {
-      const raise = 1;
-      const sx = ppx + Math.cos(face) * (s * 0.42);
-      const sy = ppy + Math.sin(face) * (s * 0.25) + bob - sub - 2;
-      const shieldCol = blockArmor.shield
-        ? (blockArmor.rarity === "legendary" ? "#f0d060" : blockArmor.rarity === "epic" ? "#c080e0" : blockArmor.rarity === "rare" ? "#70a8e0" : "#c0a878")
-        : body;
-      outlineRect(sx - 5, sy - 8, 11, 16, shieldCol);
-      pxRect(sx - 3, sy - 6, 7, 12, "#ffffff33");
-      outlineRect(sx - 1, sy - 2, 3, 3, "#ffe060");
-      // arm holding shield
-      outlineRect(ppx + right * (s * 0.2), ppy - s * 0.02 + bob - raise * 2, 3, s * 0.28, "#f0c090");
-      if (state.blockFlash > 0) {
-        ctx.globalAlpha = Math.min(0.55, state.blockFlash * 2);
-        pxRect(sx - 8, sy - 10, 16, 20, "#a0d8ff");
-        ctx.globalAlpha = 1;
+    // SHIELD — always visible when equipped; raised in front while blocking
+    if (blockArmor && !swim && !drinking) {
+      if (blocking) {
+        const sx = ppx + Math.cos(face) * (s * 0.55);
+        const sy = ppy + Math.sin(face) * (s * 0.22) + bob - sub - 4;
+        drawShieldArt(sx, sy, 14, 18, blockArmor, true);
+        outlineRect(ppx + right * (s * 0.18), ppy - s * 0.02 + bob - 2, 3, s * 0.28, "#f0c090");
+        if (state.blockFlash > 0) {
+          ctx.globalAlpha = Math.min(0.6, state.blockFlash * 2.2);
+          pxRect(sx - 10, sy - 12, 20, 24, "#a0d8ff");
+          ctx.globalAlpha = 1;
+        }
+      } else {
+        // strapped on back / off-hand when not blocking
+        drawShieldArt(ppx - right * (s * 0.42), ppy + bob - sub, 10, 13, blockArmor, false);
       }
     }
 
@@ -4157,19 +4274,23 @@ const QUESTIONS = {
       ctx.globalAlpha = 1;
     }
 
-    // TOOL / pickaxe — swings while mining
-    if (tool && !swim && !drinking) {
-      const mineSwing = mineT * right * s * 0.35;
-      const tx = ppx - right * (s * 0.48) + lookX + mineSwing;
-      const ty = ppy + bob - sub - Math.abs(mineT) * s * 0.25;
-      outlineRect(tx, ty, 2, s * 0.45, "#8a6030");
-      const head = tool.mine ? "#c0c8d0" : (tool.rarity === "legendary" ? "#ffe060" : "#a0a8b0");
-      outlineRect(tx - 3, ty - 3, 8, 5, head);
-      if (state.mineAnim > 0) pxRect(tx + right * 4, ty, 4, 2, "rgba(255,255,255,0.35)");
+    // PICKAXE — held when selected / equipped; swings while mining
+    const handItem = getHandItem();
+    const showingPick = tool && isMineTool(tool) && (!weapon || (handItem && isMineTool(handItem))) && !(handItem && handItem.slot === "bow");
+    if (showingPick && !swim && !drinking && !blocking) {
+      const mining = state.mineAnim > 0;
+      const ang = face + (mining ? mineT * 1.1 : 0.55 * right);
+      const reach = s * (0.55 + (mining ? Math.abs(mineT) * 0.25 : 0));
+      const hx = ppx + Math.cos(ang) * reach * 0.35;
+      const hy = ppy + Math.sin(ang) * reach * 0.25 + bob - sub;
+      drawPickaxeArt(hx, hy, ang + Math.PI / 2, s * 0.85, tool);
+      if (mining) {
+        pxRect(hx + Math.cos(ang) * 8, hy + Math.sin(ang) * 6, 3, 3, "rgba(255,255,220,0.45)");
+      }
     }
 
     // BOW on back / drawn when shooting
-    if (bow && !swim && !drinking) {
+    if (bow && !swim && !drinking && !(handItem && handItem.slot === "weapon") && !(showingPick && handItem && isMineTool(handItem))) {
       const drawBack = state.attackAnim > 0 && !weapon ? 1 : 0;
       const bx = ppx - right * (s * 0.42) + lookX * drawBack;
       const by = ppy - s * 0.2 + bob - sub;
@@ -4179,27 +4300,30 @@ const QUESTIONS = {
       if (drawBack) pxRect(bx + right * 2, by + s * 0.3, 6, 1, "#f0e0c0");
     }
 
-    // SWORD swing animation in arc
-    if (weapon && !swim && !drinking && !blocking) {
+    // SWORD — held at rest or swung in a clear arc
+    const showingSword = weapon && !(handItem && (handItem.slot === "bow" || isMineTool(handItem)));
+    if (showingSword && !swim && !drinking && !blocking) {
       const swing = swingT;
-      const ang = face + (1 - swing) * 1.6 * right - 0.4 * right;
-      const reach = s * (0.55 + swing * 0.5);
+      const ang = face + (swing > 0 ? ((1 - swing) * 1.85 - 0.35) * right : 0.35 * right);
+      const reach = s * (0.42 + swing * 0.55);
       const wx = ppx + Math.cos(ang) * reach;
       const wy = ppy + Math.sin(ang) * reach * 0.55 + bob - sub;
-      outlineRect(wx - 1, wy - s * 0.35, 3, s * 0.75, weapon.rarity === "legendary" ? "#e8f0ff" : "#d0d8e0");
-      pxRect(wx, wy - s * 0.3, 1, s * 0.55, "#ffffff");
-      outlineRect(wx - 3, wy + s * 0.25, 7, 3, "#ffe060");
-      if (swing > 0.15) {
-        // slash arc trail
-        for (let i = 0; i < 4; i++) {
-          const a2 = ang - right * i * 0.2;
-          pxRect(ppx + Math.cos(a2) * reach * 0.85, ppy + Math.sin(a2) * reach * 0.45 + bob, 3, 2, `rgba(255,255,255,${0.35 - i * 0.07})`);
+      drawSwordArt(wx, wy, ang + Math.PI / 2, s * 0.95, weapon);
+      if (swing > 0.12) {
+        for (let i = 0; i < 5; i++) {
+          const a2 = ang - right * i * 0.22;
+          pxRect(
+            ppx + Math.cos(a2) * reach * 0.9,
+            ppy + Math.sin(a2) * reach * 0.5 + bob,
+            4, 2,
+            `rgba(255,255,255,${0.4 - i * 0.07})`
+          );
         }
       }
-    } else if (!weapon && !swim && !drinking && swingT > 0) {
+    } else if (!weapon && !swim && !drinking && swingT > 0 && !blocking) {
       // fist punch
       outlineRect(ppx + right * (s * 0.4 + swingT * s * 0.35), ppy + bob, 4, 4, "#f0c090");
-    } else if (!weapon && !bow && !swim && !drinking) {
+    } else if (!weapon && !bow && !showingPick && !swim && !drinking && !blocking) {
       outlineRect(ppx + right * (s * 0.38), ppy + bob, 3, 3, "#f0c090");
     }
 
@@ -4907,11 +5031,13 @@ const QUESTIONS = {
     state.lowHpWarned = false;
     state.blocking = false;
     state.blockFlash = 0;
-    // Starter kit: blade + bow on hotbar, shield equipped, emergency heals
+    // Starter kit: sword + bow + pickaxe on hotbar, shield equipped, heals
     const blade = LOOT_TABLE.find((p) => p.key === "wood_blade");
     if (blade) addItem({ ...blade, uid: uid() });
     const bowLoot = LOOT_TABLE.find((p) => p.key === "short_bow");
     if (bowLoot) addItem({ ...bowLoot, uid: uid() });
+    const pickLoot = LOOT_TABLE.find((p) => p.key === "wood_pick");
+    if (pickLoot) addItem({ ...pickLoot, uid: uid() });
     const heal = POTION_TABLE.find((p) => p.key === "heal_small");
     if (heal) {
       addItem({ ...heal, uid: uid(), slot: null });
@@ -4941,7 +5067,7 @@ const QUESTIONS = {
     requestAnimationFrame(() => {
       resizeCanvas();
       draw();
-      showToast(`${state.playerName} · Walk=footsteps · LMB/Space=slash · hotbar 2+click=bow · hold F=shield`);
+      showToast("Starter gear: 1=Sword · 2=Bow · 3=Pickaxe · Shield equipped — HOLD F or top-right 🛡 BLOCK");
       updateSessionTimerUI();
       updateBlockUI();
     });

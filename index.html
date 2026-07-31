@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=audio3" />
+  <link rel="stylesheet" href="style.css?v=gear1" />
 </head>
 <body>
   <div id="app">
@@ -128,7 +128,7 @@
           <button type="submit" class="btn primary" id="btn-start">Enter the Ruins</button>
         </form>
 
-        <p class="hint-keys">Move: WASD · Attack: LMB/Space · Block: F/Shift/🛡 · Interact: E · Heal: H · Bag: I · Map: M</p>
+        <p class="hint-keys">Move: WASD · Sword: LMB/Space · Pickaxe: select 3 + click stone · Shield: HOLD F or top-right 🛡 BLOCK · E interact · H heal · I bag</p>
       </div>
     </section>
 
@@ -186,7 +186,7 @@
             <span id="hud-study" class="hud-study"></span>
           </div>
           <div class="hud-right">
-            <button type="button" class="hud-btn hud-btn-block" id="btn-hud-block" title="Hold to block with shield/armor (F / Shift)">🛡 BLOCK</button>
+            <button type="button" class="hud-btn hud-btn-block ready-pulse" id="btn-hud-block" title="HOLD to raise your equipped shield (also F / Shift)">🛡 BLOCK</button>
             <button type="button" class="hud-btn hud-btn-map" id="btn-map" title="Full map (M)">MAP</button>
             <button type="button" class="hud-btn" id="btn-inventory" title="Inventory (I)">Bag</button>
             <button type="button" class="hud-btn" id="btn-settings" title="Settings (Esc)">⚙</button>
@@ -194,6 +194,11 @@
         </div>
 
         <div id="block-banner" class="block-banner hidden" aria-live="polite">🛡 BLOCKING — release F / Shift / 🛡 to lower</div>
+
+        <div id="shield-tip" class="shield-tip hidden" aria-live="polite">
+          <span class="shield-tip-icon" aria-hidden="true">🛡</span>
+          <span id="shield-tip-text">Your shield is equipped — HOLD F or the top-right 🛡 BLOCK button</span>
+        </div>
 
         <div id="equip-strip" class="equip-strip hidden" aria-hidden="true"></div>
 
@@ -306,7 +311,7 @@
               <li><kbd>M</kbd> — World map</li>
               <li><kbd>Esc</kbd> — Settings / pause</li>
             </ul>
-            <p class="muted controls-note">You start with a wood blade (hotbar <kbd>1</kbd>), short bow (<kbd>2</kbd>), and a shield already equipped. Hold <kbd>F</kbd> / <kbd>Shift</kbd> / <strong>🛡 BLOCK</strong> to raise the shield. Select the bow and click / Space to hear the twang.</p>
+            <p class="muted controls-note"><strong>Shield:</strong> already equipped — look for the pulsing <strong>🛡 BLOCK</strong> button at the <em>top-right</em> of the HUD, or hold <kbd>F</kbd> / <kbd>Shift</kbd>. <strong>Sword</strong> is hotbar <kbd>1</kbd>, <strong>Bow</strong> <kbd>2</kbd>, <strong>Pickaxe</strong> <kbd>3</kbd> (click stone to mine).</p>
           </div>
 
           <div class="settings-actions">
@@ -520,7 +525,7 @@
     </div>
   </div>
 
-  <script src="script.js?v=audio3"></script>
+  <script src="script.js?v=gear1"></script>
   <script>
     // Fallback only — skips if main script already handled the key/button
     (function () {
