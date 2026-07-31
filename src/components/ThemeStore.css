@@ -43,11 +43,33 @@
 }
 
 .theme-preview.legendary-preview {
-  height: 124px;
+  height: 132px;
+  border-color: rgba(232, 121, 249, 0.55);
   box-shadow:
-    inset 0 0 40px rgba(0, 0, 0, 0.35),
-    0 0 32px rgba(232, 121, 249, 0.55),
-    0 0 64px rgba(34, 211, 238, 0.35);
+    inset 0 0 48px rgba(0, 0, 0, 0.55),
+    inset 0 -24px 40px rgba(76, 29, 149, 0.25),
+    0 0 36px rgba(232, 121, 249, 0.55),
+    0 0 72px rgba(34, 211, 238, 0.35);
+  background-size: cover;
+  background-position: center;
+}
+
+.theme-preview.legendary-preview::before {
+  background:
+    radial-gradient(circle at 24% 30%, rgba(255, 255, 255, 0.35), transparent 8%),
+    radial-gradient(circle at 78% 18%, rgba(165, 243, 252, 0.45), transparent 10%),
+    radial-gradient(circle at 60% 72%, rgba(240, 171, 252, 0.4), transparent 12%),
+    radial-gradient(ellipse 80% 50% at 50% 50%, transparent 40%, rgba(0, 0, 0, 0.35) 100%);
+  animation: preview-shine 4s ease-in-out infinite;
+}
+
+.theme-preview.legendary-preview::after {
+  background: linear-gradient(
+    105deg,
+    transparent 20%,
+    rgba(186, 230, 253, 0.2) 48%,
+    transparent 72%
+  );
 }
 
 .theme-card.legendary .theme-copy em {

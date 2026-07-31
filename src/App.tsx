@@ -15,6 +15,7 @@ import type { MiniGameId, Tab } from './types'
 import { Companion } from './components/Companion'
 import { MusicToggle } from './components/MusicToggle'
 import { Assistant } from './components/Assistant'
+import { NeonVoidBackdrop } from './components/NeonVoidBackdrop'
 import { COINS_PER_LEVEL } from './lib/coins'
 import './App.css'
 
@@ -69,6 +70,7 @@ function App() {
 
   return (
     <div className="app-shell">
+      {state.activeTheme === 'neon-void' && <NeonVoidBackdrop />}
       <div className="coin-chip" aria-label={`${state.coins} coins`}>
         <span aria-hidden="true">◉</span> {state.coins}
       </div>

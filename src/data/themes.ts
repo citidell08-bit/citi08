@@ -84,11 +84,11 @@ export const THEMES: ThemeDef[] = [
     id: 'neon-void',
     title: 'Neon Void',
     blurb:
-      'Outer-space neon nebula — drifting stars, magenta/cyan gas clouds, deep-void bloom. The ultimate skin.',
+      'A procedural deep-space nebula — hydrogen-pink & oxygen-cyan gas, dark dust lanes, and a starfield that feels photographed from orbit.',
     cost: 320,
     className: 'theme-neon-void',
     preview:
-      'radial-gradient(circle at 20% 30%, #f0abfc 0%, transparent 28%), radial-gradient(circle at 80% 20%, #22d3ee 0%, transparent 32%), radial-gradient(circle at 60% 75%, #7c3aed 0%, transparent 40%), linear-gradient(160deg, #02010a, #0b0520 45%, #020617)',
+      'radial-gradient(ellipse 55% 45% at 28% 38%, rgba(236,72,153,0.9) 0%, transparent 55%), radial-gradient(ellipse 48% 40% at 76% 22%, rgba(34,211,238,0.85) 0%, transparent 52%), radial-gradient(ellipse 60% 48% at 62% 78%, rgba(124,58,237,0.75) 0%, transparent 58%), radial-gradient(ellipse 40% 35% at 45% 55%, rgba(251,113,133,0.35) 0%, transparent 50%), radial-gradient(1.6px 1.6px at 18% 24%, #fff, transparent), radial-gradient(1.2px 1.2px at 72% 36%, #e0f2fe, transparent), radial-gradient(1px 1px at 44% 68%, #f0abfc, transparent), radial-gradient(1.4px 1.4px at 88% 70%, #fff, transparent), radial-gradient(1px 1px at 30% 80%, #fde68a, transparent), linear-gradient(168deg, #000004 0%, #050218 42%, #000008 100%)',
     glow: '#e879f9',
     legendary: true,
   },
