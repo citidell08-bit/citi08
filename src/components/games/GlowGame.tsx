@@ -11,6 +11,7 @@ import {
 } from '../../lib/sfx'
 import type { MiniGameResult } from '../../types'
 import { GameTimer } from './GameTimer'
+import { PlayAgainCard } from './PlayAgainCard'
 
 interface Props {
   onFinish: (result: MiniGameResult) => void
@@ -358,44 +359,23 @@ export function GlowGame({ onFinish, onBack }: Props) {
         </div>
 
         {finished && (
-          <div className="mini-end overlay-end">
-            <p>
-              {completedAll ? 'Board clear' : 'Time’s up'} —{' '}
-              <strong>{score}</strong>/{ROUNDS} hits
-              {coinsGrabbed > 0 ? (
-                <>
-                  {' '}
-                  · <strong>{coinsGrabbed}◉</strong>
-                </>
-              ) : null}
-              {score >= WIN_HITS ? ' — sharp.' : ` · need ${WIN_HITS} to win.`}
-            </p>
-            <p className="section-sub again-hint">Space / Enter / R — play again</p>
-            <div className="game-end-actions">
-              <button
-                type="button"
-                className="btn btn-ember"
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  playAgain()
-                }}
-              >
-                Play again
-              </button>
-              <button
-                type="button"
-                className="btn btn-ghost"
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onBack()
-                }}
-              >
-                Back to arcade
-              </button>
-            </div>
-          </div>
+          <PlayAgainCard
+            stopBoardRestart
+            summary={
+              <>
+                {completedAll ? 'Board clear' : 'Time’s up'} —{' '}
+                <strong>{score}</strong>/{ROUNDS} hits
+                {coinsGrabbed > 0 ? (
+                  <>
+                    {' '}
+                    · <strong>{coinsGrabbed}◉</strong>
+                  </>
+                ) : null}
+              </>
+            }
+            onAgain={playAgain}
+            onBack={onBack}
+          />
         )}
       </div>
     </div>

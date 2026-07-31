@@ -10,6 +10,7 @@ import {
 } from '../../lib/sfx'
 import type { MiniGameResult } from '../../types'
 import { GameTimer } from './GameTimer'
+import { PlayAgainCard } from './PlayAgainCard'
 
 /** Larger pool so each round can draw a different random set of icons. */
 const SYMBOL_POOL = [
@@ -391,22 +392,18 @@ export function MemoryGame({ onFinish, onBack }: Props) {
         </div>
 
         {done && (
-          <div className="mini-end overlay-end">
-            <p>
-              {won
-                ? `Nest cleared in ${moves} moves — party time!`
-                : `Time’s up — ${pairsFound}/${PAIR_COUNT} pairs found.`}
-            </p>
-            <p className="section-sub again-hint">Space / Enter / R — new random board</p>
-            <div className="game-end-actions">
-              <button type="button" className="btn btn-ember" onClick={playAgain}>
-                Play again
-              </button>
-              <button type="button" className="btn btn-ghost" onClick={onBack}>
-                Back to arcade
-              </button>
-            </div>
-          </div>
+          <PlayAgainCard
+            stopBoardRestart
+            summary={
+              won
+                ? <>Nest cleared in <strong>{moves}</strong> moves</>
+                : <>
+                    Time’s up — <strong>{pairsFound}/{PAIR_COUNT}</strong> pairs
+                  </>
+            }
+            onAgain={playAgain}
+            onBack={onBack}
+          />
         )}
       </div>
     </div>

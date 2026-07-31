@@ -21,7 +21,7 @@ const TRACK: Record<BgmTrack, TrackConfig> = {
   hub: { bpm: 72, volume: 1.15, bars: 4 },
   dash: { bpm: 148, volume: 1.25, bars: 4 },
   glow: { bpm: 110, volume: 1.1, bars: 4 },
-  math: { bpm: 150, volume: 1.3, bars: 4 },
+  math: { bpm: 150, volume: 0.88, bars: 4 },
   memory: { bpm: 88, volume: 1.05, bars: 4 },
 }
 

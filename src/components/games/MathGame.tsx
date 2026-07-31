@@ -10,6 +10,7 @@ import {
 } from '../../lib/sfx'
 import type { MiniGameResult } from '../../types'
 import { GameTimer } from './GameTimer'
+import { PlayAgainCard } from './PlayAgainCard'
 
 interface Props {
   onFinish: (result: MiniGameResult) => void
@@ -241,28 +242,17 @@ export function MathGame({ onFinish, onBack }: Props) {
         </p>
 
         {finished && (
-          <div
-            className="mini-end overlay-end"
-            onPointerDown={(e) => {
-              if ((e.target as HTMLElement).closest('button')) return
-              playAgain()
-            }}
-          >
-            <p>
-              {score >= WIN_SCORE ? 'Solid round' : 'Round over'} —{' '}
-              <strong>{score}</strong> correct
-              {score >= WIN_SCORE ? '.' : ` · need ${WIN_SCORE} to win.`}
-            </p>
-            <p className="section-sub again-hint">Space / Enter / R — new set</p>
-            <div className="game-end-actions">
-              <button type="button" className="btn btn-ember" onClick={playAgain}>
-                Play again
-              </button>
-              <button type="button" className="btn btn-ghost" onClick={onBack}>
-                Back to arcade
-              </button>
-            </div>
-          </div>
+          <PlayAgainCard
+            stopBoardRestart
+            summary={
+              <>
+                {score >= WIN_SCORE ? 'Solid round' : 'Round over'} —{' '}
+                <strong>{score}</strong> correct
+              </>
+            }
+            onAgain={playAgain}
+            onBack={onBack}
+          />
         )}
       </div>
     </div>

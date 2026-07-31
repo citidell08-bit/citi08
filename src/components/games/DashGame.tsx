@@ -9,6 +9,7 @@ import {
   unlockAudio,
 } from '../../lib/sfx'
 import type { MiniGameResult } from '../../types'
+import { PlayAgainCard } from './PlayAgainCard'
 import './DashGame.css'
 
 interface Props {
@@ -623,34 +624,25 @@ export function DashGame({ onFinish, onBack }: Props) {
         </p>
 
         {finalScore != null && !alive && (
-          <div className="mini-end overlay-end">
-            <p>
-              {finalScore >= WIN_SCORE ? 'Run cleared' : 'Crashed'} —{' '}
-              <strong>{finalScore}</strong> pts
-              {coinsGrabbed > 0 ? (
-                <>
-                  {' '}
-                  · <strong>{coinsGrabbed}◉</strong>
-                </>
-              ) : null}
-              {finalScore >= WIN_SCORE ? ' — access granted.' : ` · clear ${WIN_SCORE} to win.`}
-            </p>
-            <div className="game-end-actions">
-              <button
-                type="button"
-                className="btn btn-ember"
-                onClick={() => {
-                  playRestartSfx()
-                  restartRef.current()
-                }}
-              >
-                Play again
-              </button>
-              <button type="button" className="btn btn-ghost" onClick={onBack}>
-                Back to arcade
-              </button>
-            </div>
-          </div>
+          <PlayAgainCard
+            summary={
+              <>
+                {finalScore >= WIN_SCORE ? 'Run cleared' : 'Crashed'} —{' '}
+                <strong>{finalScore}</strong> pts
+                {coinsGrabbed > 0 ? (
+                  <>
+                    {' '}
+                    · <strong>{coinsGrabbed}◉</strong>
+                  </>
+                ) : null}
+              </>
+            }
+            onAgain={() => {
+              playRestartSfx()
+              restartRef.current()
+            }}
+            onBack={onBack}
+          />
         )}
       </div>
     </div>
