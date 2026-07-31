@@ -191,7 +191,7 @@ function normalizeQuests(quests: Quest[] | undefined): Quest[] {
     return generateAllQuests()
   }
 
-  const list = quests.map((q) => {
+  const list: Quest[] = quests.map((q) => {
     const type = VALID_QUEST_TYPES.includes(q.type as (typeof VALID_QUEST_TYPES)[number])
       ? q.type
       : ('sessions' as const)
@@ -203,11 +203,11 @@ function normalizeQuests(quests: Quest[] | undefined): Quest[] {
       completed: Boolean(q.completed),
       progress: typeof q.progress === 'number' ? q.progress : 0,
       target: typeof q.target === 'number' ? q.target : 1,
-      custom: Boolean(q.custom),
+      custom: Boolean(q.custom) || undefined,
     }
   })
 
-  const next = [...list]
+  const next: Quest[] = [...list]
   if (!next.some((q) => q.period === 'daily' && !q.custom)) next.push(...generateDailyQuests())
   if (!next.some((q) => q.period === 'weekly' && !q.custom)) next.push(...generateWeeklyQuests())
   if (!next.some((q) => q.period === 'monthly' && !q.custom)) next.push(...generateMonthlyQuests())
