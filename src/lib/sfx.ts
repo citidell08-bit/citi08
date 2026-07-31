@@ -151,17 +151,18 @@ function noiseBurst(
   src.stop(start + duration + 0.02)
 }
 
-/** Plain mechanical UI click — switch thump + sharp snap. */
+/** Dry mechanical click — just a switch, nothing neon/musical. */
 export function playClickSfx(): void {
   unlockAudio()
-  tone(160, 0.02, { type: 'sine', gain: 0.1, attack: 0.0004, slideTo: 70 })
-  noiseBurst(0.014, {
-    gain: 0.1,
-    filterFreq: 2400,
-    filterEnd: 700,
+  // Soft body thump of the switch
+  tone(120, 0.016, { type: 'sine', gain: 0.085, attack: 0.0003, slideTo: 55 })
+  // Hard plastic snap
+  noiseBurst(0.011, {
+    gain: 0.11,
+    filterFreq: 1800,
+    filterEnd: 500,
     filterType: 'bandpass',
   })
-  tone(1200, 0.012, { type: 'square', gain: 0.085, attack: 0.0004, slideTo: 380 })
 }
 
 /** Short cue when a mini-game starts. */
