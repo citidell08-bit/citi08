@@ -27,6 +27,7 @@ declare global {
 }
 
 let loading: Promise<PuterGlobal> | null = null
+let warmed = false
 
 export function ensurePuter(): Promise<PuterGlobal> {
   if (typeof window === 'undefined') {
@@ -72,9 +73,29 @@ export function ensurePuter(): Promise<PuterGlobal> {
 
 /** Kick off script load ASAP (call from App mount). */
 export function preloadPuter(): void {
-  void ensurePuter().catch(() => {
-    /* ignore — ask path will retry */
-  })
+  void ensurePuter()
+    .then(() => warmPuter())
+    .catch(() => {
+      /* ignore — ask path will retry */
+    })
+}
+
+/** Tiny ping so the first real question isn't cold. */
+export function warmPuter(): void {
+  if (warmed) return
+  warmed = true
+  void ensurePuter()
+    .then((puter) =>
+      puter.ai.chat([{ role: 'user', content: 'hi' }], {
+        model: 'gpt-4o-mini',
+        stream: false,
+        max_tokens: 1,
+        temperature: 0,
+      }),
+    )
+    .catch(() => {
+      warmed = false
+    })
 }
 
 function extractText(result: unknown): string {
@@ -107,7 +128,53 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   })
 }
 
-/** Fast path: stream from the snappiest models first. */
+async function streamOneModel(
+  puter: PuterGlobal,
+  messages: PuterChatMessage[],
+  model: string,
+  onDelta: (chunk: string) => void,
+  signal?: AbortSignal,
+  timeoutMs = 8_000,
+): Promise<string> {
+  if (signal?.aborted) throw new Error('aborted')
+
+  const streamed = await withTimeout(
+    puter.ai.chat(messages, {
+      model,
+      stream: true,
+      temperature: 0.55,
+      max_tokens: 900,
+    }),
+    timeoutMs,
+    model,
+  )
+
+  if (streamed && typeof streamed === 'object' && Symbol.asyncIterator in Object(streamed)) {
+    let full = ''
+    for await (const part of streamed as AsyncIterable<PuterStreamPart>) {
+      if (signal?.aborted) throw new Error('aborted')
+      const chunk = part?.text
+      if (chunk) {
+        full += chunk
+        onDelta(chunk)
+      }
+    }
+    if (full.trim()) return full.trim()
+    throw new Error(`Empty stream (${model})`)
+  }
+
+  const text = extractText(streamed)
+  if (text) {
+    onDelta(text)
+    return text
+  }
+  throw new Error(`Empty reply (${model})`)
+}
+
+/**
+ * Race a strong model + a fast model; first stream that produces text wins.
+ * Feels instant without sacrificing answer quality when gpt-4o is warm.
+ */
 export async function askPuterChatGpt(
   messages: PuterChatMessage[],
   onDelta: (chunk: string) => void,
@@ -116,61 +183,47 @@ export async function askPuterChatGpt(
   if (signal?.aborted) throw new Error('aborted')
 
   const puter = await ensurePuter()
-  // Fastest → still strong. Avoid slow flagships on the first try.
-  const models = ['gpt-4o-mini', 'gpt-5.4-nano', 'gpt-4o']
+  // Quality first + speed backup, raced in parallel
+  const models = ['gpt-4o', 'gpt-4o-mini', 'gpt-5.4-nano']
 
+  let claimedBy: string | null = null
   let lastError: unknown
 
-  for (const model of models) {
-    if (signal?.aborted) throw new Error('aborted')
-    try {
-      const streamed = await withTimeout(
-        puter.ai.chat(messages, {
-          model,
-          stream: true,
-          temperature: 0.45,
-          max_tokens: 420,
-        }),
-        10_000,
-        model,
-      )
+  const run = (model: string) =>
+    streamOneModel(
+      puter,
+      messages,
+      model,
+      (chunk) => {
+        if (signal?.aborted) return
+        if (claimedBy == null) claimedBy = model
+        if (claimedBy === model) onDelta(chunk)
+      },
+      signal,
+      model === 'gpt-4o' ? 9_000 : 6_000,
+    ).then((full) => {
+      if (claimedBy == null) claimedBy = model
+      if (claimedBy !== model) throw new Error(`lost race (${model})`)
+      return full
+    })
 
-      if (streamed && typeof streamed === 'object' && Symbol.asyncIterator in Object(streamed)) {
-        let full = ''
-        for await (const part of streamed as AsyncIterable<PuterStreamPart>) {
-          if (signal?.aborted) throw new Error('aborted')
-          const chunk = part?.text
-          if (chunk) {
-            full += chunk
-            onDelta(chunk)
-          }
-        }
-        if (full.trim()) return full.trim()
-        throw new Error(`Empty stream (${model})`)
-      }
-
-      const text = extractText(streamed)
-      if (text) {
-        onDelta(text)
-        return text
-      }
-      throw new Error(`Empty reply (${model})`)
-    } catch (err) {
-      lastError = err
-    }
+  try {
+    return await Promise.any(models.map((m) => run(m)))
+  } catch (agg) {
+    lastError = agg
   }
 
-  // One non-stream hail-mary on the fastest model
+  // Non-stream hail-mary on the quality model
   try {
     const result = await withTimeout(
       puter.ai.chat(messages, {
-        model: 'gpt-4o-mini',
+        model: 'gpt-4o',
         stream: false,
-        temperature: 0.45,
-        max_tokens: 420,
+        temperature: 0.55,
+        max_tokens: 900,
       }),
       12_000,
-      'gpt-4o-mini',
+      'gpt-4o',
     )
     const text = extractText(result)
     if (!text) throw new Error('Empty GPT reply')

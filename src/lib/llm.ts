@@ -1,6 +1,6 @@
 import { GAME_COSTS } from './coins'
 import { levelFromXp, progressToNextLevel } from './xp'
-import { replyAsAssistant, type AssistantReply } from './assistant'
+import { matchLocalAssistant, replyAsAssistant, type AssistantReply } from './assistant'
 import { askPuterChatGpt } from './puterAi'
 import type { GameState, Tab } from '../types'
 
@@ -66,7 +66,7 @@ function resolveEndpoint(prefs: LlmPrefs): Endpoint[] {
   const openai: Endpoint = {
     label: 'Ember cloud',
     url: 'https://api.openai.com/v1/chat/completions',
-    model: 'gpt-4o-mini',
+    model: 'gpt-4o',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${openaiKey}`,
@@ -104,16 +104,45 @@ function buildSystemPrompt(state: GameState): string {
   const { current, needed } = progressToNextLevel(state.xp)
   const openDaily = state.quests
     .filter((q) => q.period === 'daily' && !q.completed)
-    .slice(0, 3)
+    .slice(0, 4)
     .map((q) => `${q.title} ${q.progress}/${q.target}`)
     .join('; ')
+  const customOpen = state.quests
+    .filter((q) => q.custom && !q.completed)
+    .slice(0, 3)
+    .map((q) => q.title)
+    .join('; ')
 
-  return `You are ${state.companionName}, Cyber Kith. You know everything — never mention APIs/models/looking things up. Be warm, sharp, brief (short paragraphs or bullets).
+  return `You are ${state.companionName}, the player's Cyber Kith companion.
+You are brilliant, warm, and decisive — a world-class tutor who also knows Cyber Kith perfectly.
+Never mention APIs, models, ChatGPT, OpenAI, Puter, or "looking things up." Speak as if the knowledge is yours.
 
-App: Home/Focus/Cards/Play/Quests/Themes. Start 0 coins. Coins from quests, +25/level, arcade. Games (${GAME_COSTS.math}–${GAME_COSTS.dash}◉ once): Dash, Memory, Sum, Glow. Daily quests refresh when cleared + midnight. Streak needs daily play.
+## How to answer (quality bar)
+- Lead with the direct answer in the first sentence.
+- Then give clear steps, examples, or a tiny worked solution when useful.
+- For homework / explanations: be accurate, structured, and easy to follow. Use short bullets or numbered steps.
+- For quizzes: ask 1–3 sharp questions, wait for their reply (don't dump the answers unless they ask).
+- For Cyber Kith help: be concrete with THIS player's numbers.
+- Keep replies tight — usually 80–180 words unless they ask for depth. No filler, no apologies, no "as an AI".
+- Match their energy. If they're stuck, unblock them. If they're curious, go deep cleanly.
 
-Player: Lv ${level} (${current}/${needed} XP), ${state.coins}◉, streak ${state.streak}, focus ${state.totalFocusMinutes}m, cards ${state.totalCardsReviewed}. Open dailies: ${openDaily || 'none'}.
-Optional end tag only if useful: [[go:focus|Open Focus]] (home|focus|cards|play|quests|store).`
+## Cyber Kith facts
+Tabs: Home, Focus, Cards, Play, Quests, Themes.
+Players start at 0 coins / 0 XP. Coins from quests, +25 per level, arcade bonuses.
+Games (buy once, ${GAME_COSTS.math}–${GAME_COSTS.dash}◉): Spike Dash, Memory Nest, Quick Sum, Glow Catch.
+Daily quests refresh when the whole daily board is cleared, and at midnight. Weekly = Mondays, monthly = 1st.
+Custom quests (up to 8) survive board refresh. Day streak needs study/play today; miss a day → reset.
+Neon Void is the legendary space theme.
+
+## This player
+Lv ${level} (${current}/${needed} XP), ${state.coins}◉, streak ${state.streak} (best ${state.longestStreak}), focus ${state.totalFocusMinutes}m, cards reviewed ${state.totalCardsReviewed}, games owned ${state.ownedGames.length}/4.
+Open dailies: ${openDaily || 'none'}.
+Open custom quests: ${customOpen || 'none'}.
+
+## Optional nav tag
+If a button would help, end with exactly one tag:
+[[go:focus|Open Focus]]
+Allowed tabs: home|focus|cards|play|quests|store.`
 }
 
 const GO_RE = /\[\[go:(home|focus|cards|play|quests|store)\|([^\]]+)\]\]\s*$/i
@@ -145,8 +174,8 @@ async function completeChat(
     body: JSON.stringify({
       model: endpoint.model,
       stream: false,
-      temperature: 0.45,
-      max_tokens: 420,
+      temperature: 0.55,
+      max_tokens: 900,
       messages: [{ role: 'system', content: system }, ...history],
     }),
   })
@@ -156,7 +185,6 @@ async function completeChat(
     throw new Error(`${endpoint.label} ${res.status}: ${raw.slice(0, 160)}`)
   }
 
-  // Some proxies return plain text
   const trimmed = raw.trim()
   if (trimmed && !trimmed.startsWith('{') && !trimmed.startsWith('data:')) {
     return trimmed
@@ -190,8 +218,8 @@ async function streamChat(
     body: JSON.stringify({
       model: endpoint.model,
       stream: true,
-      temperature: 0.45,
-      max_tokens: 420,
+      temperature: 0.55,
+      max_tokens: 900,
       messages: [{ role: 'system', content: system }, ...history],
     }),
   })
@@ -265,13 +293,47 @@ async function readSse(
   return full
 }
 
+/** Race several stream runners; first to finish with text wins. Deltas only from the winner. */
+async function raceStreams(
+  runners: Array<(relay: (chunk: string) => void, signal: AbortSignal) => Promise<string>>,
+  onDelta: (chunk: string) => void,
+  parentSignal?: AbortSignal,
+): Promise<string> {
+  if (runners.length === 0) throw new Error('No runners')
+  const ac = new AbortController()
+  const onAbort = () => ac.abort()
+  parentSignal?.addEventListener('abort', onAbort)
+  if (parentSignal?.aborted) ac.abort()
+
+  let claimed: number | null = null
+
+  try {
+    return await Promise.any(
+      runners.map((run, index) =>
+        run((chunk) => {
+          if (ac.signal.aborted && claimed !== index) return
+          if (claimed == null) claimed = index
+          if (claimed === index) onDelta(chunk)
+        }, ac.signal).then((full) => {
+          if (claimed == null) claimed = index
+          if (claimed !== index) throw new Error('lost race')
+          ac.abort()
+          return full
+        }),
+      ),
+    )
+  } finally {
+    parentSignal?.removeEventListener('abort', onAbort)
+  }
+}
+
 export interface LiveReply extends AssistantReply {
   source: string
 }
 
 /**
- * Ask the live model for an answer, then return it as Ember's knowledge.
- * Never surface provider names to the player.
+ * Instant local answers for Cyber Kith, otherwise race live models for
+ * high-quality streamed tutoring.
  */
 export async function askLiveAssistant(
   question: string,
@@ -284,16 +346,64 @@ export async function askLiveAssistant(
 ): Promise<LiveReply> {
   const prefs = loadLlmPrefs()
   const system = buildSystemPrompt(state)
-  const turns = history.slice(-6)
+  const turns = history.slice(-8)
   const messages = [{ role: 'system' as const, content: system }, ...turns]
   const name = state.companionName
   let lastError = ''
 
-  // 1) Primary live model — stream first for instant feel
-  if (prefs.provider === 'chatgpt' || prefs.provider === 'auto') {
+  // Instant path — Cyber Kith intents answer with zero network wait
+  const localHit = matchLocalAssistant(question, state)
+  if (localHit) {
     onClear?.()
-    onStatus?.(`${name} is thinking…`)
+    onStatus?.(null)
+    onDelta(localHit.text)
+    return { ...localHit, source: name }
+  }
+
+  onClear?.()
+  onStatus?.(`${name} is thinking…`)
+
+  const runners: Array<(relay: (chunk: string) => void, signal: AbortSignal) => Promise<string>> =
+    []
+
+  if (prefs.provider === 'chatgpt' || prefs.provider === 'auto') {
+    runners.push((relay, sig) => askPuterChatGpt(messages, relay, sig))
+  }
+
+  const endpoints = resolveEndpoint(prefs)
+  for (const endpoint of endpoints) {
+    runners.push(async (relay, sig) => {
+      try {
+        const raw = await streamChat(endpoint, system, turns, relay, sig)
+        if (!raw.trim()) throw new Error('empty stream')
+        return raw
+      } catch {
+        const full = await completeChat(endpoint, system, turns, sig)
+        if (!full.trim()) throw new Error('empty complete')
+        relay(full)
+        return full
+      }
+    })
+  }
+
+  try {
+    const raw = await raceStreams(runners, onDelta, signal)
+    const parsed = parseGoTag(raw)
+    onStatus?.(null)
+    return {
+      text: parsed.clean,
+      goTo: parsed.goTo,
+      goLabel: parsed.goLabel,
+      source: name,
+    }
+  } catch (err) {
+    lastError = err instanceof Error ? err.message : String(err)
+  }
+
+  // Sequential safety net (if race failed oddly)
+  if (prefs.provider === 'chatgpt' || prefs.provider === 'auto') {
     try {
+      onClear?.()
       const raw = await askPuterChatGpt(messages, onDelta, signal)
       const parsed = parseGoTag(raw)
       onStatus?.(null)
@@ -302,42 +412,6 @@ export async function askLiveAssistant(
         goTo: parsed.goTo,
         goLabel: parsed.goLabel,
         source: name,
-      }
-    } catch (err) {
-      lastError = err instanceof Error ? err.message : String(err)
-    }
-  }
-
-  // 2) Backup endpoints — stream first (faster first token)
-  const endpoints = resolveEndpoint(prefs)
-  for (const endpoint of endpoints) {
-    onClear?.()
-    onStatus?.(`${name} is thinking…`)
-    try {
-      try {
-        const raw = await streamChat(endpoint, system, turns, onDelta, signal)
-        if (!raw.trim()) throw new Error('empty stream')
-        const parsed = parseGoTag(raw)
-        onStatus?.(null)
-        return {
-          text: parsed.clean,
-          goTo: parsed.goTo,
-          goLabel: parsed.goLabel,
-          source: name,
-        }
-      } catch (streamErr) {
-        onClear?.()
-        const full = await completeChat(endpoint, system, turns, signal)
-        onDelta(full)
-        const parsed = parseGoTag(full)
-        onStatus?.(null)
-        void streamErr
-        return {
-          text: parsed.clean,
-          goTo: parsed.goTo,
-          goLabel: parsed.goLabel,
-          source: name,
-        }
       }
     } catch (err) {
       lastError = err instanceof Error ? err.message : String(err)

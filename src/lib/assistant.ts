@@ -244,10 +244,53 @@ export function replyAsAssistant(raw: string, state: GameState): AssistantReply 
   }
 }
 
+/**
+ * Instant Cyber Kith answers (no network). Returns null when the question
+ * needs the live brain (homework, explanations, open-ended study help).
+ */
+export function matchLocalAssistant(raw: string, state: GameState): AssistantReply | null {
+  const q = normalize(raw)
+  if (!q) return null
+
+  // Study / open-ended → live model
+  if (
+    hasAny(q, [
+      'explain',
+      'why',
+      'how does',
+      'how do i learn',
+      'what is',
+      'what are',
+      'define',
+      'quiz',
+      'teach',
+      'homework',
+      'essay',
+      'solve',
+      'calculate',
+      'proof',
+      'difference between',
+      'compare',
+      'summar',
+      'spaced repetition',
+      'study tip',
+      'help me understand',
+      'walk me through',
+    ])
+  ) {
+    return null
+  }
+
+  const reply = replyAsAssistant(raw, state)
+  // Generic fallback means we didn't really match — use live brain instead
+  if (reply.text.startsWith('Not sure I caught that')) return null
+  return reply
+}
+
 export const QUICK_PROMPTS = [
   'What should I do next?',
   'How do I earn coins fast?',
-  'Quiz me with a study tip',
-  'Explain spaced repetition',
+  'Explain spaced repetition like I\'m 14',
+  'Quiz me with 3 hard study questions',
   'How do custom quests work?',
 ] as const
