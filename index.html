@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=sfxloud1" />
+  <link rel="stylesheet" href="style.css?v=bowcharge1" />
 </head>
 <body>
   <div id="app">
@@ -301,7 +301,7 @@
             <h3 class="controls-title">Controls</h3>
             <ul class="controls-list">
               <li><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> / arrows — Move (footstep sounds)</li>
-              <li><kbd>LMB</kbd> / <kbd>Space</kbd> — Attack (sword slash / bow twang)</li>
+              <li><kbd>LMB</kbd> / <kbd>Space</kbd> — Sword slash · with bow: <strong>hold to charge</strong>, release to shoot</li>
               <li><kbd>F</kbd> / <kbd>Shift</kbd> / <kbd>🛡 BLOCK</kbd> — Hold to raise shield</li>
               <li><kbd>RMB</kbd> — Also hold to block</li>
               <li><kbd>E</kbd> — Interact (chest, quest, portal, stairs)</li>
@@ -311,7 +311,7 @@
               <li><kbd>M</kbd> — World map</li>
               <li><kbd>Esc</kbd> — Settings / pause</li>
             </ul>
-            <p class="muted controls-note">You spawn with an <strong>empty inventory</strong>. Loot swords, pickaxes, bows, and shields from chests, quests, and dungeons. Equip a shield/armor in <kbd>I</kbd>, then <strong>HOLD F</strong> or the top-right <strong>🛡 BLOCK</strong> button to raise it. Put a pickaxe on the hotbar and click stone to mine.</p>
+            <p class="muted controls-note">You spawn with an <strong>empty inventory</strong>. Loot gear from chests/quests/dungeons. <strong>Bow:</strong> put it on the hotbar, then <em>hold</em> <kbd>LMB</kbd> / <kbd>Space</kbd> to charge (bar under you) and release for a deadlier power shot. Shield: equip in <kbd>I</kbd>, then HOLD <kbd>F</kbd> / <strong>🛡 BLOCK</strong>.</p>
           </div>
 
           <div class="settings-actions">
@@ -525,7 +525,7 @@
     </div>
   </div>
 
-  <script src="script.js?v=sfxloud1"></script>
+  <script src="script.js?v=bowcharge1"></script>
   <script>
     // Fallback only — skips if main script already handled the key/button
     (function () {
