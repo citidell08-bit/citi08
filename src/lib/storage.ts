@@ -18,7 +18,8 @@ import { monthKey, todayKey, weekKey } from './dates'
 const VALID_GAMES: MiniGameId[] = ['memory', 'math', 'glow', 'dash']
 const VALID_PERIODS: QuestPeriod[] = ['daily', 'weekly', 'monthly']
 
-const STORAGE_KEY = 'kith.game.v1'
+/** Bumped to wipe legacy starter-coin saves — fresh installs start at 0. */
+const STORAGE_KEY = 'kith.game.v2'
 
 export function createInitialState(): GameState {
   return {
@@ -88,6 +89,20 @@ export function loadState(): GameState {
 
 export function saveState(state: GameState): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+}
+
+/** Wipe all Cyber Kith progress on this device and return a blank save. */
+export function clearState(): GameState {
+  try {
+    localStorage.removeItem(STORAGE_KEY)
+    // Drop the old v1 slot too so leftover starter saves can't linger.
+    localStorage.removeItem('kith.game.v1')
+  } catch {
+    /* ignore quota / private mode */
+  }
+  const fresh = createInitialState()
+  saveState(fresh)
+  return fresh
 }
 
 function normalizeOwnedGames(owned: unknown): MiniGameId[] {

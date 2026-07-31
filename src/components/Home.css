@@ -27,8 +27,20 @@
 
 .progress-panel,
 .rename-panel,
-.achievements-panel {
+.achievements-panel,
+.reset-panel {
   padding: 1.25rem;
+}
+
+.reset-btn {
+  margin-top: 0.35rem;
+  border-color: rgba(248, 113, 113, 0.45);
+  color: #fca5a5;
+}
+
+.reset-btn:hover {
+  border-color: rgba(248, 113, 113, 0.75);
+  background: rgba(248, 113, 113, 0.12);
 }
 
 .progress-head {

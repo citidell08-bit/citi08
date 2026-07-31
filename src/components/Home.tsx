@@ -7,9 +7,10 @@ interface Props {
   state: GameState
   onNavigate: (tab: Tab) => void
   onRename: (name: string) => void
+  onResetProgress: () => void
 }
 
-export function Home({ state, onNavigate, onRename }: Props) {
+export function Home({ state, onNavigate, onRename, onResetProgress }: Props) {
   const { level, current, needed, ratio } = progressToNextLevel(state.xp)
   const unlocked = state.achievements.filter((a) => a.unlockedAt).length
 
@@ -121,6 +122,29 @@ export function Home({ state, onNavigate, onRename }: Props) {
             </li>
           ))}
         </ul>
+      </section>
+
+      <section className="panel reset-panel">
+        <h2 className="section-title">Start over</h2>
+        <p className="section-sub">
+          Wipe coins, XP, streak, owned games, themes, and quest progress on this device. You become
+          a brand-new player at zero.
+        </p>
+        <button
+          type="button"
+          className="btn btn-ghost reset-btn"
+          onClick={() => {
+            if (
+              window.confirm(
+                'Erase all Cyber Kith progress on this device? This cannot be undone.',
+              )
+            ) {
+              onResetProgress()
+            }
+          }}
+        >
+          New player — erase everything
+        </button>
       </section>
     </div>
   )

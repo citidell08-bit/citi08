@@ -32,6 +32,7 @@ function App() {
     createDeck,
     renameCompanion,
     dismissLevelUp,
+    resetProgress,
   } = useGameState()
 
   const focus = useFocusSession(completeFocusSession)
@@ -65,7 +66,17 @@ function App() {
       <MusicToggle />
 
       {tab === 'home' && (
-        <Home state={state} onNavigate={changeTab} onRename={renameCompanion} />
+        <Home
+          state={state}
+          onNavigate={changeTab}
+          onRename={renameCompanion}
+          onResetProgress={() => {
+            resetProgress()
+            focus.reset()
+            setPlayingGame(null)
+            setTab('home')
+          }}
+        />
       )}
       {tab === 'focus' && (
         <FocusTimer

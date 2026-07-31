@@ -9,7 +9,7 @@ import {
   shouldResetQuestBoard,
 } from '../lib/questReset'
 import { levelFromXp } from '../lib/xp'
-import { loadState, saveState } from '../lib/storage'
+import { clearState, loadState, saveState } from '../lib/storage'
 import type {
   Deck,
   Flashcard,
@@ -455,6 +455,14 @@ export function useGameState() {
     setLevelUp(null)
   }
 
+  /** Wipe coins, XP, games, quests — full new-player save on this device. */
+  function resetProgress() {
+    const fresh = clearState()
+    setToasts([])
+    setLevelUp(null)
+    setState(fresh)
+  }
+
   return {
     state,
     toasts,
@@ -468,6 +476,7 @@ export function useGameState() {
     createDeck,
     renameCompanion,
     dismissLevelUp,
+    resetProgress,
   }
 }
 
