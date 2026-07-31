@@ -225,6 +225,13 @@
   max-width: 36ch;
 }
 
+.dash-end-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  justify-content: center;
+}
+
 .memory-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

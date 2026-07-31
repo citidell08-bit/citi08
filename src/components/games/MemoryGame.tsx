@@ -236,11 +236,11 @@ export function MemoryGame({ onFinish, onBack }: Props) {
                 : 'Time is up — try a new random board.'}
             </p>
             <p className="section-sub memory-again-hint">
-              Play again for a fresh random layout and icons.
+              Restart anytime for a fresh random layout and icons.
             </p>
             <div className="dash-end-actions">
               <button type="button" className="btn btn-ember" onClick={playAgain}>
-                New random board
+                Play again
               </button>
               <button type="button" className="btn btn-ghost" onClick={onBack}>
                 Back to arcade

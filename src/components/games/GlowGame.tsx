@@ -23,6 +23,7 @@ export function GlowGame({ onFinish, onBack }: Props) {
 
   const timerRef = useRef<number | null>(null)
   const tickRef = useRef<number | null>(null)
+  const missTimerRef = useRef<number | null>(null)
   const scoreRef = useRef(0)
   const reportedRef = useRef(false)
   const roundRef = useRef(0)
@@ -42,6 +43,13 @@ export function GlowGame({ onFinish, onBack }: Props) {
     if (tickRef.current) {
       window.clearInterval(tickRef.current)
       tickRef.current = null
+    }
+  }
+
+  function clearMiss() {
+    if (missTimerRef.current) {
+      window.clearTimeout(missTimerRef.current)
+      missTimerRef.current = null
     }
   }
 
@@ -91,9 +99,31 @@ export function GlowGame({ onFinish, onBack }: Props) {
       clearTick()
       setActive(null)
       setMissFlash(true)
-      window.setTimeout(() => setMissFlash(false), 180)
+      clearMiss()
+      missTimerRef.current = window.setTimeout(() => {
+        missTimerRef.current = null
+        setMissFlash(false)
+      }, 180)
       spawnRef.current(nextRound + 1)
     }, windowMs)
+  }
+
+  function playAgain() {
+    clearTimer()
+    clearTick()
+    clearMiss()
+    reportedRef.current = false
+    scoreRef.current = 0
+    roundRef.current = 0
+    setScore(0)
+    setRound(0)
+    setActive(null)
+    setMissFlash(false)
+    setWindowLeft(0)
+    setFinished(false)
+    setSeconds(DURATION)
+    setRunning(true)
+    spawnRef.current(1)
   }
 
   useEffect(() => {
@@ -101,6 +131,7 @@ export function GlowGame({ onFinish, onBack }: Props) {
     return () => {
       clearTimer()
       clearTick()
+      clearMiss()
     }
   }, [])
 
@@ -128,7 +159,11 @@ export function GlowGame({ onFinish, onBack }: Props) {
       spawnRef.current(roundRef.current + 1)
     } else {
       setMissFlash(true)
-      window.setTimeout(() => setMissFlash(false), 180)
+      clearMiss()
+      missTimerRef.current = window.setTimeout(() => {
+        missTimerRef.current = null
+        setMissFlash(false)
+      }, 180)
     }
   }
 
@@ -181,9 +216,17 @@ export function GlowGame({ onFinish, onBack }: Props) {
               Caught <strong>{score}</strong> of {ROUNDS}
               {score >= 7 ? ' — sharp!' : '.'}
             </p>
-            <button type="button" className="btn btn-primary" onClick={onBack}>
-              Back to arcade
-            </button>
+            <p className="section-sub memory-again-hint">
+              Play again for a fresh random glow sequence.
+            </p>
+            <div className="dash-end-actions">
+              <button type="button" className="btn btn-ember" onClick={playAgain}>
+                Play again
+              </button>
+              <button type="button" className="btn btn-ghost" onClick={onBack}>
+                Back to arcade
+              </button>
+            </div>
           </div>
         )}
       </div>

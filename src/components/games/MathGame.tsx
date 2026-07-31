@@ -38,6 +38,17 @@ export function MathGame({ onFinish, onBack }: Props) {
   const scoreRef = useRef(0)
   const streakRef = useRef(0)
   const reportedRef = useRef(false)
+  const feedbackTimerRef = useRef<number | null>(null)
+  const onFinishRef = useRef(onFinish)
+  onFinishRef.current = onFinish
+
+  useEffect(() => {
+    return () => {
+      if (feedbackTimerRef.current != null) {
+        window.clearTimeout(feedbackTimerRef.current)
+      }
+    }
+  }, [])
 
   useEffect(() => {
     if (!running || finished) return
@@ -48,7 +59,7 @@ export function MathGame({ onFinish, onBack }: Props) {
         reportedRef.current = true
         const finalScore = scoreRef.current
         const xp = Math.max(8, finalScore * 4 + streakRef.current)
-        onFinish({
+        onFinishRef.current({
           gameId: 'math',
           won: finalScore >= 8,
           score: finalScore,
@@ -60,7 +71,25 @@ export function MathGame({ onFinish, onBack }: Props) {
     }
     const id = window.setTimeout(() => setSeconds((s) => s - 1), 1000)
     return () => window.clearTimeout(id)
-  }, [running, seconds, finished, onFinish])
+  }, [running, seconds, finished])
+
+  function playAgain() {
+    if (feedbackTimerRef.current != null) {
+      window.clearTimeout(feedbackTimerRef.current)
+      feedbackTimerRef.current = null
+    }
+    reportedRef.current = false
+    scoreRef.current = 0
+    streakRef.current = 0
+    setScore(0)
+    setStreak(0)
+    setProblem(nextProblem())
+    setInput('')
+    setFeedback(null)
+    setFinished(false)
+    setSeconds(DURATION)
+    setRunning(true)
+  }
 
   function submit(e: FormEvent) {
     e.preventDefault()
@@ -82,7 +111,13 @@ export function MathGame({ onFinish, onBack }: Props) {
       setFeedback('bad')
       setInput('')
     }
-    window.setTimeout(() => setFeedback(null), 280)
+    if (feedbackTimerRef.current != null) {
+      window.clearTimeout(feedbackTimerRef.current)
+    }
+    feedbackTimerRef.current = window.setTimeout(() => {
+      feedbackTimerRef.current = null
+      setFeedback(null)
+    }, 280)
   }
 
   return (
@@ -134,14 +169,20 @@ export function MathGame({ onFinish, onBack }: Props) {
             <p className="play-hint">Timer is live — type fast and hit Go.</p>
           </>
         ) : (
-          <div className="mini-end">
+          <div className="mini-end overlay-end">
             <p>
               You scored <strong>{score}</strong>
               {score >= 8 ? ' — solid round!' : '.'}
             </p>
-            <button type="button" className="btn btn-primary" onClick={onBack}>
-              Back to arcade
-            </button>
+            <p className="section-sub memory-again-hint">Play again for a new random problem set.</p>
+            <div className="dash-end-actions">
+              <button type="button" className="btn btn-ember" onClick={playAgain}>
+                Play again
+              </button>
+              <button type="button" className="btn btn-ghost" onClick={onBack}>
+                Back to arcade
+              </button>
+            </div>
           </div>
         )}
       </div>
