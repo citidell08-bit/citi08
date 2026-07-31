@@ -2243,12 +2243,41 @@ const QUESTIONS = {
     return "Dawn";
   }
 
+  /** Map dayTime → clock minutes. Midnight sits at mid-night (dayTime ≈ 0.77). */
+  function gameClockMinutes() {
+    const hours = ((state.dayTime - 0.77 + 1) % 1) * 24;
+    return Math.floor(hours * 60) % (24 * 60);
+  }
+
+  function formatGameClock() {
+    const total = gameClockMinutes();
+    let h = Math.floor(total / 60);
+    const m = total % 60;
+    const ampm = h >= 12 ? "PM" : "AM";
+    const h12 = h % 12 || 12;
+    return `${h12}:${String(m).padStart(2, "0")} ${ampm}`;
+  }
+
   function updateDayNightUI() {
-    const el = $("hud-tod");
-    if (!el) return;
     const label = dayPhaseLabel();
-    el.textContent = label;
-    el.classList.toggle("night", label === "Night");
+    const night = label === "Night";
+    const timeStr = formatGameClock();
+    const el = $("hud-tod");
+    if (el) {
+      el.textContent = state.dungeon?.active ? "Dungeon" : label;
+      el.classList.toggle("night", night && !state.dungeon?.active);
+      el.classList.toggle("dusk", label === "Dusk" && !state.dungeon?.active);
+      el.classList.toggle("dawn", label === "Dawn" && !state.dungeon?.active);
+    }
+    const clock = $("hud-clock");
+    if (clock) clock.textContent = timeStr;
+    const clockCenter = $("hud-clock-center");
+    if (clockCenter) {
+      clockCenter.textContent = timeStr;
+      clockCenter.classList.toggle("night", night && !state.dungeon?.active);
+    }
+    const clockStat = document.querySelector(".hud-clock-stat");
+    if (clockStat) clockStat.classList.toggle("night", night && !state.dungeon?.active);
   }
 
   function updateDayNight(dt) {
@@ -3419,8 +3448,9 @@ const QUESTIONS = {
     const w = canvas.width, h = canvas.height;
     if (w <= 0 || h <= 0) return;
     if (state.dungeon?.active) ctx.fillStyle = "#100e18";
-    else if (isNight()) ctx.fillStyle = "#0a1020";
-    else if (state.dayTime >= 0.55 && state.dayTime < 0.62) ctx.fillStyle = "#2a2030";
+    else if (isNight()) ctx.fillStyle = "#040810";
+    else if (state.dayTime >= 0.55 && state.dayTime < 0.62) ctx.fillStyle = "#241828";
+    else if (state.dayTime >= 0.92 || state.dayTime < 0.18) ctx.fillStyle = "#2a2218";
     else ctx.fillStyle = "#1a3020";
     ctx.fillRect(0, 0, w, h);
 
@@ -3560,25 +3590,31 @@ const QUESTIONS = {
       let wash = "rgba(0,0,0,0)";
       if (t >= 0.55 && t < 0.62) { // dusk
         const k = (t - 0.55) / 0.07;
-        wash = `rgba(40, 20, 60, ${0.15 + k * 0.25})`;
+        wash = `rgba(55, 18, 70, ${0.22 + k * 0.32})`;
       } else if (isNight()) {
-        const mid = 1 - Math.abs(((t - 0.77) / 0.15));
-        wash = `rgba(6, 10, 28, ${0.42 + Math.max(0, mid) * 0.18})`;
+        const mid = 1 - Math.abs((t - 0.77) / 0.15);
+        wash = `rgba(4, 8, 22, ${0.58 + Math.max(0, mid) * 0.22})`;
       } else if (t >= 0.92 || t < 0.18) { // dawn
-        wash = "rgba(60, 40, 30, 0.18)";
+        const k = t >= 0.92 ? (t - 0.92) / 0.08 : t / 0.18;
+        wash = `rgba(70, 40, 28, ${0.28 - k * 0.16})`;
       } else {
         wash = "rgba(180, 255, 160, 0.03)";
       }
       ctx.fillStyle = wash;
       ctx.fillRect(0, 0, w, h);
       if (isNight()) {
-        // Soft lantern around player
-        const light = ctx.createRadialGradient(w / 2, h / 2, tileSize * 0.6, w / 2, h / 2, tileSize * 4.5);
-        light.addColorStop(0, "rgba(0,0,0,0)");
-        light.addColorStop(0.55, "rgba(0,0,0,0.15)");
-        light.addColorStop(1, "rgba(0,0,8,0.55)");
+        drawNightSkyDecor(w, h);
+        // Lantern pool around the player — edges stay deep night
+        const light = ctx.createRadialGradient(w / 2, h / 2, tileSize * 0.5, w / 2, h / 2, tileSize * 5.2);
+        light.addColorStop(0, "rgba(255, 210, 120, 0.07)");
+        light.addColorStop(0.35, "rgba(0,0,0,0.08)");
+        light.addColorStop(0.7, "rgba(0,0,12,0.45)");
+        light.addColorStop(1, "rgba(0,0,10,0.78)");
         ctx.fillStyle = light;
         ctx.fillRect(0, 0, w, h);
+      } else if (t >= 0.55 && t < 0.62) {
+        // Fading sun disc at dusk
+        drawDuskSun(w, h, (t - 0.55) / 0.07);
       }
       if (state.swimming) {
         ctx.fillStyle = "rgba(40, 120, 220, 0.14)";
@@ -3587,17 +3623,70 @@ const QUESTIONS = {
     }
     const grd = ctx.createRadialGradient(w / 2, h / 2, h * 0.25, w / 2, h / 2, h * 0.85);
     grd.addColorStop(0, "rgba(0,0,0,0)");
-    grd.addColorStop(1, state.dungeon?.active ? "rgba(10,0,24,0.55)" : (isNight() ? "rgba(0,0,20,0.4)" : "rgba(0,20,10,0.28)"));
+    grd.addColorStop(1, state.dungeon?.active ? "rgba(10,0,24,0.55)" : (isNight() ? "rgba(0,0,18,0.55)" : "rgba(0,20,10,0.28)"));
     ctx.fillStyle = grd;
     ctx.fillRect(0, 0, w, h);
     drawMinimap();
+  }
+
+  function drawNightSkyDecor(w, h) {
+    const now = performance.now();
+    // Twinkling stars across the upper/outer field
+    for (let i = 0; i < 56; i++) {
+      const sx = ((i * 97 + 23) * 13) % w;
+      const sy = ((i * 53 + 11) * 17) % h;
+      // Prefer edges / top so they read as sky, not clutter on the player
+      const edge = Math.min(sx, sy, w - sx, h - sy) / Math.min(w, h);
+      if (edge > 0.28 && sy > h * 0.42) continue;
+      const twinkle = 0.35 + 0.65 * Math.abs(Math.sin(now / 380 + i * 1.7));
+      ctx.globalAlpha = twinkle * 0.9;
+      ctx.fillStyle = i % 6 === 0 ? "#ffe8a8" : "#d8e4ff";
+      const sz = i % 9 === 0 ? 2 : 1;
+      ctx.fillRect(sx, sy, sz, sz);
+    }
+    ctx.globalAlpha = 1;
+    // Pixel crescent moon — top right of the playfield
+    drawPixelMoon(w - 34, 26);
+  }
+
+  function drawPixelMoon(mx, my) {
+    const r = 9;
+    for (let y = -r; y <= r; y++) {
+      for (let x = -r; x <= r; x++) {
+        if (x * x + y * y > r * r) continue;
+        const ox = x - 4, oy = y + 1;
+        if (ox * ox + oy * oy <= (r - 1) * (r - 1)) continue;
+        ctx.fillStyle = ((x + y + 20) % 4 === 0) ? "#c8c090" : "#efe6c0";
+        ctx.fillRect(mx + x, my + y, 1, 1);
+      }
+    }
+    // Soft glow
+    ctx.globalAlpha = 0.2;
+    ctx.fillStyle = "#c8d8ff";
+    ctx.fillRect(mx - r - 2, my - r - 2, (r + 2) * 2, (r + 2) * 2);
+    ctx.globalAlpha = 1;
+  }
+
+  function drawDuskSun(w, h, k) {
+    const sx = Math.floor(w * 0.78);
+    const sy = Math.floor(h * 0.18 + k * h * 0.12);
+    const r = 10;
+    for (let y = -r; y <= r; y++) {
+      for (let x = -r; x <= r; x++) {
+        if (x * x + y * y > r * r) continue;
+        ctx.globalAlpha = 0.55 - k * 0.25;
+        ctx.fillStyle = (x * x + y * y < 16) ? "#ffd080" : "#e07040";
+        ctx.fillRect(sx + x, sy + y, 1, 1);
+      }
+    }
+    ctx.globalAlpha = 1;
   }
 
   function drawMinimap() {
     if (!state.settings.minimap) { $("minimap").classList.add("hidden"); return; }
     $("minimap").classList.remove("hidden");
     const s = 120;
-    miniCtx.fillStyle = "#12100e";
+    miniCtx.fillStyle = isNight() && !state.dungeon?.active ? "#060a14" : "#12100e";
     miniCtx.fillRect(0, 0, s, s);
     const range = state.dungeon?.active ? Math.max(state.dungeon.w, state.dungeon.h) / 2 : 40;
     const px = Math.floor(state.player.x), py = Math.floor(state.player.y);

@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=login2" />
+  <link rel="stylesheet" href="style.css?v=night1" />
 </head>
 <body>
   <div id="app">
@@ -158,6 +158,10 @@
               <span class="hud-label">TIME</span>
               <span id="hud-timer">25:00</span>
             </div>
+            <div class="hud-stat hud-clock-stat" title="In-world clock">
+              <span class="hud-label">CLK</span>
+              <span id="hud-clock">10:00 AM</span>
+            </div>
             <div class="hud-stat hidden" id="hud-floor-wrap" title="Dungeon floor">
               <span class="hud-label">FLOOR</span>
               <span id="hud-floor">1/10</span>
@@ -173,7 +177,10 @@
           </div>
           <div class="hud-center">
             <span id="hud-coords">0, 0</span>
-            <span id="hud-tod" class="hud-tod">Day</span>
+            <div class="hud-tod-wrap">
+              <span id="hud-tod" class="hud-tod">Day</span>
+              <span id="hud-clock-center" class="hud-clock-center">10:00 AM</span>
+            </div>
             <span id="hud-biome">Grassland Ruins</span>
             <span id="hud-study" class="hud-study"></span>
           </div>
@@ -476,7 +483,7 @@
     </div>
   </div>
 
-  <script src="script.js?v=heal1"></script>
+  <script src="script.js?v=night1"></script>
   <script>
     // Fallback only — skips if main script already handled the key/button
     (function () {

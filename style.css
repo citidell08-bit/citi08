@@ -22,7 +22,7 @@
   --radius: 2px;
   --font-display: "Press Start 2P", monospace;
   --font-body: "VT323", monospace;
-  --hud-h: 52px;
+  --hud-h: 56px;
 }
 
 *,
@@ -398,8 +398,9 @@ select {
 .hud-right {
   display: flex;
   align-items: center;
-  gap: 0.55rem;
+  gap: 0.4rem;
   pointer-events: auto;
+  flex-wrap: wrap;
 }
 
 .hud-stat {
@@ -446,15 +447,62 @@ select {
   max-width: 40vw;
 }
 
+.hud-tod-wrap {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.45rem;
+  margin: 0.1rem 0 0.05rem;
+}
+
 #hud-tod {
   font-family: var(--font-display);
-  font-size: 0.38rem;
-  letter-spacing: 0.06em;
+  font-size: 0.42rem;
+  letter-spacing: 0.08em;
   color: #f0d080;
+  text-transform: uppercase;
+}
+
+#hud-tod.dawn {
+  color: #f0b878;
+}
+
+#hud-tod.dusk {
+  color: #d080c0;
 }
 
 #hud-tod.night {
-  color: #90b0ff;
+  color: #a8c4ff;
+  text-shadow: 0 0 8px rgba(120, 160, 255, 0.55);
+}
+
+.hud-clock-center {
+  font-family: var(--font-display);
+  font-size: 0.36rem;
+  letter-spacing: 0.04em;
+  color: var(--sand);
+}
+
+.hud-clock-center.night {
+  color: #c8d8ff;
+}
+
+.hud-clock-stat span:last-child {
+  font-variant-numeric: tabular-nums;
+  min-width: 4.5ch;
+}
+
+.hud-clock-stat.night {
+  border-color: #5a78b0;
+  background: rgba(20, 28, 48, 0.9);
+}
+
+.hud-clock-stat.night span:last-child {
+  color: #a8c4ff;
+}
+
+.hud-clock-stat.night .hud-label {
+  color: #8098d0;
 }
 
 .hud-btn {
