@@ -186,12 +186,31 @@ export function playJumpSfx(): void {
   tone(760, 0.06, { type: 'triangle', gain: 0.055, delay: 0.015, slideTo: 1180 })
 }
 
-/** Short percussive crash — dies often, so keep it snappy. */
+/** Pixel-explosion death — 8-bit shatter for Spike Dash crashes. */
 export function playCrashSfx(): void {
   unlockAudio()
-  noiseBurst(0.1, { gain: 0.07, filterFreq: 720 })
-  tone(190, 0.11, { type: 'sawtooth', gain: 0.1, slideTo: 70, attack: 0.002 })
-  tone(95, 0.13, { type: 'triangle', gain: 0.065, delay: 0.02, slideTo: 45 })
+  // Hot pixel burst
+  noiseBurst(0.08, {
+    gain: 0.14,
+    filterFreq: 4200,
+    filterEnd: 900,
+    filterType: 'bandpass',
+  })
+  noiseBurst(0.14, {
+    gain: 0.1,
+    delay: 0.02,
+    filterFreq: 1800,
+    filterEnd: 280,
+    filterType: 'bandpass',
+  })
+  // Chunky descending squares (classic explode)
+  tone(520, 0.07, { type: 'square', gain: 0.11, attack: 0.001, slideTo: 180 })
+  tone(320, 0.09, { type: 'square', gain: 0.09, delay: 0.04, slideTo: 90 })
+  tone(180, 0.11, { type: 'square', gain: 0.07, delay: 0.09, slideTo: 55 })
+  // Tiny debris ticks
+  tone(1100, 0.03, { type: 'square', gain: 0.05, delay: 0.06, slideTo: 700 })
+  tone(900, 0.025, { type: 'square', gain: 0.04, delay: 0.1, slideTo: 500 })
+  tone(700, 0.02, { type: 'square', gain: 0.03, delay: 0.14, slideTo: 360 })
 }
 
 /** Access denied + sad whomp-whomp (level / gate fails). */
