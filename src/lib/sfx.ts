@@ -107,7 +107,13 @@ function tone(
 
 function noiseBurst(
   duration: number,
-  opts?: { gain?: number; delay?: number; filterFreq?: number },
+  opts?: {
+    gain?: number
+    delay?: number
+    filterFreq?: number
+    filterEnd?: number
+    filterType?: BiquadFilterType
+  },
 ) {
   const ac = ensureRunning()
   const out = bus()
@@ -125,13 +131,17 @@ function noiseBurst(
   const src = ac.createBufferSource()
   src.buffer = buffer
   const filter = ac.createBiquadFilter()
-  filter.type = 'lowpass'
-  filter.frequency.setValueAtTime(opts?.filterFreq ?? 900, start)
-  filter.frequency.linearRampToValueAtTime(140, start + duration)
+  const startFreq = opts?.filterFreq ?? 900
+  const endFreq = opts?.filterEnd ?? Math.max(140, startFreq * 0.15)
+  filter.type = opts?.filterType ?? 'lowpass'
+  filter.Q.value = filter.type === 'bandpass' ? 0.85 : 0.7
+  filter.frequency.setValueAtTime(startFreq, start)
+  filter.frequency.linearRampToValueAtTime(endFreq, start + duration)
   const gain = ac.createGain()
   const peak = opts?.gain ?? 0.06
+  const attack = Math.min(0.004, duration * 0.25)
   gain.gain.setValueAtTime(0.0001, start)
-  gain.gain.linearRampToValueAtTime(peak, start + 0.008)
+  gain.gain.linearRampToValueAtTime(peak, start + attack)
   gain.gain.linearRampToValueAtTime(0.0001, start + duration)
 
   src.connect(filter)
@@ -141,11 +151,20 @@ function noiseBurst(
   src.stop(start + duration + 0.02)
 }
 
-/** Sharp UI click — one press, one tick. */
+/** Neon UI click — hard plastic tick + thin cyan sparkle. */
 export function playClickSfx(): void {
   unlockAudio()
-  tone(2400, 0.02, { type: 'sine', gain: 0.07, attack: 0.001, slideTo: 1800 })
-  tone(1100, 0.03, { type: 'triangle', gain: 0.045, attack: 0.002, slideTo: 700 })
+  // Body: short mechanical click (bright transient)
+  noiseBurst(0.016, {
+    gain: 0.075,
+    filterFreq: 4200,
+    filterEnd: 1800,
+    filterType: 'bandpass',
+  })
+  tone(1900, 0.014, { type: 'square', gain: 0.085, attack: 0.0008, slideTo: 700 })
+  // Neon sparkle layer
+  tone(3400, 0.03, { type: 'sine', gain: 0.055, attack: 0.001, slideTo: 2600 })
+  tone(5200, 0.022, { type: 'triangle', gain: 0.035, delay: 0.005, slideTo: 4000 })
 }
 
 /** Short cue when a mini-game starts. */
