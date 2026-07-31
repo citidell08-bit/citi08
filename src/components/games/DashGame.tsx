@@ -66,6 +66,7 @@ export function DashGame({ onFinish, onBack }: Props) {
 
     let raf = 0
     let last = performance.now()
+    let active = true
     const st = stateRef.current
     lastScoreRef.current = 0
 
@@ -82,6 +83,7 @@ export function DashGame({ onFinish, onBack }: Props) {
       st.shake = 0
       st.rot = 0
       reportedRef.current = false
+      if (!active) return
       setAlive(true)
       setScore(0)
       setFinalScore(null)
@@ -203,9 +205,11 @@ export function DashGame({ onFinish, onBack }: Props) {
         })
       }
       const sc = Math.floor(st.distance / 10)
-      setAlive(false)
-      setFinalScore(sc)
-      setScore(sc)
+      if (active) {
+        setAlive(false)
+        setFinalScore(sc)
+        setScore(sc)
+      }
       if (!reportedRef.current) {
         reportedRef.current = true
         const xp = Math.max(8, Math.floor(sc / 3))
@@ -352,7 +356,7 @@ export function DashGame({ onFinish, onBack }: Props) {
 
         if (resolveHazards(prevY)) die()
         const nextScore = Math.floor(st.distance / 10)
-        if (nextScore !== lastScoreRef.current) {
+        if (active && nextScore !== lastScoreRef.current) {
           lastScoreRef.current = nextScore
           setScore(nextScore)
         }
@@ -377,6 +381,7 @@ export function DashGame({ onFinish, onBack }: Props) {
     raf = requestAnimationFrame(tick)
 
     return () => {
+      active = false
       cancelAnimationFrame(raf)
       window.removeEventListener('keydown', onKey)
       canvas.removeEventListener('pointerdown', onPointer)

@@ -3,12 +3,12 @@ import type { Deck } from '../types'
 export const SAMPLE_DECK: Deck = {
   id: 'deck_sample_bio',
   name: 'Cell Biology Starter',
-  createdAt: new Date().toISOString(),
+  createdAt: '2026-01-01T00:00:00.000Z',
   cards: [
     {
       id: 'c1',
       front: 'What is the powerhouse of the cell?',
-      back: 'Mitochondria — they generate most of the cell’s ATP.',
+      back: 'Mitochondria — they generate most of the cell\'s ATP.',
     },
     {
       id: 'c2',

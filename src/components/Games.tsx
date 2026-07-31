@@ -7,12 +7,18 @@ import { MathGame } from './games/MathGame'
 import { MemoryGame } from './games/MemoryGame'
 import './Games.css'
 
+type ScoreKey =
+  | 'bestDashScore'
+  | 'bestMemoryMoves'
+  | 'bestMathScore'
+  | 'bestGlowScore'
+
 const CATALOG: {
   id: MiniGameId
   title: string
   blurb: string
   badge: string
-  bestKey: keyof GameState
+  bestKey: ScoreKey
 }[] = [
   {
     id: 'dash',

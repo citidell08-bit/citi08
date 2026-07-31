@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Deck } from '../types'
 import './Flashcards.css'
 
@@ -17,6 +17,7 @@ export function Flashcards({ decks, onReview, onCreateDeck }: Props) {
   const [front, setFront] = useState('')
   const [back, setBack] = useState('')
   const [draftCards, setDraftCards] = useState<{ front: string; back: string }[]>([])
+  const prevDeckCount = useRef(decks.length)
 
   const deck = useMemo(
     () => decks.find((d) => d.id === deckId) ?? decks[0],
@@ -24,8 +25,33 @@ export function Flashcards({ decks, onReview, onCreateDeck }: Props) {
   )
   const card = deck?.cards[index]
 
+  useEffect(() => {
+    if (decks.length > prevDeckCount.current && decks[0]) {
+      setDeckId(decks[0].id)
+      setIndex(0)
+      setFlipped(false)
+    }
+    prevDeckCount.current = decks.length
+  }, [decks])
+
+  useEffect(() => {
+    if (!deck && decks[0]) {
+      setDeckId(decks[0].id)
+      setIndex(0)
+      setFlipped(false)
+    }
+  }, [deck, decks])
+
+  useEffect(() => {
+    if (!deck) return
+    if (index >= deck.cards.length) {
+      setIndex(0)
+      setFlipped(false)
+    }
+  }, [deck, index])
+
   function nextCard(knewIt: boolean) {
-    if (!deck || !card) return
+    if (!deck || !card || deck.cards.length === 0) return
     onReview(knewIt)
     setFlipped(false)
     setIndex((i) => (i + 1) % deck.cards.length)
@@ -40,7 +66,7 @@ export function Flashcards({ decks, onReview, onCreateDeck }: Props) {
 
   function submitDeck() {
     if (draftCards.length === 0) return
-    onCreateDeck(name, draftCards)
+    onCreateDeck(name.trim() || 'Untitled Deck', draftCards)
     setName('')
     setDraftCards([])
     setMode('study')

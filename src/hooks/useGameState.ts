@@ -169,23 +169,23 @@ export function useGameState() {
     return next
   }
 
-  function checkAchievements(prev: GameState): GameState {
-    let next = prev
-    if (prev.totalSessions >= 1) next = unlock(next, 'first_focus')
-    if (prev.totalFocusMinutes >= 60) next = unlock(next, 'hour_club')
-    if (prev.totalCardsReviewed >= 25) next = unlock(next, 'card_curious')
-    if (prev.streak >= 3) next = unlock(next, 'streak_3')
-    if (prev.streak >= 7) next = unlock(next, 'streak_7')
-    if (levelFromXp(prev.xp) >= 5) next = unlock(next, 'level_5')
-    if (prev.decks.some((d) => !d.id.startsWith('deck_sample'))) {
+  function checkAchievements(stateSnap: GameState): GameState {
+    let next = stateSnap
+    if (stateSnap.totalSessions >= 1) next = unlock(next, 'first_focus')
+    if (stateSnap.totalFocusMinutes >= 60) next = unlock(next, 'hour_club')
+    if (stateSnap.totalCardsReviewed >= 25) next = unlock(next, 'card_curious')
+    if (stateSnap.streak >= 3) next = unlock(next, 'streak_3')
+    if (stateSnap.streak >= 7) next = unlock(next, 'streak_7')
+    if (levelFromXp(next.xp) >= 5) next = unlock(next, 'level_5')
+    if (stateSnap.decks.some((d) => !d.id.startsWith('deck_sample'))) {
       next = unlock(next, 'deck_maker')
     }
-    if (prev.totalGamesPlayed >= 1) next = unlock(next, 'first_game')
-    if (prev.totalGamesWon >= 5) next = unlock(next, 'arcade_five')
-    if (prev.bestMemoryMoves != null && prev.bestMemoryMoves <= 16) {
+    if (stateSnap.totalGamesPlayed >= 1) next = unlock(next, 'first_game')
+    if (stateSnap.totalGamesWon >= 5) next = unlock(next, 'arcade_five')
+    if (stateSnap.bestMemoryMoves != null && stateSnap.bestMemoryMoves <= 16) {
       next = unlock(next, 'memory_sharp')
     }
-    if (prev.bestDashScore >= 120) next = unlock(next, 'dash_runner')
+    if (stateSnap.bestDashScore >= 120) next = unlock(next, 'dash_runner')
     return next
   }
 
@@ -223,12 +223,18 @@ export function useGameState() {
 
   /** Buy a game once; if already owned, play is free. */
   function spendCoinsForGame(gameId: MiniGameId): boolean {
-    if (state.ownedGames.includes(gameId)) return true
-    const cost = GAME_COSTS[gameId]
-    if (state.coins < cost) return false
+    let allowed = false
     setState((prev) => {
-      if (prev.ownedGames.includes(gameId)) return prev
-      if (prev.coins < cost) return prev
+      if (prev.ownedGames.includes(gameId)) {
+        allowed = true
+        return prev
+      }
+      const cost = GAME_COSTS[gameId]
+      if (prev.coins < cost) {
+        allowed = false
+        return prev
+      }
+      allowed = true
       queueMicrotask(() => pushToast('Game unlocked', { coins: -cost }))
       return {
         ...prev,
@@ -236,7 +242,7 @@ export function useGameState() {
         ownedGames: [...prev.ownedGames, gameId],
       }
     })
-    return true
+    return allowed
   }
 
   function completeMiniGame(result: MiniGameResult) {
@@ -265,14 +271,16 @@ export function useGameState() {
             ? Math.max(next.bestDashScore, result.score)
             : next.bestDashScore,
       }
-      // Small coin tip for a win so arcade isn't only a sink
       if (result.won) {
         next = awardCoins(next, 5)
       }
-      next = awardXp(next, result.xp, result.label)
-      if (result.won) {
-        queueMicrotask(() => pushToast('Win bonus', { coins: 5 }))
-      }
+      next = awardXp(next, result.xp, result.label, { notify: false })
+      queueMicrotask(() =>
+        pushToast(result.label, {
+          xp: result.xp,
+          coins: result.won ? 5 : undefined,
+        }),
+      )
       next = bumpQuest(next, 'games_played', 1)
       next = checkAchievements(next)
       return next

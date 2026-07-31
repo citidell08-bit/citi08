@@ -99,15 +99,17 @@ export function MemoryGame({ onFinish, onBack }: Props) {
 
     window.setTimeout(() => {
       if (match) {
+        let cleared = false
         setTiles((prev) => {
           const updated = prev.map((t, i) =>
             i === a || i === b ? { ...t, matched: true } : t,
           )
-          if (updated.every((t) => t.matched)) {
-            finishWin(nextMoves)
-          }
+          cleared = updated.every((t) => t.matched)
           return updated
         })
+        if (cleared) {
+          queueMicrotask(() => finishWin(nextMoves))
+        }
       }
       setFlipped([])
       setLock(false)

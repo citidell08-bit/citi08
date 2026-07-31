@@ -17,15 +17,14 @@ export function FocusTimer({ onComplete }: Props) {
   const [running, setRunning] = useState(false)
   const [sessionMinutes, setSessionMinutes] = useState(25)
   const endedRef = useRef(false)
+  const onCompleteRef = useRef(onComplete)
+  onCompleteRef.current = onComplete
 
   useEffect(() => {
     if (!running) return
     const id = window.setInterval(() => {
       setSecondsLeft((s) => {
-        if (s <= 1) {
-          window.clearInterval(id)
-          return 0
-        }
+        if (s <= 1) return 0
         return s - 1
       })
     }, 1000)
@@ -33,12 +32,11 @@ export function FocusTimer({ onComplete }: Props) {
   }, [running])
 
   useEffect(() => {
-    if (secondsLeft === 0 && running && !endedRef.current) {
-      endedRef.current = true
-      setRunning(false)
-      onComplete(sessionMinutes)
-    }
-  }, [secondsLeft, running, onComplete, sessionMinutes])
+    if (secondsLeft !== 0 || !running || endedRef.current) return
+    endedRef.current = true
+    setRunning(false)
+    onCompleteRef.current(sessionMinutes)
+  }, [secondsLeft, running, sessionMinutes])
 
   function selectPreset(m: number) {
     if (running) return
@@ -65,11 +63,12 @@ export function FocusTimer({ onComplete }: Props) {
   }
 
   function finishEarly() {
-    if (!running && secondsLeft === minutes * 60) return
+    if (endedRef.current) return
+    if (!running && secondsLeft === sessionMinutes * 60) return
     const elapsed = Math.max(1, Math.round((sessionMinutes * 60 - secondsLeft) / 60))
-    setRunning(false)
     endedRef.current = true
-    onComplete(elapsed)
+    setRunning(false)
+    onCompleteRef.current(elapsed)
     setSecondsLeft(minutes * 60)
     setSessionMinutes(minutes)
     endedRef.current = false
@@ -123,7 +122,7 @@ export function FocusTimer({ onComplete }: Props) {
             type="button"
             className="btn btn-ghost"
             onClick={finishEarly}
-            disabled={!running && secondsLeft === minutes * 60}
+            disabled={!running && secondsLeft === sessionMinutes * 60}
           >
             Finish early
           </button>

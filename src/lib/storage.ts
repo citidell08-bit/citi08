@@ -1,8 +1,10 @@
 import { DEFAULT_ACHIEVEMENTS } from '../data/achievements'
 import { generateDailyQuests } from '../data/quests'
 import { SAMPLE_DECK } from '../data/sampleDecks'
-import type { GameState, Quest } from '../types'
+import type { GameState, MiniGameId, Quest } from '../types'
 import { todayKey, uid } from './dates'
+
+const VALID_GAMES: MiniGameId[] = ['memory', 'math', 'glow', 'dash']
 
 const STORAGE_KEY = 'kith.game.v1'
 const STARTER_COINS = 100
@@ -43,12 +45,19 @@ export function loadState(): GameState {
     const base = {
       ...createInitialState(),
       ...parsed,
-      coins: parsed.coins ?? 0,
-      totalCoinsEarned: parsed.totalCoinsEarned ?? 0,
+      coins: typeof parsed.coins === 'number' ? Math.max(0, parsed.coins) : STARTER_COINS,
+      totalCoinsEarned:
+        typeof parsed.totalCoinsEarned === 'number'
+          ? Math.max(0, parsed.totalCoinsEarned)
+          : STARTER_COINS,
       starterGranted: Boolean(parsed.starterGranted),
-      ownedGames: Array.isArray(parsed.ownedGames) ? parsed.ownedGames : [],
+      ownedGames: normalizeOwnedGames(parsed.ownedGames),
       achievements: mergeAchievements(parsed.achievements),
       quests: normalizeQuests(parsed.quests),
+      decks:
+        Array.isArray(parsed.decks) && parsed.decks.length > 0
+          ? parsed.decks
+          : createInitialState().decks,
     }
 
     // Existing saves: grant a one-time 100-coin starter pack for testing / first arcade visit
@@ -66,6 +75,11 @@ export function loadState(): GameState {
 
 export function saveState(state: GameState): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+}
+
+function normalizeOwnedGames(owned: unknown): MiniGameId[] {
+  if (!Array.isArray(owned)) return []
+  return [...new Set(owned.filter((id): id is MiniGameId => VALID_GAMES.includes(id as MiniGameId)))]
 }
 
 function mergeAchievements(

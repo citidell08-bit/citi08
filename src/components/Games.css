@@ -333,8 +333,8 @@
 }
 
 .glow-cell.lit {
-  background: radial-gradient(circle at 40% 35%, #f0b429, #3d8b6e 70%);
-  box-shadow: 0 0 28px rgba(56, 189, 248, 0.45), 0 0 18px rgba(34, 211, 238, 0.35);
+  background: radial-gradient(circle at 40% 35%, #22d3ee, #1d4ed8 70%);
+  box-shadow: 0 0 28px rgba(56, 189, 248, 0.55), 0 0 18px rgba(34, 211, 238, 0.4);
   transform: scale(1.04);
   animation: glow-pop 180ms ease;
 }

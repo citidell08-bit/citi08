@@ -104,10 +104,13 @@ export function GlowGame({ onFinish, onBack }: Props) {
     }
   }, [])
 
+  const endGameRef = useRef(endGame)
+  endGameRef.current = endGame
+
   useEffect(() => {
     if (!running || finished) return
     if (seconds <= 0) {
-      endGame(false)
+      endGameRef.current(false)
       return
     }
     const id = window.setTimeout(() => setSeconds((s) => s - 1), 1000)
