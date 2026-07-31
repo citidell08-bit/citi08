@@ -242,8 +242,8 @@ export function replyAsAssistant(raw: string, state: GameState): AssistantReply 
 
 export const QUICK_PROMPTS = [
   'What should I do next?',
-  'How do I earn coins?',
-  'How do quests work?',
-  'Give me a study tip',
-  'Explain Glow Catch',
+  'How do I earn coins fast?',
+  'Quiz me with a study tip',
+  'Explain spaced repetition',
+  'How do custom quests work?',
 ] as const

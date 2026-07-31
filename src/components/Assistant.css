@@ -81,9 +81,58 @@
   font-size: 0.82rem;
 }
 
+.assistant-head-actions {
+  display: flex;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.assistant-settings {
+  display: grid;
+  gap: 0.75rem;
+  overflow: auto;
+}
+
+.assistant-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.assistant-bubble.assistant:has(p:empty)::after,
+.assistant-bubble.assistant p:empty::before {
+  content: none;
+}
+
+.assistant-compose .btn:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
 .assistant-close {
   flex-shrink: 0;
   padding: 0.4rem 0.7rem;
+}
+
+.assistant-head-actions {
+  display: flex;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.assistant-settings {
+  display: grid;
+  gap: 0.75rem;
+  overflow: auto;
+}
+
+.assistant-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.assistant-compose .btn:disabled {
+  opacity: 0.55;
+  cursor: wait;
 }
 
 .assistant-chips {

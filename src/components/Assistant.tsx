@@ -1,5 +1,12 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { QUICK_PROMPTS, replyAsAssistant, type ChatMessage } from '../lib/assistant'
+import { QUICK_PROMPTS, type ChatMessage } from '../lib/assistant'
+import {
+  askLiveAssistant,
+  loadLlmPrefs,
+  saveLlmPrefs,
+  type LlmPrefs,
+  type LlmProvider,
+} from '../lib/llm'
 import { unlockAudio } from '../lib/sfx'
 import { uid } from '../lib/dates'
 import type { GameState, Tab } from '../types'
@@ -10,22 +17,25 @@ interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
   onNavigate: (tab: Tab) => void
-  /** Hide the floating chip while a full-screen mini-game is active. */
   hidden?: boolean
 }
 
 export function Assistant({ state, open, onOpenChange, onNavigate, hidden = false }: Props) {
   const [input, setInput] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
+  const [prefs, setPrefs] = useState<LlmPrefs>(() => loadLlmPrefs())
   const [messages, setMessages] = useState<ChatMessage[]>(() => [
     {
       id: 'welcome',
       role: 'assistant',
-      text: `Hey — I'm ${state.companionName}. Ask me anything about Cyber Kith, or tap a quick tip. I work offline.`,
+      text: `Hey — I'm ${state.companionName}, your Cyber Kith AI. Ask me anything like ChatGPT — study help, motivation, or how this app works. Live model online; optional OpenAI/Groq keys unlock top-tier models.`,
     },
   ])
   const listRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const nameRef = useRef(state.companionName)
+  const abortRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
     if (nameRef.current === state.companionName) return
@@ -35,7 +45,7 @@ export function Assistant({ state, open, onOpenChange, onNavigate, hidden = fals
         msg.id === 'welcome'
           ? {
               ...msg,
-              text: `Hey — I'm ${state.companionName}. Ask me anything about Cyber Kith, or tap a quick tip. I work offline.`,
+              text: `Hey — I'm ${state.companionName}, your Cyber Kith AI. Ask me anything like ChatGPT — study help, motivation, or how this app works.`,
             }
           : msg,
       ),
@@ -52,28 +62,87 @@ export function Assistant({ state, open, onOpenChange, onNavigate, hidden = fals
     const el = listRef.current
     if (!el) return
     el.scrollTop = el.scrollHeight
-  }, [messages, open])
+  }, [messages, open, busy])
 
-  function ask(text: string) {
+  useEffect(() => {
+    return () => abortRef.current?.abort()
+  }, [])
+
+  async function ask(text: string) {
     const trimmed = text.trim()
-    if (!trimmed) return
+    if (!trimmed || busy) return
     unlockAudio()
+
     const userMsg: ChatMessage = { id: uid('ask'), role: 'user', text: trimmed }
-    const reply = replyAsAssistant(trimmed, state)
-    const botMsg: ChatMessage = {
-      id: uid('ans'),
-      role: 'assistant',
-      text: reply.text,
-      goTo: reply.goTo,
-      goLabel: reply.goLabel,
-    }
-    setMessages((m) => [...m, userMsg, botMsg].slice(-40))
+    const ansId = uid('ans')
+    const placeholder: ChatMessage = { id: ansId, role: 'assistant', text: '' }
+
+    setMessages((m) => [...m, userMsg, placeholder].slice(-40))
     setInput('')
+    setBusy(true)
+
+    abortRef.current?.abort()
+    const ac = new AbortController()
+    abortRef.current = ac
+
+    const history = [...messages, userMsg]
+      .filter((m) => m.id !== 'welcome')
+      .map((m) => ({ role: m.role, content: m.text }))
+      .filter((m) => m.content.trim().length > 0)
+
+    try {
+      const reply = await askLiveAssistant(
+        trimmed,
+        state,
+        history,
+        (chunk) => {
+          setMessages((m) =>
+            m.map((msg) =>
+              msg.id === ansId ? { ...msg, text: `${msg.text}${chunk}` } : msg,
+            ),
+          )
+        },
+        ac.signal,
+      )
+
+      setMessages((m) =>
+        m.map((msg) =>
+          msg.id === ansId
+            ? {
+                ...msg,
+                text: reply.text || msg.text,
+                goTo: reply.goTo,
+                goLabel: reply.goLabel,
+              }
+            : msg,
+        ),
+      )
+    } catch {
+      if (!ac.signal.aborted) {
+        setMessages((m) =>
+          m.map((msg) =>
+            msg.id === ansId
+              ? {
+                  ...msg,
+                  text: msg.text || 'Something went wrong reaching the live model. Try again in a sec.',
+                }
+              : msg,
+          ),
+        )
+      }
+    } finally {
+      setBusy(false)
+    }
   }
 
   function onSubmit(e: FormEvent) {
     e.preventDefault()
-    ask(input)
+    void ask(input)
+  }
+
+  function savePrefs() {
+    saveLlmPrefs(prefs)
+    setShowSettings(false)
   }
 
   if (hidden && !open) return null
@@ -103,70 +172,134 @@ export function Assistant({ state, open, onOpenChange, onNavigate, hidden = fals
             className="panel assistant-panel"
             role="dialog"
             aria-modal="true"
-            aria-label={`${state.companionName} assistant`}
+            aria-label={`${state.companionName} AI assistant`}
             onClick={(e) => e.stopPropagation()}
           >
             <header className="assistant-head">
               <div>
                 <h2 className="assistant-title">Ask {state.companionName}</h2>
-                <p className="assistant-sub">Offline study buddy · tips & how-to</p>
+                <p className="assistant-sub">Live AI · ChatGPT-style help for study & Cyber Kith</p>
               </div>
-              <button
-                type="button"
-                className="btn btn-ghost assistant-close"
-                onClick={() => onOpenChange(false)}
-              >
-                Close
-              </button>
+              <div className="assistant-head-actions">
+                <button
+                  type="button"
+                  className="btn btn-ghost assistant-close"
+                  onClick={() => setShowSettings((v) => !v)}
+                >
+                  {showSettings ? 'Chat' : 'AI setup'}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost assistant-close"
+                  onClick={() => onOpenChange(false)}
+                >
+                  Close
+                </button>
+              </div>
             </header>
 
-            <div className="assistant-chips" aria-label="Quick questions">
-              {QUICK_PROMPTS.map((prompt) => (
-                <button
-                  key={prompt}
-                  type="button"
-                  className="assistant-chip"
-                  onClick={() => ask(prompt)}
-                >
-                  {prompt}
+            {showSettings ? (
+              <div className="assistant-settings">
+                <p className="section-sub">
+                  Free live AI works with no key. Add an OpenAI or Groq key for top-tier ChatGPT /
+                  Llama quality — keys stay only on this device.
+                </p>
+                <label className="quest-field">
+                  <span>Provider</span>
+                  <select
+                    className="field"
+                    value={prefs.provider}
+                    onChange={(e) =>
+                      setPrefs((p) => ({ ...p, provider: e.target.value as LlmProvider }))
+                    }
+                  >
+                    <option value="auto">Auto (best available)</option>
+                    <option value="openai">OpenAI (needs key)</option>
+                    <option value="groq">Groq (needs key)</option>
+                    <option value="free">Free cloud only</option>
+                  </select>
+                </label>
+                <label className="quest-field">
+                  <span>OpenAI API key</span>
+                  <input
+                    className="field"
+                    type="password"
+                    autoComplete="off"
+                    placeholder="sk-… (optional)"
+                    value={prefs.openaiKey}
+                    onChange={(e) => setPrefs((p) => ({ ...p, openaiKey: e.target.value }))}
+                  />
+                </label>
+                <label className="quest-field">
+                  <span>Groq API key</span>
+                  <input
+                    className="field"
+                    type="password"
+                    autoComplete="off"
+                    placeholder="gsk_… (optional)"
+                    value={prefs.groqKey}
+                    onChange={(e) => setPrefs((p) => ({ ...p, groqKey: e.target.value }))}
+                  />
+                </label>
+                <button type="button" className="btn btn-ember" onClick={savePrefs}>
+                  Save AI settings
                 </button>
-              ))}
-            </div>
-
-            <div className="assistant-thread" ref={listRef} aria-live="polite">
-              {messages.map((m) => (
-                <div key={m.id} className={`assistant-bubble ${m.role}`}>
-                  <p>{m.text}</p>
-                  {m.role === 'assistant' && m.goTo && (
+              </div>
+            ) : (
+              <>
+                <div className="assistant-chips" aria-label="Quick questions">
+                  {QUICK_PROMPTS.map((prompt) => (
                     <button
+                      key={prompt}
                       type="button"
-                      className="btn btn-ember assistant-go"
-                      onClick={() => {
-                        onNavigate(m.goTo!)
-                        onOpenChange(false)
-                      }}
+                      className="assistant-chip"
+                      disabled={busy}
+                      onClick={() => void ask(prompt)}
                     >
-                      {m.goLabel ?? 'Go'}
+                      {prompt}
                     </button>
-                  )}
+                  ))}
                 </div>
-              ))}
-            </div>
 
-            <form className="assistant-compose" onSubmit={onSubmit}>
-              <input
-                ref={inputRef}
-                className="field"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="Ask about coins, quests, games…"
-                aria-label="Message to assistant"
-                maxLength={200}
-              />
-              <button type="submit" className="btn btn-primary" disabled={!input.trim()}>
-                Send
-              </button>
-            </form>
+                <div className="assistant-thread" ref={listRef} aria-live="polite">
+                  {messages.map((m) => (
+                    <div key={m.id} className={`assistant-bubble ${m.role}`}>
+                      <p className="assistant-text">
+                        {m.text || (busy && m.role === 'assistant' ? 'Thinking…' : '')}
+                      </p>
+                      {m.role === 'assistant' && m.goTo && (
+                        <button
+                          type="button"
+                          className="btn btn-ember assistant-go"
+                          onClick={() => {
+                            onNavigate(m.goTo!)
+                            onOpenChange(false)
+                          }}
+                        >
+                          {m.goLabel ?? 'Go'}
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <form className="assistant-compose" onSubmit={onSubmit}>
+                  <input
+                    ref={inputRef}
+                    className="field"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    placeholder="Ask anything — study tips, quests, games…"
+                    aria-label="Message to AI assistant"
+                    maxLength={500}
+                    disabled={busy}
+                  />
+                  <button type="submit" className="btn btn-primary" disabled={busy || !input.trim()}>
+                    {busy ? '…' : 'Send'}
+                  </button>
+                </form>
+              </>
+            )}
           </section>
         </div>
       )}
