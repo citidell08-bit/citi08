@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=spellanim1" />
+  <link rel="stylesheet" href="style.css?v=spellcharge1" />
 </head>
 <body>
   <div id="app">
@@ -235,9 +235,9 @@
         <div id="spell-bar" class="spell-bar hidden" aria-label="Book spells">
           <div id="spell-bar-label" class="spell-bar-label">Equip a book to cast</div>
           <div class="spell-bar-row">
-            <button type="button" class="spell-btn spell-fire" id="btn-spell-fire" title="Firebolt (Z)">🔥<span>Z</span></button>
-            <button type="button" class="spell-btn spell-water" id="btn-spell-water" title="Tideburst (X)">💧<span>X</span></button>
-            <button type="button" class="spell-btn spell-air" id="btn-spell-air" title="Gale Spike (C)">💨<span>C</span></button>
+            <button type="button" class="spell-btn spell-fire" id="btn-spell-fire" title="Firebolt — tap cast · hold to charge (Z)">🔥<span>Z</span></button>
+            <button type="button" class="spell-btn spell-water" id="btn-spell-water" title="Tideburst — tap cast · hold to charge (X)">💧<span>X</span></button>
+            <button type="button" class="spell-btn spell-air" id="btn-spell-air" title="Gale Spike — tap cast · hold to charge (C)">💨<span>C</span></button>
           </div>
         </div>
 
@@ -316,12 +316,12 @@
               <li><kbd>E</kbd> — Interact (chest, quest, portal, stairs)</li>
               <li><kbd>H</kbd> — Drink healing potion</li>
               <li><kbd>1</kbd>–<kbd>9</kbd> — Hotbar (put bow/sword/book in hand)</li>
-              <li><kbd>Z</kbd> / <kbd>X</kbd> / <kbd>C</kbd> — Book spells: Fire / Water / Air (rarer book = more dmg)</li>
+              <li><kbd>Z</kbd> / <kbd>X</kbd> / <kbd>C</kbd> — Spells: tap=normal · <strong>hold to charge</strong> for more dmg (rarer book = stronger)</li>
               <li><kbd>I</kbd> — Inventory · right-click gear to equip</li>
               <li><kbd>M</kbd> — World map</li>
               <li><kbd>Esc</kbd> — Settings / pause</li>
             </ul>
-            <p class="muted controls-note">You spawn with an <strong>empty inventory</strong>. Loot gear from chests/quests/dungeons. <strong>Sword & bow:</strong> tap = normal, hold = charge. <strong>Books:</strong> equip a book, then cast <kbd>Z</kbd> Fire · <kbd>X</kbd> Water · <kbd>C</kbd> Air — rarer books deal more spell damage. Shield: HOLD <kbd>F</kbd> / <strong>🛡 BLOCK</strong>.</p>
+            <p class="muted controls-note">You spawn with an <strong>empty inventory</strong>. Loot gear from chests/quests/dungeons. <strong>Sword, bow & spells:</strong> tap = normal attack/cast; <em>hold</em> to charge (bar appears) for more damage. Spells: <kbd>Z</kbd> Fire · <kbd>X</kbd> Water · <kbd>C</kbd> Air (equip a book first). Rarer books hit harder. Shield: HOLD <kbd>F</kbd> / <strong>🛡 BLOCK</strong>.</p>
           </div>
 
           <div class="settings-actions">
@@ -535,7 +535,7 @@
     </div>
   </div>
 
-  <script src="script.js?v=spells1"></script>
+  <script src="script.js?v=spellcharge1"></script>
   <script>
     // Fallback only — skips if main script already handled the key/button
     (function () {

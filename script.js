@@ -334,6 +334,7 @@ const QUESTIONS = {
     blocking: false,
     blockFlash: 0,
     attackCharge: null, // { kind:'bow'|'melee', t, max, tx, ty, fullPing, shown }
+    spellCharge: null,  // { element, t, max, fullPing, shown }
     mouseWorld: { x: 0, y: 0 },
     spellCd: 0,
     spellAnim: 0,
@@ -345,6 +346,7 @@ const QUESTIONS = {
   const CHARGE_TAP = 0.14;       // release sooner = quick tap (no bar)
   const BOW_CHARGE_MAX = 0.85;   // hold time for full bow power
   const MELEE_CHARGE_MAX = 0.7;  // hold time for full sword power
+  const SPELL_CHARGE_MAX = 0.8;  // hold time for full spell power
 
 
   const $ = (id) => document.getElementById(id);
@@ -1884,7 +1886,7 @@ const QUESTIONS = {
     } else {
       $("hud-biome").textContent = BIOME_NAMES[biomeAt(Math.floor(state.player.x), Math.floor(state.player.y))] || "Grassland Ruins";
       if ($("combat-hint")) {
-        $("combat-hint").textContent = "Tap/HOLD attack · Book spells Z🔥 X💧 C💨 · F/🛡 BLOCK · E interact";
+        $("combat-hint").textContent = "Tap/HOLD attack · HOLD Z/X/C to charge spells · F/🛡 BLOCK · E";
       }
     }
     updateBlockUI();
@@ -3307,10 +3309,16 @@ const QUESTIONS = {
   }
 
   function isChargeBarVisible() {
-    return !!(state.attackCharge && state.attackCharge.shown);
+    return !!(
+      (state.attackCharge && state.attackCharge.shown)
+      || (state.spellCharge && state.spellCharge.shown)
+    );
   }
 
   function chargeRatio() {
+    if (state.spellCharge && state.spellCharge.shown) {
+      return Math.max(0, Math.min(1, state.spellCharge.t / state.spellCharge.max));
+    }
     if (!state.attackCharge) return 0;
     return Math.max(0, Math.min(1, state.attackCharge.t / state.attackCharge.max));
   }
@@ -3319,10 +3327,15 @@ const QUESTIONS = {
     state.attackCharge = null;
   }
 
+  function cancelSpellCharge() {
+    state.spellCharge = null;
+  }
+
   function startAttackCharge(kind, tx, ty) {
     if (!state.running || state.paused) return false;
     if (state.drinkAnim > 0) { showToast("Drinking…"); return false; }
     if (isBlocking()) { showToast("Lower shield first (release F / 🛡)"); return false; }
+    if (state.spellCharge) cancelSpellCharge();
     if (state.hitCd > 0) {
       if (kind === "bow") { try { SFX.bowDry(); } catch (_) {} }
       return false;
@@ -3345,6 +3358,37 @@ const QUESTIONS = {
     if (kind === "bow") {
       state.player.facing = Math.atan2(aimY - state.player.y, aimX - state.player.x);
     }
+    return true;
+  }
+
+  function startSpellCharge(element) {
+    if (!SPELLS[element]) return false;
+    if (!state.running || state.paused) return false;
+    if (state.drinkAnim > 0) { showToast("Drinking…"); return false; }
+    if (isBlocking()) { showToast("Lower shield to charge a spell (release F / 🛡)"); return false; }
+    if (state.attackCharge) {
+      showToast("Release your attack first");
+      return false;
+    }
+    if (!getSpellBook()) {
+      showToast("Equip a book (I → Book slot) or put one on the hotbar!", true);
+      return false;
+    }
+    if (state.spellCd > 0) {
+      showToast("Spell recharging…");
+      return false;
+    }
+    // Switching element mid-hold restarts that spell's charge
+    if (state.spellCharge && state.spellCharge.element !== element) cancelSpellCharge();
+    if (state.spellCharge) return true;
+    try { SFX.unlock(); } catch (_) {}
+    state.spellCharge = {
+      element,
+      t: 0,
+      max: SPELL_CHARGE_MAX,
+      fullPing: false,
+      shown: false,
+    };
     return true;
   }
 
@@ -3385,6 +3429,59 @@ const QUESTIONS = {
       spawnFloatText(state.player.x, state.player.y - 0.7, "FULL", "#ffe060");
       spawnParticles(state.player.x, state.player.y, 6, "spark");
     }
+  }
+
+  function updateSpellCharge(dt) {
+    const c = state.spellCharge;
+    if (!c) return;
+    if (!state.running || state.paused || isBlocking() || state.drinkAnim > 0 || !getSpellBook() || state.spellCd > 0) {
+      cancelSpellCharge();
+      return;
+    }
+    if (state.mouseWorld) {
+      state.player.facing = Math.atan2(
+        state.mouseWorld.y - state.player.y,
+        state.mouseWorld.x - state.player.x
+      );
+    }
+    c.t = Math.min(c.max, c.t + dt);
+    // Show charge bar + wind-up cast pose only after tap window
+    if (!c.shown && c.t >= CHARGE_TAP) {
+      c.shown = true;
+      state.spellAnim = Math.max(state.spellAnim, 0.35);
+      state.spellFlash = { element: c.element, t: 0.4 };
+      try { SFX.bowPull(); } catch (_) {}
+      const pKind = c.element === "water" ? "splash" : c.element === "air" ? "air" : "fire";
+      spawnParticles(state.player.x, state.player.y, 6, pKind);
+    }
+    if (c.shown) {
+      // Keep cast pose alive while holding
+      state.spellAnim = Math.max(state.spellAnim, 0.2);
+      state.spellFlash = { element: c.element, t: Math.max(0.15, state.spellFlash?.t || 0.15) };
+    }
+    if (!c.fullPing && c.t >= c.max) {
+      c.fullPing = true;
+      try { SFX.bowFull(); } catch (_) {}
+      const col = SPELLS[c.element]?.color || "#ffe060";
+      spawnFloatText(state.player.x, state.player.y - 0.7, "FULL", col);
+      spawnParticles(state.player.x, state.player.y, 10, "magic");
+    }
+  }
+
+  function releaseSpellCharge() {
+    const c = state.spellCharge;
+    if (!c) return false;
+    const held = c.t;
+    const element = c.element;
+    const wasShown = c.shown;
+    const max = c.max;
+    cancelSpellCharge();
+    // Quick tap — normal spell, no bar
+    if (!wasShown || held < CHARGE_TAP) {
+      return castSpell(element, 0);
+    }
+    const power = Math.max(0, Math.min(1, (held - CHARGE_TAP) / Math.max(0.01, max - CHARGE_TAP)));
+    return castSpell(element, power);
   }
 
   function releaseAttackCharge() {
@@ -3582,12 +3679,13 @@ const QUESTIONS = {
       btn.disabled = !ready;
       btn.classList.toggle("ready", ready);
       btn.title = book
-        ? `${SPELLS[el].name} (${SPELLS[el].keyLabel}) · ${book.rarity} book · ~${dmg} dmg`
+        ? `${SPELLS[el].name} (${SPELLS[el].keyLabel}) · tap=normal · HOLD to charge · ${book.rarity} · ~${dmg}+ dmg`
         : "Equip a spellbook first";
     });
   }
 
-  function castSpell(element) {
+  /** power01: 0 = tap/normal, 1 = full charged spell */
+  function castSpell(element, power01 = 0) {
     const spell = SPELLS[element];
     if (!spell) return false;
     if (!state.running || state.paused) return false;
@@ -3605,6 +3703,8 @@ const QUESTIONS = {
     }
     try { SFX.unlock(); } catch (_) {}
 
+    const power = Math.max(0, Math.min(1, Number(power01) || 0));
+    const full = power >= 0.98;
     const aim = state.mouseWorld || {
       x: state.player.x + Math.cos(state.player.facing || 0) * 4,
       y: state.player.y + Math.sin(state.player.facing || 0) * 4,
@@ -3614,15 +3714,17 @@ const QUESTIONS = {
     const dist = Math.hypot(dx, dy) || 1;
     state.player.facing = Math.atan2(dy, dx);
 
-    const dmg = spellDamageForBook(book);
-    const spd = element === "air" ? 12 : element === "fire" ? 9 : 8;
-    const life = element === "air" ? 0.85 : 1.05;
-    state.spellCd = element === "air" ? 0.7 : 0.85;
+    const base = spellDamageForBook(book);
+    // Tap = normal · full charge ≈ 1.9x damage
+    const dmg = Math.max(1, Math.round(base * (1 + 0.9 * power)));
+    const spd = (element === "air" ? 12 : element === "fire" ? 9 : 8) * (1 + 0.25 * power);
+    const life = (element === "air" ? 0.85 : 1.05) * (1 + 0.25 * power);
+    state.spellCd = (element === "air" ? 0.7 : 0.85) + power * 0.15;
     // Cast pose: raise book → glow → release bolt
-    state.spellAnim = 0.55;
-    state.spellFlash = { element, t: 0.55 };
-    const ox = Math.cos(state.player.facing) * 0.45;
-    const oy = Math.sin(state.player.facing) * 0.45;
+    state.spellAnim = full ? 0.65 : 0.55;
+    state.spellFlash = { element, t: state.spellAnim };
+    const ox = Math.cos(state.player.facing) * (0.45 + power * 0.15);
+    const oy = Math.sin(state.player.facing) * (0.45 + power * 0.15);
     state.projectiles.push({
       x: state.player.x + ox, y: state.player.y + oy,
       vx: (dx / dist) * spd, vy: (dy / dist) * spd,
@@ -3630,14 +3732,31 @@ const QUESTIONS = {
       rarity: book.rarity,
       spin: Math.random() * Math.PI * 2,
       born: state.animT,
+      charged: full,
+      power,
     });
     const pKind = element === "water" ? "splash" : element === "air" ? "air" : "fire";
-    spawnParticles(state.player.x, state.player.y, 14, pKind);
-    spawnParticles(state.player.x + ox, state.player.y + oy, 8, "magic");
-    spawnFloatText(state.player.x, state.player.y - 0.6, spell.name.toUpperCase(), spell.color);
+    spawnParticles(state.player.x, state.player.y, full ? 20 : 14, pKind);
+    spawnParticles(state.player.x + ox, state.player.y + oy, full ? 14 : 8, "magic");
+    spawnFloatText(state.player.x, state.player.y - 0.6, full ? "POWER " + spell.name.toUpperCase() : spell.name.toUpperCase(), spell.color);
     try { SFX.spellCast(element); } catch (_) {}
-    showToast(`${spell.icon} ${spell.name} · ${book.rarity} (${dmg} dmg)`);
+    if (full) {
+      try { SFX.bowFull(); } catch (_) {}
+      showToast(`${spell.icon} POWER ${spell.name} · ${book.rarity} (${dmg} dmg)`);
+    } else if (power > 0.2) {
+      showToast(`${spell.icon} ${spell.name} · charged ${Math.round(power * 100)}% (${dmg} dmg)`);
+    } else {
+      showToast(`${spell.icon} ${spell.name} · ${book.rarity} (${dmg} dmg)`);
+    }
     updateSpellUI();
+    // Brief button cast flash
+    const btn = $(`btn-spell-${element}`);
+    if (btn) {
+      btn.classList.remove("casting");
+      void btn.offsetWidth;
+      btn.classList.add("casting");
+      setTimeout(() => btn.classList.remove("casting"), 500);
+    }
     return true;
   }
 
@@ -3667,18 +3786,19 @@ const QUESTIONS = {
         if (Math.hypot(m.x - p.x, m.y - p.y) < hitR) {
           damageMonster(m, p.dmg);
           if (p.kind === "spell") {
-            spawnParticles(p.x, p.y, p.element === "fire" ? 14 : 10, p.element === "water" ? "splash" : "spark");
+            const pow = Math.max(0, Math.min(1, p.power || 0));
+            spawnParticles(p.x, p.y, (p.element === "fire" ? 14 : 10) + Math.floor(pow * 8), p.element === "water" ? "splash" : "spark");
             if (p.element === "water") {
-              m.slowT = Math.max(m.slowT || 0, 1.4);
-              spawnFloatText(m.x, m.y - 0.4, "SLOW", "#90d0ff");
+              m.slowT = Math.max(m.slowT || 0, 1.4 + pow * 1.2);
+              spawnFloatText(m.x, m.y - 0.4, pow >= 0.98 ? "SOAK" : "SLOW", "#90d0ff");
             } else if (p.element === "air") {
               const ang = Math.atan2(m.y - state.player.y, m.x - state.player.x);
-              m.x += Math.cos(ang) * 0.85;
-              m.y += Math.sin(ang) * 0.85;
-              spawnFloatText(m.x, m.y - 0.4, "PUSH", "#d0e8ff");
+              m.x += Math.cos(ang) * (0.85 + pow * 0.9);
+              m.y += Math.sin(ang) * (0.85 + pow * 0.9);
+              spawnFloatText(m.x, m.y - 0.4, pow >= 0.98 ? "GALE" : "PUSH", "#d0e8ff");
             } else if (p.element === "fire") {
-              m.burnT = Math.max(m.burnT || 0, 1.6);
-              spawnFloatText(m.x, m.y - 0.4, "BURN", "#ff8040");
+              m.burnT = Math.max(m.burnT || 0, 1.6 + pow * 1.4);
+              spawnFloatText(m.x, m.y - 0.4, pow >= 0.98 ? "BLAZE" : "BURN", "#ff8040");
             }
           } else {
             spawnParticles(p.x, p.y, 6, "spark");
@@ -4084,6 +4204,7 @@ const QUESTIONS = {
     updateMining(dt);
     updateProjectiles(dt);
     updateAttackCharge(dt);
+    updateSpellCharge(dt);
     if (state.attackAnim > 0) state.attackAnim = Math.max(0, state.attackAnim - dt);
     if (state.drinkAnim > 0) {
       state.drinkAnim -= dt;
@@ -4662,10 +4783,12 @@ const QUESTIONS = {
   function drawSpellBolt(ax, ay, ang, p) {
     const sp = SPELLS[p.element] || SPELLS.fire;
     const spin = p.spin || 0;
+    const power = Math.max(0, Math.min(1, p.power || 0));
+    const big = 1 + power * 0.55;
     const flicker = 0.55 + Math.sin(state.animT * 20 + spin) * 0.25;
-    // soft glow halo
-    ctx.globalAlpha = 0.28 + flicker * 0.2;
-    pxRect(ax - 8, ay - 8, 16, 16, sp.glow);
+    // soft glow halo (bigger when charged)
+    ctx.globalAlpha = 0.28 + flicker * 0.2 + power * 0.12;
+    pxRect(ax - Math.floor(8 * big), ay - Math.floor(8 * big), Math.floor(16 * big), Math.floor(16 * big), sp.glow);
     ctx.globalAlpha = 1;
 
     if (p.element === "fire") {
@@ -4758,9 +4881,14 @@ const QUESTIONS = {
     pxRect(ppx - 3 + lookX, ppy - s * 0.3 + lookY + bob - sub - tipBack, 2, 2, "#0a0a0a");
     pxRect(ppx + 1 + lookX, ppy - s * 0.3 + lookY + bob - sub - tipBack, 2, 2, "#0a0a0a");
 
-    const casting = state.spellAnim > 0 && !!state.spellFlash;
-    const castT = casting ? Math.min(1, 1 - state.spellAnim / 0.55) : 0; // 0→1 through cast
-    const spellEl = casting ? state.spellFlash.element : null;
+    const spellCharging = !!(state.spellCharge && state.spellCharge.shown);
+    const casting = (state.spellAnim > 0 && !!state.spellFlash) || spellCharging;
+    const castT = spellCharging
+      ? Math.max(0.4, chargeRatio())
+      : (casting ? Math.min(1, 1 - state.spellAnim / 0.55) : 0); // 0→1 through cast
+    const spellEl = spellCharging
+      ? state.spellCharge.element
+      : (casting && state.spellFlash ? state.spellFlash.element : null);
     const spellCol = spellEl && SPELLS[spellEl] ? SPELLS[spellEl].color : "#d080ff";
     const spellGlow = spellEl && SPELLS[spellEl] ? SPELLS[spellEl].glow : "#f0d0ff";
 
@@ -4873,7 +5001,7 @@ const QUESTIONS = {
     }
 
     // BOW — held & drawn back while charging; otherwise on back / after shot
-    if (bow && !swim && !drinking && !(handItem && handItem.slot === "weapon") && !(showingPick && handItem && isMineTool(handItem))) {
+    if (bow && !swim && !drinking && !casting && !(handItem && handItem.slot === "weapon") && !(showingPick && handItem && isMineTool(handItem))) {
       const charging = isChargeBarVisible() && state.attackCharge?.kind === "bow";
       const ratio = charging ? chargeRatio() : 0;
       const drawBack = charging ? ratio : (state.attackAnim > 0 && !weapon ? 1 : 0);
@@ -4907,7 +5035,7 @@ const QUESTIONS = {
     // SWORD — held at rest, wind-up while charging, or swung in a clear arc
     const showingSword = weapon && !(handItem && (handItem.slot === "bow" || isMineTool(handItem)));
     const meleeCharging = isChargeBarVisible() && state.attackCharge?.kind === "melee";
-    if (showingSword && !swim && !drinking && !blocking) {
+    if (showingSword && !swim && !drinking && !blocking && !casting) {
       const swing = swingT;
       const wind = meleeCharging ? chargeRatio() : 0;
       const ang = face + (swing > 0
@@ -5137,25 +5265,26 @@ const QUESTIONS = {
     const ps = Math.max(8, tileSize * 0.55);
     drawPlayer(ppx, ppy, ps);
 
-    // Charge meter — only while holding past the tap window (bow or sword)
+    // Charge meter — only while holding past the tap window (bow / sword / spell)
     if (isChargeBarVisible()) {
       const ratio = chargeRatio();
-      const kind = state.attackCharge.kind;
+      const spellEl = state.spellCharge?.shown ? state.spellCharge.element : null;
+      const kind = spellEl ? "spell" : state.attackCharge?.kind;
       const bw = Math.floor(ps * 1.6);
       const bh = 5;
       const bx = ppx - Math.floor(bw / 2);
       const by = ppy + Math.floor(ps * 0.7);
       pxRect(bx - 1, by - 1, bw + 2, bh + 2, "#0a0a0a");
       pxRect(bx, by, bw, bh, "#2a2018");
-      const fillCol = ratio >= 1
-        ? "#ffe060"
-        : kind === "bow"
-          ? (ratio > 0.55 ? "#e0a040" : "#c07040")
-          : (ratio > 0.55 ? "#d0d8e8" : "#90a0b8");
+      let fillCol = "#90a0b8";
+      if (ratio >= 1) fillCol = "#ffe060";
+      else if (kind === "spell") fillCol = SPELLS[spellEl]?.color || "#d080ff";
+      else if (kind === "bow") fillCol = ratio > 0.55 ? "#e0a040" : "#c07040";
+      else fillCol = ratio > 0.55 ? "#d0d8e8" : "#90a0b8";
       pxRect(bx, by, Math.max(1, Math.floor(bw * ratio)), bh, fillCol);
       if (ratio >= 1) {
         ctx.globalAlpha = 0.45 + Math.sin(state.animT * 12) * 0.25;
-        pxRect(bx - 2, by - 2, bw + 4, bh + 4, "#ffe080");
+        pxRect(bx - 2, by - 2, bw + 4, bh + 4, kind === "spell" ? (SPELLS[spellEl]?.glow || "#ffe080") : "#ffe080");
         ctx.globalAlpha = 1;
       }
     }
@@ -5677,6 +5806,7 @@ const QUESTIONS = {
     state.blocking = false;
     state.blockFlash = 0;
     state.attackCharge = null;
+    state.spellCharge = null;
     state.mouseWorld = { x: 8.5, y: 8.5 };
     state.spellCd = 0;
     state.spellAnim = 0;
@@ -5705,7 +5835,7 @@ const QUESTIONS = {
     requestAnimationFrame(() => {
       resizeCanvas();
       draw();
-      showToast("Empty pack — loot gear. Equip a book for Z/X/C spells. HOLD F / 🛡 BLOCK with a shield.");
+      showToast("Empty pack — loot gear. Equip a book: tap Z/X/C or hold to charge spells. HOLD F / 🛡 BLOCK with a shield.");
       updateSessionTimerUI();
       updateBlockUI();
       updateSpellUI();
@@ -5896,22 +6026,25 @@ const QUESTIONS = {
     if (e.code === "KeyZ" || e.key === "z" || e.key === "Z") {
       if (!state.running || state.paused) return;
       if (modalIsOpen("quest-modal") || modalIsOpen("boss-modal") || modalIsOpen("result-modal") || modalIsOpen("inventory-modal") || modalIsOpen("settings-modal")) return;
+      if (e.repeat) return;
       e.preventDefault();
-      castSpell("fire");
+      startSpellCharge("fire");
       return;
     }
     if (e.code === "KeyX" || e.key === "x" || e.key === "X") {
       if (!state.running || state.paused) return;
       if (modalIsOpen("quest-modal") || modalIsOpen("boss-modal") || modalIsOpen("result-modal") || modalIsOpen("inventory-modal") || modalIsOpen("settings-modal")) return;
+      if (e.repeat) return;
       e.preventDefault();
-      castSpell("water");
+      startSpellCharge("water");
       return;
     }
     if (e.code === "KeyC" || e.key === "c" || e.key === "C") {
       if (!state.running || state.paused) return;
       if (modalIsOpen("quest-modal") || modalIsOpen("boss-modal") || modalIsOpen("result-modal") || modalIsOpen("inventory-modal") || modalIsOpen("settings-modal")) return;
+      if (e.repeat) return;
       e.preventDefault();
-      castSpell("air");
+      startSpellCharge("air");
       return;
     }
     if (e.code === "KeyF" || e.key === "f" || e.key === "F"
@@ -5999,6 +6132,11 @@ const QUESTIONS = {
     }
     if (e.code === "Space") {
       if (state.attackCharge) releaseAttackCharge();
+    }
+    if (e.code === "KeyZ" || e.key === "z" || e.key === "Z"
+      || e.code === "KeyX" || e.key === "x" || e.key === "X"
+      || e.code === "KeyC" || e.key === "c" || e.key === "C") {
+      if (state.spellCharge) releaseSpellCharge();
     }
     state.keys[e.key] = false;
   }
@@ -6212,10 +6350,18 @@ const QUESTIONS = {
   ["fire", "water", "air"].forEach((el) => {
     const btn = $(`btn-spell-${el}`);
     if (!btn) return;
-    btn.addEventListener("click", (e) => {
+    // Hold to charge spell · tap/quick release = normal cast
+    btn.addEventListener("pointerdown", (e) => {
       e.preventDefault();
-      castSpell(el);
+      try { btn.setPointerCapture(e.pointerId); } catch (_) {}
+      startSpellCharge(el);
     });
+    const release = (e) => {
+      e.preventDefault();
+      if (state.spellCharge && state.spellCharge.element === el) releaseSpellCharge();
+    };
+    btn.addEventListener("pointerup", release);
+    btn.addEventListener("pointercancel", release);
   });
   function bindBlockButton(el) {
     if (!el) return;
@@ -6238,6 +6384,7 @@ const QUESTIONS = {
     if (e.button === 2 && state.running && !state.paused) {
       e.preventDefault();
       cancelAttackCharge();
+      cancelSpellCharge();
       setBlocking(true);
     }
   });
@@ -6247,6 +6394,7 @@ const QUESTIONS = {
   });
   window.addEventListener("blur", () => {
     setBlocking(false);
+    cancelSpellCharge();
     cancelAttackCharge();
   });
   window.addEventListener("resize", () => { applyMobileVisibility(); if (state.running) resizeCanvas(); });
