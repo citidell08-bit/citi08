@@ -82,6 +82,32 @@
   font-size: 0.9rem;
 }
 
+.quest-streak-block {
+  display: grid;
+  justify-items: end;
+  gap: 0.1rem;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.quest-streak-block strong {
+  font-size: 1.65rem;
+  line-height: 1;
+  color: var(--ember);
+}
+
+.quest-streak-block span {
+  font-weight: 700;
+  color: var(--text);
+  font-size: 0.82rem;
+}
+
+.quest-streak-block em {
+  font-style: normal;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
 .quest-list {
   list-style: none;
   margin: 0;

@@ -15,7 +15,7 @@ interface Props {
 const PERIOD_ORDER: QuestPeriod[] = ['daily', 'weekly', 'monthly']
 
 const PERIOD_BLURB: Record<QuestPeriod, string> = {
-  daily: 'Quick goals for today. Fresh board every day at midnight.',
+  daily: 'Quick goals for today. Clear them all for a fresh board — also resets at midnight.',
   weekly: 'Bigger mid-tier goals. Fresh board every Monday.',
   monthly: 'Long-haul challenges. Fresh board on the 1st of each month.',
 }
@@ -73,8 +73,8 @@ export function Quests({ state }: Props) {
       <header>
         <h2 className="section-title">Quest boards</h2>
         <p className="section-sub">
-          Daily resets every day, weekly every week, monthly every month. Cleared quests stay
-          marked Complete until their board rolls over.
+          Finish every daily quest for a new set right away. Weekly and monthly boards wait for
+          their calendar reset. Study or play each day to grow your streak.
         </p>
       </header>
 
@@ -88,9 +88,15 @@ export function Quests({ state }: Props) {
             <strong>{formatResetCountdown(soonestMs)}</strong>
           </p>
         </div>
-        <span>
-          {state.coins} coins · Streak {state.streak}
-        </span>
+        <div className="quest-streak-block" aria-label={`Day streak ${state.streak}`}>
+          <strong>{state.streak}</strong>
+          <span>Day streak</span>
+          {state.longestStreak > 0 ? (
+            <em>Best {state.longestStreak}</em>
+          ) : (
+            <em>Play today to start</em>
+          )}
+        </div>
       </div>
 
       {PERIOD_ORDER.map((period) => {

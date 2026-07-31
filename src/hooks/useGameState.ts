@@ -50,7 +50,7 @@ export function useGameState() {
   useEffect(() => {
     const refresh = () => {
       startTransition(() => {
-        setState((prev) => refreshQuests(prev))
+        setState((prev) => refreshQuests(syncBrokenStreak(prev)))
       })
     }
     refresh()
@@ -118,19 +118,28 @@ export function useGameState() {
     return next
   }
 
+  /**
+   * Count a study day. Play today → streak 1; come back tomorrow → streak 2.
+   * Miss a day and the streak restarts at 1 on the next activity.
+   */
   function markActive(prev: GameState): GameState {
+    const synced = syncBrokenStreak(prev)
     const today = todayKey()
-    if (prev.lastActiveDate === today) return prev
+    if (synced.lastActiveDate === today) return synced
 
     let streak = 1
-    if (prev.lastActiveDate === yesterdayKey()) {
-      streak = prev.streak + 1
+    if (synced.lastActiveDate === yesterdayKey()) {
+      streak = synced.streak + 1
     }
 
+    queueMicrotask(() =>
+      pushToast(streak === 1 ? 'Day streak: 1 — come back tomorrow!' : `Day streak: ${streak}!`),
+    )
+
     return {
-      ...prev,
+      ...synced,
       streak,
-      longestStreak: Math.max(prev.longestStreak, streak),
+      longestStreak: Math.max(synced.longestStreak, streak),
       lastActiveDate: today,
     }
   }
@@ -166,26 +175,36 @@ export function useGameState() {
       )
     }
 
-    // Full board clear → achievements. Boards stay complete until the calendar period rolls.
+    const keys = { ...(next.questIssuedAt ?? freshQuestPeriodKeys()) }
+
+    // Full board clear → achievements. Daily board refreshes immediately; weekly/monthly wait for calendar.
     for (const period of PERIODS) {
       const inPeriod = quests.filter((q) => q.period === period)
       if (inPeriod.length === 0) continue
       if (!inPeriod.every((q) => q.completed)) continue
 
-      if (period === 'daily') next = unlock(next, 'quest_clear')
-      if (period === 'weekly') next = unlock(next, 'quest_week')
-      if (period === 'monthly') next = unlock(next, 'quest_month')
-
-      queueMicrotask(() =>
-        pushToast(
-          `${PERIOD_LABEL[period]} board complete — new set ${
-            period === 'daily' ? 'tomorrow' : period === 'weekly' ? 'next week' : 'next month'
-          }.`,
-        ),
-      )
+      if (period === 'daily') {
+        next = unlock(next, 'quest_clear')
+        quests = [
+          ...quests.filter((q) => q.period !== 'daily'),
+          ...generateQuestsForPeriod('daily'),
+        ]
+        keys.daily = currentKeyForPeriod('daily')
+        queueMicrotask(() => pushToast('Daily board complete — fresh quests ready!'))
+      } else {
+        if (period === 'weekly') next = unlock(next, 'quest_week')
+        if (period === 'monthly') next = unlock(next, 'quest_month')
+        queueMicrotask(() =>
+          pushToast(
+            `${PERIOD_LABEL[period]} board complete — new set ${
+              period === 'weekly' ? 'next week' : 'next month'
+            }.`,
+          ),
+        )
+      }
     }
 
-    return { ...next, quests }
+    return { ...next, quests, questIssuedAt: keys }
   }
 
   function bumpQuest(
@@ -450,6 +469,20 @@ export function useGameState() {
     renameCompanion,
     dismissLevelUp,
   }
+}
+
+/** Zero a broken streak if the player skipped a full calendar day. */
+export function syncBrokenStreak(state: GameState): GameState {
+  if (!state.lastActiveDate) {
+    return state.streak === 0 ? state : { ...state, streak: 0 }
+  }
+  const today = todayKey()
+  const yesterday = yesterdayKey()
+  if (state.lastActiveDate === today || state.lastActiveDate === yesterday) {
+    return state
+  }
+  if (state.streak === 0) return state
+  return { ...state, streak: 0 }
 }
 
 /** Roll boards when the calendar day / week / month changes (or if a board is missing). */

@@ -75,7 +75,7 @@ export function formatResetCountdown(ms: number): string {
 }
 
 export const PERIOD_RESET_HINT: Record<QuestPeriod, string> = {
-  daily: 'Resets every day at midnight',
+  daily: 'Resets when you clear all daily quests, and every day at midnight',
   weekly: 'Resets every week (Monday)',
   monthly: 'Resets every month',
 }

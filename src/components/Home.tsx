@@ -56,7 +56,7 @@ export function Home({ state, onNavigate, onRename }: Props) {
             <strong>{state.coins}</strong>
             <span>Coins</span>
           </div>
-          <div className="stat">
+          <div className="stat" title="Study or play each day to grow your streak">
             <strong>{state.streak}</strong>
             <span>Day streak</span>
           </div>
