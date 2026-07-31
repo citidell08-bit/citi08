@@ -15,7 +15,7 @@ interface Props {
 const PERIOD_ORDER: QuestPeriod[] = ['daily', 'weekly', 'monthly']
 
 const PERIOD_BLURB: Record<QuestPeriod, string> = {
-  daily: 'Quick goals. Clear the board to replay instantly — or wait for the 1 hour reset.',
+  daily: 'Quick goals. Finish one and it resets into a fresh daily after a short beat.',
   weekly: 'Bigger mid-tier goals. Finish them all to refresh, or let the hour timer roll.',
   monthly: 'Long-haul challenges. Clear the set or wait ~1 hour for a new board.',
 }
@@ -47,7 +47,11 @@ function QuestCard({ q }: { q: Quest }) {
           {Math.min(q.progress, q.target)}/{q.target}
         </span>
         <span className={q.completed ? 'quest-status-done' : ''}>
-          {q.completed ? '✓ Complete — saved' : 'In progress'}
+          {q.completed
+            ? q.period === 'daily'
+              ? '✓ Complete — resetting…'
+              : '✓ Complete — saved'
+            : 'In progress'}
         </span>
       </div>
     </li>
@@ -73,8 +77,8 @@ export function Quests({ state }: Props) {
       <header>
         <h2 className="section-title">Quest boards</h2>
         <p className="section-sub">
-          Cleared quests stay marked Complete (greyed out) and save to your progress. Finish a
-          whole board and it refreshes after a short beat — or wait about an hour.
+          Daily quests reset into new ones when you complete them. Weekly and monthly boards
+          refresh when you clear the whole set — or wait about an hour.
         </p>
       </header>
 

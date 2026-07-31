@@ -1,5 +1,5 @@
 import { startTransition, useEffect, useState } from 'react'
-import { generateQuestsForPeriod, PERIOD_LABEL } from '../data/quests'
+import { generateDailyQuest, generateQuestsForPeriod, PERIOD_LABEL } from '../data/quests'
 import { FREE_THEME, themeById, THEMES } from '../data/themes'
 import { COINS_PER_ACHIEVEMENT, coinsForLevelsGained, GAME_COSTS } from '../lib/coins'
 import { todayKey, uid, yesterdayKey } from '../lib/dates'
@@ -139,10 +139,12 @@ export function useGameState() {
     let next: GameState = { ...prev, quests }
     let bonusXp = 0
     let bonusCoins = 0
+    const justCompletedIds: string[] = []
 
     for (const q of quests) {
       if (!q.completed && q.progress >= q.target) {
         q.completed = true
+        justCompletedIds.push(q.id)
         bonusXp += q.xpReward
         bonusCoins += q.coinReward ?? 15
       }
@@ -165,7 +167,7 @@ export function useGameState() {
     const issuedAt = { ...next.questIssuedAt }
     const boardsToRefresh: QuestPeriod[] = []
 
-    // Keep completed quests visible (greyed out) briefly, then roll a fresh board
+    // Whole board clear → achievement + full refresh (weekly / monthly / lucky daily sweep)
     for (const period of PERIODS) {
       const inPeriod = quests.filter((q) => q.period === period)
       if (inPeriod.length === 0) continue
@@ -180,6 +182,14 @@ export function useGameState() {
         pushToast(`${PERIOD_LABEL[period]} board complete — refreshing soon…`),
       )
     }
+
+    // Daily quests: each completed quest resets into a new one after a short beat
+    const dailyToReplace = justCompletedIds.filter((id) => {
+      const q = quests.find((item) => item.id === id)
+      return q?.period === 'daily'
+    })
+    const replaceIndividuals =
+      dailyToReplace.length > 0 && !boardsToRefresh.includes('daily')
 
     next = { ...next, quests, questIssuedAt: issuedAt }
 
@@ -201,7 +211,39 @@ export function useGameState() {
           queueMicrotask(() => pushToast('Fresh quest board ready!'))
           return persist({ ...prev, quests: list, questIssuedAt: stamps })
         })
-      }, 4500)
+      }, 2800)
+    }
+
+    if (replaceIndividuals) {
+      queueMicrotask(() =>
+        pushToast('Daily quest complete — new one incoming…'),
+      )
+      window.setTimeout(() => {
+        setState((prev) => {
+          let list = [...prev.quests]
+          let changed = false
+          for (const id of dailyToReplace) {
+            const idx = list.findIndex(
+              (q) => q.id === id && q.period === 'daily' && q.completed,
+            )
+            if (idx === -1) continue
+            const busyTypes = new Set(
+              list
+                .filter((q) => q.period === 'daily' && q.id !== id && !q.completed)
+                .map((q) => q.type),
+            )
+            list[idx] = generateDailyQuest(busyTypes)
+            changed = true
+          }
+          if (!changed) return prev
+          queueMicrotask(() => pushToast('New daily quest ready!'))
+          return persist({
+            ...prev,
+            quests: list,
+            questIssuedAt: { ...prev.questIssuedAt, daily: Date.now() },
+          })
+        })
+      }, 2200)
     }
 
     return next
