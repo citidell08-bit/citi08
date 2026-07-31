@@ -3617,16 +3617,23 @@ const QUESTIONS = {
     const dmg = spellDamageForBook(book);
     const spd = element === "air" ? 12 : element === "fire" ? 9 : 8;
     const life = element === "air" ? 0.85 : 1.05;
-    state.spellCd = element === "air" ? 0.55 : 0.75;
-    state.spellAnim = 0.28;
-    state.spellFlash = { element, t: 0.22 };
+    state.spellCd = element === "air" ? 0.7 : 0.85;
+    // Cast pose: raise book → glow → release bolt
+    state.spellAnim = 0.55;
+    state.spellFlash = { element, t: 0.55 };
+    const ox = Math.cos(state.player.facing) * 0.45;
+    const oy = Math.sin(state.player.facing) * 0.45;
     state.projectiles.push({
-      x: state.player.x, y: state.player.y,
+      x: state.player.x + ox, y: state.player.y + oy,
       vx: (dx / dist) * spd, vy: (dy / dist) * spd,
       life, dmg, kind: "spell", element,
       rarity: book.rarity,
+      spin: Math.random() * Math.PI * 2,
+      born: state.animT,
     });
-    spawnParticles(state.player.x, state.player.y, 8, element === "water" ? "splash" : "spark");
+    const pKind = element === "water" ? "splash" : element === "air" ? "air" : "fire";
+    spawnParticles(state.player.x, state.player.y, 14, pKind);
+    spawnParticles(state.player.x + ox, state.player.y + oy, 8, "magic");
     spawnFloatText(state.player.x, state.player.y - 0.6, spell.name.toUpperCase(), spell.color);
     try { SFX.spellCast(element); } catch (_) {}
     showToast(`${spell.icon} ${spell.name} · ${book.rarity} (${dmg} dmg)`);
@@ -3648,8 +3655,12 @@ const QUESTIONS = {
         return false;
       }
       // Spell trail
-      if (p.kind === "spell" && Math.random() < 0.35) {
-        spawnParticles(p.x, p.y, 1, p.element === "water" ? "splash" : "spark");
+      if (p.kind === "spell") {
+        p.spin = (p.spin || 0) + dt * (p.element === "air" ? 14 : 9);
+        if (Math.random() < 0.55) {
+          const trail = p.element === "water" ? "splash" : p.element === "air" ? "air" : "fire";
+          spawnParticles(p.x, p.y, 1, trail);
+        }
       }
       const hitR = p.kind === "spell" ? (p.element === "fire" ? 0.65 : 0.5) : 0.45;
       for (const m of iterCombatMobs()) {
@@ -3875,6 +3886,24 @@ const QUESTIONS = {
         vx = (Math.random() - 0.5) * 1.4;
         vy = -0.8 - Math.random() * 1.2;
         life = 0.55 + Math.random() * 0.45;
+        size = 2 + Math.floor(Math.random() * 2);
+      } else if (kind === "fire") {
+        color = Math.random() > 0.4 ? "#ff6020" : (Math.random() > 0.5 ? "#ffe060" : "#ff9040");
+        vx = (Math.random() - 0.5) * 1.8;
+        vy = -0.6 - Math.random() * 1.4;
+        life = 0.3 + Math.random() * 0.4;
+        size = 2 + Math.floor(Math.random() * 3);
+      } else if (kind === "air") {
+        color = Math.random() > 0.5 ? "#e8f4ff" : "#a0c8e8";
+        vx = (Math.random() - 0.5) * 2.8;
+        vy = (Math.random() - 0.5) * 2.2;
+        life = 0.25 + Math.random() * 0.3;
+        size = 2;
+      } else if (kind === "magic") {
+        color = Math.random() > 0.5 ? "#d080ff" : "#80e0ff";
+        vx = (Math.random() - 0.5) * 2.2;
+        vy = -0.5 - Math.random() * 1.6;
+        life = 0.45 + Math.random() * 0.4;
         size = 2 + Math.floor(Math.random() * 2);
       } else {
         color = Math.random() > 0.5 ? "#f0c96a" : "#e06a55";
@@ -4630,6 +4659,57 @@ const QUESTIONS = {
     pxRect(ox - 2, oy + rh - 1, rw + 4, 2, "rgba(0,0,0,0.4)");
   }
 
+  function drawSpellBolt(ax, ay, ang, p) {
+    const sp = SPELLS[p.element] || SPELLS.fire;
+    const spin = p.spin || 0;
+    const flicker = 0.55 + Math.sin(state.animT * 20 + spin) * 0.25;
+    // soft glow halo
+    ctx.globalAlpha = 0.28 + flicker * 0.2;
+    pxRect(ax - 8, ay - 8, 16, 16, sp.glow);
+    ctx.globalAlpha = 1;
+
+    if (p.element === "fire") {
+      // flickering flame diamond
+      const hop = Math.sin(spin * 2) * 2;
+      outlineRect(ax - 3, ay - 5 + hop, 7, 9, sp.color);
+      pxRect(ax - 1, ay - 3 + hop, 3, 6, sp.glow);
+      pxRect(ax, ay - 7 + hop, 2, 3, "#fff0a0");
+      // embers
+      for (let i = 0; i < 3; i++) {
+        const a = spin + i * 2.1;
+        pxRect(ax + Math.cos(a) * 6 - 1, ay + Math.sin(a) * 5 - 1, 2, 2, i % 2 ? "#ff9040" : "#ffe060");
+      }
+    } else if (p.element === "water") {
+      // droplet + ripple rings
+      outlineRect(ax - 3, ay - 4, 6, 8, sp.color);
+      pxRect(ax - 1, ay - 2, 3, 5, sp.glow);
+      pxRect(ax, ay - 5, 2, 2, "#ffffff");
+      const r = 4 + (Math.sin(spin * 3) * 0.5 + 0.5) * 5;
+      ctx.globalAlpha = 0.35;
+      outlineRect(ax - r / 2, ay - r / 2, r, r, sp.glow);
+      ctx.globalAlpha = 0.2;
+      outlineRect(ax - r * 0.8, ay - r * 0.8, r * 1.6, r * 1.6, sp.color);
+      ctx.globalAlpha = 1;
+    } else {
+      // air crescent / swirl
+      for (let i = 0; i < 5; i++) {
+        const a = ang + spin + i * 0.45;
+        const rr = 3 + i;
+        pxRect(ax + Math.cos(a) * rr - 1, ay + Math.sin(a) * rr - 1, 3, 2, i % 2 ? sp.glow : sp.color);
+      }
+      outlineRect(ax - 2, ay - 2, 5, 5, "#ffffff");
+      ctx.globalAlpha = 0.4;
+      pxRect(ax - 6, ay - 6, 12, 12, sp.glow);
+      ctx.globalAlpha = 1;
+    }
+
+    // motion streak opposite velocity
+    ctx.globalAlpha = 0.4;
+    pxRect(ax - Math.cos(ang) * 8 - 1, ay - Math.sin(ang) * 8 - 1, 3, 3, sp.color);
+    pxRect(ax - Math.cos(ang) * 12 - 1, ay - Math.sin(ang) * 12 - 1, 2, 2, sp.glow);
+    ctx.globalAlpha = 1;
+  }
+
   function drawPlayer(ppx, ppy, ps) {
     const armor = state.equipped.armor;
     const weapon = getCombatWeapon();
@@ -4678,12 +4758,57 @@ const QUESTIONS = {
     pxRect(ppx - 3 + lookX, ppy - s * 0.3 + lookY + bob - sub - tipBack, 2, 2, "#0a0a0a");
     pxRect(ppx + 1 + lookX, ppy - s * 0.3 + lookY + bob - sub - tipBack, 2, 2, "#0a0a0a");
 
+    const casting = state.spellAnim > 0 && !!state.spellFlash;
+    const castT = casting ? Math.min(1, 1 - state.spellAnim / 0.55) : 0; // 0→1 through cast
+    const spellEl = casting ? state.spellFlash.element : null;
+    const spellCol = spellEl && SPELLS[spellEl] ? SPELLS[spellEl].color : "#d080ff";
+    const spellGlow = spellEl && SPELLS[spellEl] ? SPELLS[spellEl].glow : "#f0d0ff";
+
+    // BOOK — at hip when idle; raised & opened while casting spells
     if (book && !swim && !drinking && !blocking) {
-      outlineRect(ppx - right * (s * 0.55) - 2, ppy - s * 0.05 + bob, 6, 8, "#e06040");
+      if (casting) {
+        const raise = Math.min(1, castT * 2.2);
+        const open = Math.max(0, Math.min(1, (castT - 0.15) / 0.35));
+        const release = castT > 0.45 ? Math.min(1, (castT - 0.45) / 0.35) : 0;
+        const bx = ppx + Math.cos(face) * (s * (0.15 + raise * 0.2)) + right * 2;
+        const by = ppy - s * (0.05 + raise * 0.55) + bob - sub;
+        // casting arm
+        outlineRect(ppx + right * (s * 0.22), ppy - s * 0.02 + bob - raise * s * 0.35, 3, s * 0.32, "#f0c090");
+        // open book (two pages)
+        outlineRect(bx - 5 - open * 2, by - 2, 6, 9, "#e8d0a0");
+        outlineRect(bx + open * 2, by - 2, 6, 9, "#f0e0b8");
+        outlineRect(bx - 1, by - 1, 3, 8, "#8a5030"); // spine
+        pxRect(bx - 3 - open, by, 3, 2, "#c06040");
+        pxRect(bx + 2 + open, by + 2, 3, 2, "#c06040");
+        // elemental aura around caster
+        const pulse = 0.25 + Math.sin(state.animT * 18) * 0.12 + release * 0.2;
+        ctx.globalAlpha = pulse;
+        pxRect(ppx - s * 0.7, ppy - s * 0.75 + bob - sub, s * 1.4, s * 1.4, spellCol);
+        ctx.globalAlpha = pulse * 0.7;
+        pxRect(ppx - s * 0.4, ppy - s * 0.5 + bob - sub, s * 0.8, s * 0.9, spellGlow);
+        ctx.globalAlpha = 1;
+        // rune ring
+        for (let i = 0; i < 8; i++) {
+          const a = state.animT * 6 + i * (Math.PI / 4);
+          const rr = s * (0.55 + raise * 0.15);
+          pxRect(ppx + Math.cos(a) * rr - 1, ppy - s * 0.1 + bob + Math.sin(a) * rr * 0.55 - 1, 2, 2, spellGlow);
+        }
+        // release burst from book
+        if (release > 0.1) {
+          const fx = bx + Math.cos(face) * (4 + release * 8);
+          const fy = by + Math.sin(face) * (3 + release * 6);
+          ctx.globalAlpha = 0.55 * (1 - release * 0.3);
+          pxRect(fx - 4, fy - 4, 8, 8, spellGlow);
+          outlineRect(fx - 2, fy - 2, 5, 5, spellCol);
+          ctx.globalAlpha = 1;
+        }
+      } else {
+        outlineRect(ppx - right * (s * 0.55) - 2, ppy - s * 0.05 + bob, 6, 8, "#e06040");
+      }
     }
 
     // SHIELD — always visible when equipped; raised in front while blocking
-    if (blockArmor && !swim && !drinking) {
+    if (blockArmor && !swim && !drinking && !casting) {
       if (blocking) {
         const sx = ppx + Math.cos(face) * (s * 0.55);
         const sy = ppy + Math.sin(face) * (s * 0.22) + bob - sub - 4;
@@ -4735,7 +4860,7 @@ const QUESTIONS = {
     // PICKAXE — held when selected / equipped; swings while mining
     const handItem = getHandItem();
     const showingPick = tool && isMineTool(tool) && (!weapon || (handItem && isMineTool(handItem))) && !(handItem && handItem.slot === "bow");
-    if (showingPick && !swim && !drinking && !blocking) {
+    if (showingPick && !swim && !drinking && !blocking && !casting) {
       const mining = state.mineAnim > 0;
       const ang = face + (mining ? mineT * 1.1 : 0.55 * right);
       const reach = s * (0.55 + (mining ? Math.abs(mineT) * 0.25 : 0));
@@ -4990,19 +5115,13 @@ const QUESTIONS = {
       ctx.textAlign = "left";
     }
 
-    // Projectiles (arrows + spells)
+    // Projectiles (arrows + animated spell bolts)
     for (const p of state.projectiles) {
       const ax = Math.floor((p.x - camX) * tileSize + w / 2);
       const ay = Math.floor((p.y - camY) * tileSize + h / 2);
       const ang = Math.atan2(p.vy, p.vx);
-      if (p.kind === "spell") {
-        const sp = SPELLS[p.element] || SPELLS.fire;
-        ctx.globalAlpha = 0.35;
-        pxRect(ax - 5, ay - 5, 10, 10, sp.glow);
-        ctx.globalAlpha = 1;
-        outlineRect(ax - 3, ay - 3, 7, 7, sp.color);
-        pxRect(ax + Math.cos(ang) * 3, ay + Math.sin(ang) * 3, 3, 3, sp.glow);
-      } else {
+      if (p.kind === "spell") drawSpellBolt(ax, ay, ang, p);
+      else {
         const hot = !!p.charged;
         outlineRect(ax - 1, ay - 1, hot ? 9 : 6, 2, hot ? "#ffe060" : "#e8d0a0");
         pxRect(ax + Math.cos(ang) * 4, ay + Math.sin(ang) * 2, 3, 2, hot ? "#fff0a0" : "#c0c8d0");

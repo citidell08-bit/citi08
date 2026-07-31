@@ -1716,6 +1716,16 @@ select {
 .spell-water { border-color: #5090e0; background: rgba(18, 36, 70, 0.95); }
 .spell-air { border-color: #c0d8f0; background: rgba(36, 48, 64, 0.95); }
 
+.spell-btn.casting {
+  animation: spellCastPulse 0.45s ease-out;
+}
+
+@keyframes spellCastPulse {
+  0% { transform: scale(1); box-shadow: 0 0 0 rgba(255, 255, 255, 0); }
+  40% { transform: scale(1.18); box-shadow: 0 0 16px rgba(220, 180, 255, 0.7); }
+  100% { transform: scale(1); box-shadow: 0 0 0 rgba(255, 255, 255, 0); }
+}
+
 @media (max-width: 720px) {
   .spell-bar {
     bottom: calc(var(--hotbar-h, 64px) + 70px);
