@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { isRestartKey } from '../../lib/gameInput'
 import type { MiniGameResult } from '../../types'
 import { GameTimer } from './GameTimer'
 
@@ -39,8 +40,12 @@ export function MathGame({ onFinish, onBack }: Props) {
   const streakRef = useRef(0)
   const reportedRef = useRef(false)
   const feedbackTimerRef = useRef<number | null>(null)
+  const finishedRef = useRef(false)
+  const inputRef = useRef<HTMLInputElement | null>(null)
   const onFinishRef = useRef(onFinish)
+  const playAgainRef = useRef<() => void>(() => {})
   onFinishRef.current = onFinish
+  finishedRef.current = finished
 
   useEffect(() => {
     return () => {
@@ -89,7 +94,22 @@ export function MathGame({ onFinish, onBack }: Props) {
     setFinished(false)
     setSeconds(DURATION)
     setRunning(true)
+    queueMicrotask(() => inputRef.current?.focus())
   }
+
+  playAgainRef.current = playAgain
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.repeat || !finishedRef.current) return
+      if (isRestartKey(e.code)) {
+        e.preventDefault()
+        playAgainRef.current()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   function submit(e: FormEvent) {
     e.preventDefault()
@@ -117,7 +137,8 @@ export function MathGame({ onFinish, onBack }: Props) {
     feedbackTimerRef.current = window.setTimeout(() => {
       feedbackTimerRef.current = null
       setFeedback(null)
-    }, 280)
+    }, 200)
+    inputRef.current?.focus()
   }
 
   return (
@@ -135,7 +156,9 @@ export function MathGame({ onFinish, onBack }: Props) {
       <div className="play-header">
         <div>
           <h2 className="section-title">Quick Sum</h2>
-          <p className="section-sub">Solve as many as you can before time runs out.</p>
+          <p className="section-sub">
+            Type numbers and press Enter. When time is up, Space / Enter starts another round.
+          </p>
         </div>
         <div className="hud-row">
           <div className="dash-score-badge" aria-live="polite">
@@ -154,6 +177,7 @@ export function MathGame({ onFinish, onBack }: Props) {
             </div>
             <form onSubmit={submit} className="math-form">
               <input
+                ref={inputRef}
                 className="field"
                 inputMode="numeric"
                 autoFocus
@@ -166,15 +190,23 @@ export function MathGame({ onFinish, onBack }: Props) {
                 Go
               </button>
             </form>
-            <p className="play-hint">Timer is live — type fast and hit Go.</p>
+            <p className="play-hint">Numbers + Enter to submit instantly.</p>
           </>
         ) : (
-          <div className="mini-end overlay-end">
+          <div
+            className="mini-end overlay-end"
+            onPointerDown={(e) => {
+              if ((e.target as HTMLElement).closest('button')) return
+              playAgain()
+            }}
+          >
             <p>
               You scored <strong>{score}</strong>
               {score >= 8 ? ' — solid round!' : '.'}
             </p>
-            <p className="section-sub memory-again-hint">Play again for a new random problem set.</p>
+            <p className="section-sub memory-again-hint">
+              Click here or press Space / Enter / R for a new random set.
+            </p>
             <div className="dash-end-actions">
               <button type="button" className="btn btn-ember" onClick={playAgain}>
                 Play again

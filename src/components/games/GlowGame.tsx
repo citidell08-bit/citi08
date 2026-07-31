@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { cellFromKey, isRestartKey } from '../../lib/gameInput'
 import type { MiniGameResult } from '../../types'
 import { GameTimer } from './GameTimer'
 
@@ -28,12 +29,17 @@ export function GlowGame({ onFinish, onBack }: Props) {
   const reportedRef = useRef(false)
   const roundRef = useRef(0)
   const finishedRef = useRef(false)
+  const runningRef = useRef(true)
+  const activeRef = useRef<number | null>(null)
   const onFinishRef = useRef(onFinish)
   const spawnRef = useRef<(nextRound: number) => void>(() => {})
   const playAgainRef = useRef<() => void>(() => {})
+  const tapRef = useRef<(index: number) => void>(() => {})
 
   onFinishRef.current = onFinish
   finishedRef.current = finished
+  runningRef.current = running
+  activeRef.current = active
 
   function clearTimer() {
     if (timerRef.current) {
@@ -92,11 +98,11 @@ export function GlowGame({ onFinish, onBack }: Props) {
     clearTimer()
     clearTick()
 
-    const startedAt = Date.now()
+    const startedAt = performance.now()
     tickRef.current = window.setInterval(() => {
-      const left = Math.max(0, windowMs - (Date.now() - startedAt))
+      const left = Math.max(0, windowMs - (performance.now() - startedAt))
       setWindowLeft(Math.ceil(left / 1000))
-    }, 100)
+    }, 200)
 
     timerRef.current = window.setTimeout(() => {
       clearTick()
@@ -106,7 +112,7 @@ export function GlowGame({ onFinish, onBack }: Props) {
       missTimerRef.current = window.setTimeout(() => {
         missTimerRef.current = null
         setMissFlash(false)
-      }, 180)
+      }, 140)
       spawnRef.current(nextRound + 1)
     }, windowMs)
   }
@@ -129,7 +135,31 @@ export function GlowGame({ onFinish, onBack }: Props) {
     spawnRef.current(1)
   }
 
+  function tap(index: number) {
+    if (finishedRef.current) {
+      playAgain()
+      return
+    }
+    if (!runningRef.current || activeRef.current == null) return
+    if (index === activeRef.current) {
+      clearTimer()
+      clearTick()
+      scoreRef.current += 1
+      setScore(scoreRef.current)
+      setActive(null)
+      spawnRef.current(roundRef.current + 1)
+    } else {
+      setMissFlash(true)
+      clearMiss()
+      missTimerRef.current = window.setTimeout(() => {
+        missTimerRef.current = null
+        setMissFlash(false)
+      }, 140)
+    }
+  }
+
   playAgainRef.current = playAgain
+  tapRef.current = tap
 
   useEffect(() => {
     spawnRef.current(1)
@@ -142,10 +172,18 @@ export function GlowGame({ onFinish, onBack }: Props) {
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (!finishedRef.current) return
-      if (e.code === 'Space' || e.code === 'Enter') {
+      if (e.repeat) return
+      if (finishedRef.current) {
+        if (isRestartKey(e.code)) {
+          e.preventDefault()
+          playAgainRef.current()
+        }
+        return
+      }
+      const cell = cellFromKey(e.code)
+      if (cell != null) {
         e.preventDefault()
-        playAgainRef.current()
+        tapRef.current(cell)
       }
     }
     window.addEventListener('keydown', onKey)
@@ -164,30 +202,6 @@ export function GlowGame({ onFinish, onBack }: Props) {
     const id = window.setTimeout(() => setSeconds((s) => s - 1), 1000)
     return () => window.clearTimeout(id)
   }, [running, seconds, finished])
-
-  function tap(index: number) {
-    // After fail/finish, any board tap starts a new random round
-    if (finished) {
-      playAgain()
-      return
-    }
-    if (!running || active == null) return
-    if (index === active) {
-      clearTimer()
-      clearTick()
-      scoreRef.current += 1
-      setScore(scoreRef.current)
-      setActive(null)
-      spawnRef.current(roundRef.current + 1)
-    } else {
-      setMissFlash(true)
-      clearMiss()
-      missTimerRef.current = window.setTimeout(() => {
-        missTimerRef.current = null
-        setMissFlash(false)
-      }, 180)
-    }
-  }
 
   return (
     <div className="mini-game play-stage">
@@ -208,7 +222,7 @@ export function GlowGame({ onFinish, onBack }: Props) {
         <div>
           <h2 className="section-title">Glow Catch</h2>
           <p className="section-sub">
-            Tap the lit cell before it fades. When the round ends, tap the board to go again.
+            Click or press 1–9 for the lit cell. When the round ends, click / Space to go again.
           </p>
         </div>
         <div className="hud-row">
@@ -222,19 +236,17 @@ export function GlowGame({ onFinish, onBack }: Props) {
 
       <div
         className={`panel glow-panel play-board ${missFlash ? 'miss' : ''} ${finished ? 'glow-ended' : ''}`}
-        onClick={finished ? () => playAgain() : undefined}
-        role={finished ? 'button' : undefined}
-        tabIndex={finished ? 0 : undefined}
-        onKeyDown={
+        onPointerDown={
           finished
             ? (e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault()
-                  playAgain()
-                }
+                if ((e.target as HTMLElement).closest('button.btn')) return
+                e.preventDefault()
+                playAgain()
               }
             : undefined
         }
+        role={finished ? 'button' : undefined}
+        tabIndex={finished ? 0 : undefined}
         aria-label={finished ? 'Round over — tap to play again' : undefined}
       >
         <div className="glow-grid" aria-label="Glow catch board">
@@ -243,7 +255,8 @@ export function GlowGame({ onFinish, onBack }: Props) {
               key={i}
               type="button"
               className={`glow-cell ${active === i ? 'lit' : ''} ${finished ? 'restartable' : ''}`}
-              onClick={(e) => {
+              onPointerDown={(e) => {
+                e.preventDefault()
                 e.stopPropagation()
                 tap(i)
               }}
@@ -251,7 +264,7 @@ export function GlowGame({ onFinish, onBack }: Props) {
                 finished
                   ? 'Tap to play again'
                   : active === i
-                    ? 'Glowing target — tap now'
+                    ? `Glowing target cell ${i + 1} — tap or press ${i + 1}`
                     : `Cell ${i + 1}`
               }
             />
@@ -265,12 +278,15 @@ export function GlowGame({ onFinish, onBack }: Props) {
               {score >= 7 ? ' — sharp!' : '.'}
             </p>
             <p className="section-sub memory-again-hint">
-              Tap the board (or press Space) for a fresh random round.
+              Click the board or press Space / Enter / R for a fresh round.
             </p>
             <div className="dash-end-actions">
               <button
                 type="button"
                 className="btn btn-ember"
+                onPointerDown={(e) => {
+                  e.stopPropagation()
+                }}
                 onClick={(e) => {
                   e.stopPropagation()
                   playAgain()
@@ -281,6 +297,7 @@ export function GlowGame({ onFinish, onBack }: Props) {
               <button
                 type="button"
                 className="btn btn-ghost"
+                onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => {
                   e.stopPropagation()
                   onBack()

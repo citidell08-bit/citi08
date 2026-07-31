@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { isRestartKey } from '../../lib/gameInput'
 import type { MiniGameResult } from '../../types'
 import { GameTimer } from './GameTimer'
 
@@ -28,6 +29,7 @@ const SYMBOL_POOL = [
 
 const PAIR_COUNT = 8
 const DURATION = 60
+const FLIP_REVEAL_MS = 300
 
 interface Tile {
   id: string
@@ -49,7 +51,6 @@ function shuffle<T>(arr: T[]): T[] {
   return a
 }
 
-/** Unique symbols from the pool, then shuffled into a fresh board. */
 function pickSymbols(count: number): string[] {
   const unique = [...new Set(SYMBOL_POOL)]
   return shuffle(unique).slice(0, count)
@@ -73,11 +74,27 @@ export function MemoryGame({ onFinish, onBack }: Props) {
   const [done, setDone] = useState(false)
   const [seconds, setSeconds] = useState(DURATION)
   const [running, setRunning] = useState(true)
+  const [focusIndex, setFocusIndex] = useState(0)
   const reportedRef = useRef(false)
   const movesRef = useRef(0)
   const flipTimerRef = useRef<number | null>(null)
+  const doneRef = useRef(false)
+  const lockRef = useRef(false)
+  const flippedRef = useRef<number[]>([])
+  const tilesRef = useRef(tiles)
+  const runningRef = useRef(true)
+  const focusRef = useRef(0)
   const onFinishRef = useRef(onFinish)
+  const playAgainRef = useRef<() => void>(() => {})
+  const flipRef = useRef<(index: number) => void>(() => {})
+
   onFinishRef.current = onFinish
+  doneRef.current = done
+  lockRef.current = lock
+  flippedRef.current = flipped
+  tilesRef.current = tiles
+  runningRef.current = running
+  focusRef.current = focusIndex
 
   const matchedCount = useMemo(() => tiles.filter((t) => t.matched).length, [tiles])
   const won = done && matchedCount === tiles.length
@@ -142,13 +159,25 @@ export function MemoryGame({ onFinish, onBack }: Props) {
     setDone(false)
     setSeconds(DURATION)
     setRunning(true)
+    setFocusIndex(0)
   }
 
   function flip(index: number) {
-    if (!running || lock || done || tiles[index].matched || flipped.includes(index)) return
+    const currentTiles = tilesRef.current
+    if (
+      !runningRef.current ||
+      lockRef.current ||
+      doneRef.current ||
+      currentTiles[index]?.matched ||
+      flippedRef.current.includes(index)
+    ) {
+      return
+    }
 
-    const nextFlipped = [...flipped, index]
+    const nextFlipped = [...flippedRef.current, index]
+    flippedRef.current = nextFlipped
     setFlipped(nextFlipped)
+    setFocusIndex(index)
 
     if (nextFlipped.length < 2) return
 
@@ -156,8 +185,9 @@ export function MemoryGame({ onFinish, onBack }: Props) {
     movesRef.current = nextMoves
     setMoves(nextMoves)
     setLock(true)
+    lockRef.current = true
     const [a, b] = nextFlipped
-    const match = tiles[a].symbol === tiles[b].symbol
+    const match = currentTiles[a].symbol === currentTiles[b].symbol
 
     flipTimerRef.current = window.setTimeout(() => {
       flipTimerRef.current = null
@@ -174,10 +204,58 @@ export function MemoryGame({ onFinish, onBack }: Props) {
           queueMicrotask(() => finishWin(nextMoves))
         }
       }
+      flippedRef.current = []
       setFlipped([])
+      lockRef.current = false
       setLock(false)
-    }, 480)
+    }, FLIP_REVEAL_MS)
   }
+
+  playAgainRef.current = playAgain
+  flipRef.current = flip
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.repeat) return
+      if (doneRef.current) {
+        if (isRestartKey(e.code)) {
+          e.preventDefault()
+          playAgainRef.current()
+        }
+        return
+      }
+      if (!runningRef.current) return
+
+      const cols = 4
+      const total = PAIR_COUNT * 2
+      if (e.code === 'ArrowRight') {
+        e.preventDefault()
+        setFocusIndex((i) => (i + 1) % total)
+        return
+      }
+      if (e.code === 'ArrowLeft') {
+        e.preventDefault()
+        setFocusIndex((i) => (i - 1 + total) % total)
+        return
+      }
+      if (e.code === 'ArrowDown') {
+        e.preventDefault()
+        setFocusIndex((i) => (i + cols) % total)
+        return
+      }
+      if (e.code === 'ArrowUp') {
+        e.preventDefault()
+        setFocusIndex((i) => (i - cols + total) % total)
+        return
+      }
+      if (e.code === 'Enter' || e.code === 'Space') {
+        e.preventDefault()
+        flipRef.current(focusRef.current)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   return (
     <div className="mini-game play-stage">
@@ -198,7 +276,9 @@ export function MemoryGame({ onFinish, onBack }: Props) {
       <div className="play-header">
         <div>
           <h2 className="section-title">Memory Nest</h2>
-          <p className="section-sub">Match every pair before the timer hits zero.</p>
+          <p className="section-sub">
+            Click tiles or use arrows + Space/Enter. When done, Space restarts a random board.
+          </p>
         </div>
         <div className="hud-row">
           <div className="dash-score-badge" aria-live="polite">
@@ -217,10 +297,17 @@ export function MemoryGame({ onFinish, onBack }: Props) {
               <button
                 key={tile.id}
                 type="button"
-                className={`memory-tile ${open ? 'open' : ''} ${tile.matched ? 'matched' : ''}`}
-                onClick={() => flip(index)}
+                className={`memory-tile ${open ? 'open' : ''} ${tile.matched ? 'matched' : ''} ${focusIndex === index ? 'focused' : ''}`}
+                onPointerDown={(e) => {
+                  e.preventDefault()
+                  if (done) {
+                    playAgain()
+                    return
+                  }
+                  flip(index)
+                }}
                 aria-label={open ? `Tile ${tile.symbol}` : 'Hidden tile'}
-                disabled={(lock && !open) || done}
+                disabled={!done && lock && !open}
               >
                 <span>{open ? tile.symbol : '?'}</span>
               </button>
@@ -236,7 +323,7 @@ export function MemoryGame({ onFinish, onBack }: Props) {
                 : 'Time is up — try a new random board.'}
             </p>
             <p className="section-sub memory-again-hint">
-              Restart anytime for a fresh random layout and icons.
+              Click a tile or press Space / Enter / R for a fresh random board.
             </p>
             <div className="dash-end-actions">
               <button type="button" className="btn btn-ember" onClick={playAgain}>

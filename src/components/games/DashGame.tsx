@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { isJumpKey } from '../../lib/gameInput'
 import type { MiniGameResult } from '../../types'
 import './DashGame.css'
 
@@ -33,15 +34,22 @@ const PLAYER_X = 110
 const GRAVITY = 0.86
 const JUMP_V = -9.45
 const WIN_SCORE = 120
+/** Remember jump presses briefly so clicks feel instant even mid-air. */
+const JUMP_BUFFER_MS = 140
+/** Allow a jump for a short time after leaving a surface. */
+const COYOTE_MS = 90
+const SCORE_UI_MS = 80
 
 export function DashGame({ onFinish, onBack }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const boardRef = useRef<HTMLDivElement | null>(null)
   const [score, setScore] = useState(0)
   const [alive, setAlive] = useState(true)
   const [finalScore, setFinalScore] = useState<number | null>(null)
   const reportedRef = useRef(false)
   const onFinishRef = useRef(onFinish)
   const lastScoreRef = useRef(0)
+  const lastScoreUiRef = useRef(0)
   const restartRef = useRef<() => void>(() => {})
   onFinishRef.current = onFinish
 
@@ -49,6 +57,8 @@ export function DashGame({ onFinish, onBack }: Props) {
     y: H - GROUND - PLAYER_SIZE,
     vy: 0,
     onGround: true,
+    groundedUntil: 0,
+    jumpBufferedUntil: 0,
     speed: 5.8,
     distance: 0,
     obstacles: [] as Obstacle[],
@@ -61,8 +71,9 @@ export function DashGame({ onFinish, onBack }: Props) {
 
   useEffect(() => {
     const canvas = canvasRef.current
+    const board = boardRef.current
     if (!canvas) return
-    const context = canvas.getContext('2d')
+    const context = canvas.getContext('2d', { alpha: false })
     if (!context) return
     const ctx: CanvasRenderingContext2D = context
 
@@ -71,11 +82,14 @@ export function DashGame({ onFinish, onBack }: Props) {
     let active = true
     const st = stateRef.current
     lastScoreRef.current = 0
+    lastScoreUiRef.current = 0
 
     function resetRun() {
       st.y = H - GROUND - PLAYER_SIZE
       st.vy = 0
       st.onGround = true
+      st.groundedUntil = 0
+      st.jumpBufferedUntil = 0
       st.speed = 5.8
       st.distance = 0
       st.obstacles = []
@@ -85,6 +99,8 @@ export function DashGame({ onFinish, onBack }: Props) {
       st.shake = 0
       st.rot = 0
       reportedRef.current = false
+      lastScoreRef.current = 0
+      lastScoreUiRef.current = 0
       if (!active) return
       setAlive(true)
       setScore(0)
@@ -103,29 +119,32 @@ export function DashGame({ onFinish, onBack }: Props) {
 
     function makeObstacle(x: number): Obstacle {
       const roll = Math.random()
-      // Peak jump clears ~52px — keep hazards within that envelope or landable.
       if (roll < 0.42) {
         return { x, w: 26, h: 26, kind: 'spike' }
       }
       if (roll < 0.72) {
-        // Short blocks: jump over in one hop
-        const h = 30 + Math.floor(Math.random() * 12) // 30–41
+        const h = 30 + Math.floor(Math.random() * 12)
         return { x, w: 30, h, kind: 'block' }
       }
       if (roll < 0.9) {
-        // Platform block: land on top, then hop the next hazard
         return { x, w: 36, h: 46, kind: 'block' }
       }
-      // Twin spikes — one small jump clears both if timed early
       return { x, w: 44, h: 26, kind: 'double' }
     }
 
-    function jump() {
-      if (st.dead) return
-      if (st.onGround) {
+    function tryJump(now = performance.now()) {
+      if (st.dead) return false
+      const canCoyote = now <= st.groundedUntil
+      if (st.onGround || canCoyote) {
         st.vy = JUMP_V
         st.onGround = false
+        st.groundedUntil = 0
+        st.jumpBufferedUntil = 0
+        return true
       }
+      // Buffer the press so landing a few ms later still jumps instantly
+      st.jumpBufferedUntil = now + JUMP_BUFFER_MS
+      return false
     }
 
     function restartOrJump() {
@@ -133,7 +152,7 @@ export function DashGame({ onFinish, onBack }: Props) {
         resetRun()
         return
       }
-      jump()
+      tryJump()
     }
 
     restartRef.current = () => {
@@ -142,20 +161,34 @@ export function DashGame({ onFinish, onBack }: Props) {
     }
 
     function onKey(e: KeyboardEvent) {
-      if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW' || e.code === 'Enter') {
-        e.preventDefault()
-        restartOrJump()
-      }
-    }
-
-    function onPointer() {
+      if (e.repeat) return
+      if (!isJumpKey(e.code)) return
+      e.preventDefault()
       restartOrJump()
     }
 
-    window.addEventListener('keydown', onKey)
-    canvas.addEventListener('pointerdown', onPointer)
+    function onPointer(e: Event) {
+      // Instant response — don't wait for click synthesis
+      if ('button' in e && (e as PointerEvent).button !== 0) return
+      e.preventDefault()
+      e.stopPropagation()
+      restartOrJump()
+    }
 
-    function resolveHazards(prevY: number): boolean {
+    function onBoardPointer(e: Event) {
+      const target = e.target as HTMLElement | null
+      if (!target || !canvas) return
+      if (target.closest('button')) return
+      if (target === canvas || canvas.contains(target)) return
+      onPointer(e)
+    }
+
+    window.addEventListener('keydown', onKey)
+    // pointerdown alone covers mouse + touch (avoid double-firing with mousedown)
+    canvas.addEventListener('pointerdown', onPointer, { passive: false })
+    board?.addEventListener('pointerdown', onBoardPointer, { passive: false })
+
+    function resolveHazards(prevY: number, now: number): boolean {
       const px = PLAYER_X + 3
       const py = st.y + 3
       const pw = PLAYER_SIZE - 6
@@ -167,7 +200,6 @@ export function DashGame({ onFinish, onBack }: Props) {
         const top = H - GROUND - o.h
 
         if (o.kind === 'spike' || o.kind === 'double') {
-          // Fairer tip hitbox — clearable with a normal small jump
           const sx = ox + 4
           const sy = top + 8
           const sw = o.w - 8
@@ -182,21 +214,21 @@ export function DashGame({ onFinish, onBack }: Props) {
         const comingFromAbove = st.vy >= 0 && prevBottom <= top + 12
 
         if (comingFromAbove) {
-          // Land on top of blocks (Geometry Dash style)
           st.y = top - PLAYER_SIZE
           st.vy = 0
           st.onGround = true
+          st.groundedUntil = now + COYOTE_MS
           st.rot = 0
           standing = true
           continue
         }
 
-        // Side or underside hit = crash
         return true
       }
 
       if (!standing && st.y >= H - GROUND - PLAYER_SIZE - 0.5) {
         st.onGround = true
+        st.groundedUntil = now + COYOTE_MS
       }
       return false
     }
@@ -218,6 +250,7 @@ export function DashGame({ onFinish, onBack }: Props) {
       if (st.dead) return
       st.dead = true
       st.shake = 10
+      st.jumpBufferedUntil = 0
       for (let i = 0; i < 18; i++) {
         st.particles.push({
           x: PLAYER_X + PLAYER_SIZE / 2,
@@ -246,20 +279,18 @@ export function DashGame({ onFinish, onBack }: Props) {
       }
     }
 
-    function draw(ctx: CanvasRenderingContext2D) {
+    function draw() {
       const shakeX = st.shake ? (Math.random() - 0.5) * st.shake : 0
       const shakeY = st.shake ? (Math.random() - 0.5) * st.shake : 0
       ctx.save()
       ctx.translate(shakeX, shakeY)
 
-      // sky
       const grad = ctx.createLinearGradient(0, 0, 0, H)
       grad.addColorStop(0, '#020617')
       grad.addColorStop(1, '#0b1a33')
       ctx.fillStyle = grad
       ctx.fillRect(0, 0, W, H)
 
-      // parallax grid
       ctx.strokeStyle = 'rgba(56, 189, 248, 0.08)'
       ctx.lineWidth = 1
       const gridOff = (st.distance * 0.35) % 40
@@ -270,20 +301,17 @@ export function DashGame({ onFinish, onBack }: Props) {
         ctx.stroke()
       }
 
-      // ground
       ctx.fillStyle = '#0f2748'
       ctx.fillRect(0, H - GROUND, W, GROUND)
       ctx.fillStyle = '#38bdf8'
       ctx.fillRect(0, H - GROUND, W, 3)
 
-      // ground dashes
       ctx.fillStyle = 'rgba(56, 189, 248, 0.4)'
       const dashOff = st.distance % 50
       for (let x = -dashOff; x < W; x += 50) {
         ctx.fillRect(x, H - GROUND + 14, 26, 4)
       }
 
-      // obstacles
       for (const o of st.obstacles) {
         const oy = H - GROUND - o.h
         if (o.kind === 'spike' || o.kind === 'double') {
@@ -314,13 +342,11 @@ export function DashGame({ onFinish, onBack }: Props) {
           ctx.fill()
           ctx.strokeStyle = 'rgba(56, 189, 248, 0.55)'
           ctx.stroke()
-          // hazard stripe
           ctx.fillStyle = 'rgba(34, 211, 238, 0.65)'
           ctx.fillRect(o.x + 6, oy + 8, o.w - 12, 4)
         }
       }
 
-      // player
       if (!st.dead) {
         ctx.save()
         ctx.translate(PLAYER_X + PLAYER_SIZE / 2, st.y + PLAYER_SIZE / 2)
@@ -331,7 +357,6 @@ export function DashGame({ onFinish, onBack }: Props) {
         ctx.strokeStyle = '#22d3ee'
         ctx.lineWidth = 2
         ctx.stroke()
-        // eye
         ctx.fillStyle = '#020617'
         ctx.beginPath()
         ctx.arc(4, -2, 3.2, 0, Math.PI * 2)
@@ -339,7 +364,6 @@ export function DashGame({ onFinish, onBack }: Props) {
         ctx.restore()
       }
 
-      // particles
       for (const p of st.particles) {
         ctx.globalAlpha = Math.max(0, p.life)
         ctx.fillStyle = '#38bdf8'
@@ -347,7 +371,6 @@ export function DashGame({ onFinish, onBack }: Props) {
       }
       ctx.globalAlpha = 1
 
-      // score HUD on canvas
       ctx.fillStyle = 'rgba(0,0,0,0.35)'
       roundRect(ctx, 16, 14, 150, 44, 12)
       ctx.fill()
@@ -363,6 +386,7 @@ export function DashGame({ onFinish, onBack }: Props) {
       last = now
 
       if (!st.dead) {
+        const wasGrounded = st.onGround
         const prevY = st.y
         st.vy += GRAVITY * dt
         st.y += st.vy * dt
@@ -371,10 +395,17 @@ export function DashGame({ onFinish, onBack }: Props) {
           st.y = floor
           st.vy = 0
           st.onGround = true
+          st.groundedUntil = now + COYOTE_MS
           st.rot = 0
-        } else {
+        } else if (wasGrounded && st.vy > 0) {
           st.onGround = false
+          // keep coyote window from last groundedUntil
+        } else if (!st.onGround) {
           st.rot += 0.18 * dt
+        }
+
+        if (st.jumpBufferedUntil > now && (st.onGround || now <= st.groundedUntil)) {
+          tryJump(now)
         }
 
         st.speed = 5.8 + Math.min(5.5, st.distance / 1000)
@@ -386,15 +417,22 @@ export function DashGame({ onFinish, onBack }: Props) {
         st.spawnAt -= dx
         while (st.spawnAt < W + 80) {
           st.obstacles.push(makeObstacle(st.spawnAt + W * 0.15))
-          // Spacing matches short jump airtime so one hop can clear a hazard
           st.spawnAt += 170 + Math.random() * (190 - Math.min(60, st.distance / 50))
         }
 
-        if (resolveHazards(prevY)) die()
+        if (resolveHazards(prevY, now)) die()
+
         const nextScore = Math.floor(st.distance / 10)
-        if (active && nextScore !== lastScoreRef.current) {
+        if (
+          active &&
+          nextScore !== lastScoreRef.current &&
+          now - lastScoreUiRef.current >= SCORE_UI_MS
+        ) {
           lastScoreRef.current = nextScore
+          lastScoreUiRef.current = now
           setScore(nextScore)
+        } else if (nextScore !== lastScoreRef.current) {
+          lastScoreRef.current = nextScore
         }
       } else if (st.shake > 0) {
         st.shake *= 0.9
@@ -409,7 +447,7 @@ export function DashGame({ onFinish, onBack }: Props) {
       }
       st.particles = st.particles.filter((p) => p.life > 0)
 
-      draw(ctx)
+      draw()
       raf = requestAnimationFrame(tick)
     }
 
@@ -421,6 +459,7 @@ export function DashGame({ onFinish, onBack }: Props) {
       cancelAnimationFrame(raf)
       window.removeEventListener('keydown', onKey)
       canvas.removeEventListener('pointerdown', onPointer)
+      board?.removeEventListener('pointerdown', onBoardPointer)
     }
   }, [])
 
@@ -441,8 +480,7 @@ export function DashGame({ onFinish, onBack }: Props) {
         <div>
           <h2 className="section-title">Spike Dash</h2>
           <p className="section-sub">
-            Short hop over spikes and blocks — tap / Space to jump. After a crash, tap the track
-            to restart.
+            Instant hop: click / Space / ↑ / W / Enter. After a crash, click again to restart.
           </p>
         </div>
         <div className="dash-score-badge" aria-live="polite">
@@ -451,26 +489,26 @@ export function DashGame({ onFinish, onBack }: Props) {
         </div>
       </div>
 
-      <div className="panel play-board dash-board">
+      <div className="panel play-board dash-board" ref={boardRef}>
         <canvas
           ref={canvasRef}
           className="dash-canvas"
           width={W}
           height={H}
           role="img"
-          aria-label="Spike Dash playfield. Tap to jump, or tap again after a crash to restart."
+          aria-label="Spike Dash playfield. Tap or press Space to jump. Tap again after a crash to restart."
         />
         <p className="play-hint">
           {alive
-            ? 'Controls: Space / ↑ / tap the track to jump'
-            : 'Crashed — tap the track (or press Space) to play again'}
+            ? 'Controls: click · Space · ↑ · W · Enter · Z'
+            : 'Crashed — click the track or press Space / Enter to play again'}
         </p>
 
         {finalScore != null && !alive && (
           <div className="mini-end overlay-end">
             <p>
               Final score <strong>{finalScore}</strong>
-              {finalScore >= WIN_SCORE ? ' — run cleared!' : '. Tap the track to try again.'}
+              {finalScore >= WIN_SCORE ? ' — run cleared!' : '. Click the track to try again.'}
             </p>
             <div className="dash-end-actions">
               <button type="button" className="btn btn-ember" onClick={() => restartRef.current()}>

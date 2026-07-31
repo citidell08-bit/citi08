@@ -247,8 +247,10 @@
   background: rgba(0, 20, 40, 0.45);
   color: rgba(56, 189, 248, 0.55);
   font-size: clamp(1.85rem, 6.5vw, 2.75rem);
+  touch-action: manipulation;
+  user-select: none;
   transition:
-    transform 160ms ease,
+    transform 90ms ease,
     background 160ms ease,
     border-color 160ms ease,
     box-shadow 160ms ease;
@@ -293,6 +295,11 @@
 
 .memory-tile.matched span {
   color: #bae6fd;
+}
+
+.memory-tile.focused:not(.open) {
+  border-color: rgba(56, 189, 248, 0.65);
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.35);
 }
 
 .math-panel,
@@ -341,14 +348,16 @@
   border-radius: 18px;
   border: 1px solid var(--line);
   background: rgba(0, 0, 0, 0.28);
-  transition: background 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+  touch-action: manipulation;
+  user-select: none;
+  transition: background 40ms ease, box-shadow 40ms ease, transform 40ms ease;
 }
 
 .glow-cell.lit {
   background: radial-gradient(circle at 40% 35%, #22d3ee, #1d4ed8 70%);
   box-shadow: 0 0 28px rgba(56, 189, 248, 0.55), 0 0 18px rgba(34, 211, 238, 0.4);
   transform: scale(1.04);
-  animation: glow-pop 180ms ease;
+  animation: glow-pop 90ms ease;
 }
 
 .glow-panel.miss {
