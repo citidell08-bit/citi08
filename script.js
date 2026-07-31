@@ -319,14 +319,15 @@ const QUESTIONS = {
     lowHpWarned: false,
     blocking: false,
     blockFlash: 0,
-    bowCharge: null, // { t, max, tx, ty, fullPing }
+    attackCharge: null, // { kind:'bow'|'melee', t, max, tx, ty, fullPing, shown }
     mouseWorld: { x: 0, y: 0 },
     projectiles: [],
     nextId: 1,
   };
 
-  const BOW_CHARGE_MAX = 0.85; // seconds to full power shot
-  const BOW_CHARGE_MIN = 0.08; // tiny tap still fires a weak arrow
+  const CHARGE_TAP = 0.14;       // release sooner = quick tap (no bar)
+  const BOW_CHARGE_MAX = 0.85;   // hold time for full bow power
+  const MELEE_CHARGE_MAX = 0.7;  // hold time for full sword power
 
 
   const $ = (id) => document.getElementById(id);
@@ -3241,43 +3242,6 @@ const QUESTIONS = {
     return state.nightMobs;
   }
 
-  function performMeleeSwing() {
-    if (state.drinkAnim > 0) { showToast("Drinking…"); return false; }
-    if (isBlocking()) { showToast("Lower your shield first (release F / Shift / 🛡)"); return false; }
-    if (state.hitCd > 0 || state.paused) return false;
-    const weapon = getCombatWeapon();
-    const hasWeapon = !!weapon;
-    const range = meleeRange();
-    const base = hasWeapon ? (5 + (weapon.pwr || 0) + Math.floor(gearStats().pwr * 0.25)) : 2;
-    state.hitCd = hasWeapon ? 0.38 : 0.32;
-    state.attackAnim = 0.32;
-    state.attackArc = range;
-    // ALWAYS play slash whoosh/shing on every swing (weapon or fists)
-    try {
-      if (hasWeapon) SFX.swordSlash();
-      else SFX.fist();
-    } catch (_) {}
-    let hitAny = false;
-    const mobs = iterCombatMobs();
-    for (const m of mobs) {
-      const dist = Math.hypot(m.x - state.player.x, m.y - state.player.y);
-      if (dist > range) continue;
-      const ang = Math.atan2(m.y - state.player.y, m.x - state.player.x);
-      let diff = Math.abs(((ang - state.player.facing + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
-      if (diff > MELEE_ARC / 2 && dist > 0.55) continue;
-      damageMonster(m, base);
-      hitAny = true;
-    }
-    if (hitAny) {
-      if (hasWeapon) SFX.swordHit();
-      spawnParticles(state.player.x + Math.cos(state.player.facing) * 0.45, state.player.y + Math.sin(state.player.facing) * 0.45, 8, "spark");
-    } else {
-      spawnParticles(state.player.x + Math.cos(state.player.facing) * 0.45, state.player.y + Math.sin(state.player.facing) * 0.45, 5, "spark");
-      if (mobs.length) showToast(hasWeapon ? "Swing missed — step closer!" : "Fists miss — get closer!");
-    }
-    return true;
-  }
-
   function wantsBowAttack() {
     const hand = getHandItem();
     if (hand && hand.slot === "bow") return true;
@@ -3299,71 +3263,152 @@ const QUESTIONS = {
     };
   }
 
-  function bowChargeRatio() {
-    if (!state.bowCharge) return 0;
-    return Math.max(0, Math.min(1, state.bowCharge.t / BOW_CHARGE_MAX));
+  function isChargeBarVisible() {
+    return !!(state.attackCharge && state.attackCharge.shown);
   }
 
-  function cancelBowCharge() {
-    state.bowCharge = null;
+  function chargeRatio() {
+    if (!state.attackCharge) return 0;
+    return Math.max(0, Math.min(1, state.attackCharge.t / state.attackCharge.max));
   }
 
-  function startBowCharge(tx, ty) {
-    const bow = getCombatBow();
-    if (!bow || !state.running || state.paused) return false;
+  function cancelAttackCharge() {
+    state.attackCharge = null;
+  }
+
+  function startAttackCharge(kind, tx, ty) {
+    if (!state.running || state.paused) return false;
     if (state.drinkAnim > 0) { showToast("Drinking…"); return false; }
-    if (isBlocking()) { showToast("Lower shield to draw bow (release F / 🛡)"); return false; }
+    if (isBlocking()) { showToast("Lower shield first (release F / 🛡)"); return false; }
     if (state.hitCd > 0) {
-      try { SFX.bowDry(); } catch (_) {}
+      if (kind === "bow") { try { SFX.bowDry(); } catch (_) {} }
       return false;
     }
-    if (state.swimming) { showToast("Can't draw a bow in water!", true); return false; }
-    state.bowCharge = {
+    if (kind === "bow") {
+      if (!getCombatBow()) return false;
+      if (state.swimming) { showToast("Can't draw a bow in water!", true); return false; }
+    }
+    const aimX = tx ?? (state.player.x + Math.cos(state.player.facing || 0) * 3.5);
+    const aimY = ty ?? (state.player.y + Math.sin(state.player.facing || 0) * 3.5);
+    state.attackCharge = {
+      kind,
       t: 0,
-      max: BOW_CHARGE_MAX,
-      tx: tx ?? (state.player.x + Math.cos(state.player.facing || 0) * 3.5),
-      ty: ty ?? (state.player.y + Math.sin(state.player.facing || 0) * 3.5),
+      max: kind === "bow" ? BOW_CHARGE_MAX : MELEE_CHARGE_MAX,
+      tx: aimX,
+      ty: aimY,
       fullPing: false,
+      shown: false, // bar only after holding past tap window
     };
-    state.player.facing = Math.atan2(state.bowCharge.ty - state.player.y, state.bowCharge.tx - state.player.x);
-    try { SFX.bowPull(); } catch (_) {}
+    if (kind === "bow") {
+      state.player.facing = Math.atan2(aimY - state.player.y, aimX - state.player.x);
+    }
     return true;
   }
 
-  function updateBowCharge(dt) {
-    if (!state.bowCharge) return;
-    if (!state.running || state.paused || !wantsBowAttack() || isBlocking() || state.drinkAnim > 0 || state.swimming) {
-      cancelBowCharge();
+  function updateAttackCharge(dt) {
+    const c = state.attackCharge;
+    if (!c) return;
+    if (!state.running || state.paused || isBlocking() || state.drinkAnim > 0) {
+      cancelAttackCharge();
       return;
     }
-    // Aim follows mouse while charging
-    if (state.mouseWorld) {
-      state.bowCharge.tx = state.mouseWorld.x;
-      state.bowCharge.ty = state.mouseWorld.y;
-      state.player.facing = Math.atan2(state.bowCharge.ty - state.player.y, state.bowCharge.tx - state.player.x);
+    if (c.kind === "bow" && (!wantsBowAttack() || state.swimming)) {
+      cancelAttackCharge();
+      return;
     }
-    state.bowCharge.t = Math.min(BOW_CHARGE_MAX, state.bowCharge.t + dt);
-    if (!state.bowCharge.fullPing && state.bowCharge.t >= BOW_CHARGE_MAX) {
-      state.bowCharge.fullPing = true;
+    if (c.kind === "melee" && wantsBowAttack()) {
+      cancelAttackCharge();
+      return;
+    }
+    if (state.mouseWorld) {
+      c.tx = state.mouseWorld.x;
+      c.ty = state.mouseWorld.y;
+      if (c.kind === "bow" || c.shown) {
+        state.player.facing = Math.atan2(c.ty - state.player.y, c.tx - state.player.x);
+      }
+    }
+    c.t = Math.min(c.max, c.t + dt);
+    // Bar + pull SFX only once we pass the tap window (holding to charge)
+    if (!c.shown && c.t >= CHARGE_TAP) {
+      c.shown = true;
+      if (c.kind === "bow") {
+        try { SFX.bowPull(); } catch (_) {}
+      }
+      // melee: silent wind-up — slash SFX plays on release
+    }
+    if (!c.fullPing && c.t >= c.max) {
+      c.fullPing = true;
       try { SFX.bowFull(); } catch (_) {}
       spawnFloatText(state.player.x, state.player.y - 0.7, "FULL", "#ffe060");
       spawnParticles(state.player.x, state.player.y, 6, "spark");
     }
   }
 
-  function releaseBowCharge() {
-    if (!state.bowCharge) return false;
-    const charge = state.bowCharge;
-    const held = charge.t;
-    cancelBowCharge();
-    if (held < BOW_CHARGE_MIN) {
-      try { SFX.bowDry(); } catch (_) {}
-      return false;
+  function releaseAttackCharge() {
+    const c = state.attackCharge;
+    if (!c) return false;
+    const held = c.t;
+    const kind = c.kind;
+    const tx = c.tx;
+    const ty = c.ty;
+    const wasShown = c.shown;
+    cancelAttackCharge();
+
+    // Quick tap — normal attack, no charge bonus, bar never appeared
+    if (!wasShown || held < CHARGE_TAP) {
+      if (kind === "bow") return shootBow(tx, ty, 0);
+      return performMeleeSwing(0);
     }
-    return shootBow(charge.tx, charge.ty, held / BOW_CHARGE_MAX);
+
+    const power = Math.max(0, Math.min(1, (held - CHARGE_TAP) / Math.max(0.01, c.max - CHARGE_TAP)));
+    if (kind === "bow") return shootBow(tx, ty, power);
+    return performMeleeSwing(power);
   }
 
-  function shootBow(tx, ty, charge01 = 0.55) {
+  /** power01: 0 = tap/normal, 1 = full charged swing */
+  function performMeleeSwing(power01 = 0) {
+    if (state.drinkAnim > 0) { showToast("Drinking…"); return false; }
+    if (isBlocking()) { showToast("Lower your shield first (release F / Shift / 🛡)"); return false; }
+    if (state.hitCd > 0 || state.paused) return false;
+    const power = Math.max(0, Math.min(1, Number(power01) || 0));
+    const weapon = getCombatWeapon();
+    const hasWeapon = !!weapon;
+    const range = meleeRange() * (1 + 0.35 * power);
+    const base = hasWeapon ? (5 + (weapon.pwr || 0) + Math.floor(gearStats().pwr * 0.25)) : 2;
+    const dmg = Math.max(1, Math.round(base * (1 + 0.85 * power)));
+    const full = power >= 0.98;
+    state.hitCd = hasWeapon ? (full ? 0.5 : 0.38) : 0.32;
+    state.attackAnim = full ? 0.4 : 0.32;
+    state.attackArc = range;
+    try {
+      if (hasWeapon) SFX.swordSlash();
+      else SFX.fist();
+    } catch (_) {}
+    let hitAny = false;
+    const mobs = iterCombatMobs();
+    const arc = MELEE_ARC * (1 + 0.25 * power);
+    for (const m of mobs) {
+      const dist = Math.hypot(m.x - state.player.x, m.y - state.player.y);
+      if (dist > range) continue;
+      const ang = Math.atan2(m.y - state.player.y, m.x - state.player.x);
+      let diff = Math.abs(((ang - state.player.facing + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+      if (diff > arc / 2 && dist > 0.55) continue;
+      damageMonster(m, dmg);
+      hitAny = true;
+    }
+    if (hitAny) {
+      if (hasWeapon) SFX.swordHit();
+      spawnParticles(state.player.x + Math.cos(state.player.facing) * 0.45, state.player.y + Math.sin(state.player.facing) * 0.45, full ? 14 : 8, "spark");
+      if (full) spawnFloatText(state.player.x, state.player.y - 0.55, "POWER", "#ffd060");
+    } else {
+      spawnParticles(state.player.x + Math.cos(state.player.facing) * 0.45, state.player.y + Math.sin(state.player.facing) * 0.45, full ? 8 : 5, "spark");
+      if (mobs.length) showToast(hasWeapon ? "Swing missed — step closer!" : "Fists miss — get closer!");
+    }
+    return true;
+  }
+
+  /** power01: 0 = quick tap shot (normal), 1 = full charged power shot */
+  function shootBow(tx, ty, power01 = 0) {
     const bow = getCombatBow();
     if (state.drinkAnim > 0) { showToast("Drinking…"); return false; }
     if (isBlocking()) { showToast("Lower shield to shoot (release F / 🛡)"); return false; }
@@ -3372,36 +3417,35 @@ const QUESTIONS = {
       try { SFX.bowDry(); } catch (_) {}
       return false;
     }
-    const charge = Math.max(0.2, Math.min(1, Number(charge01) || 0.55));
+    const power = Math.max(0, Math.min(1, Number(power01) || 0));
     const dx = tx - state.player.x, dy = ty - state.player.y;
     const dist = Math.hypot(dx, dy) || 1;
-    const range = (bow.range || 6) * (0.75 + 0.45 * charge);
+    const range = (bow.range || 6) * (1 + 0.4 * power);
     state.player.facing = Math.atan2(dy, dx);
     if (dist > range + 0.5) {
-      showToast("Out of bow range — charge longer for more reach!");
+      showToast(power > 0.2 ? "Out of bow range — charge longer for more reach!" : "Out of bow range!");
       try { SFX.bowDry(); } catch (_) {}
       return false;
     }
     const base = 4 + (bow.pwr || 0) + Math.floor(gearStats().pwr * 0.35);
-    // Tap ≈ 55% dmg · full charge ≈ 160% dmg (much deadlier)
-    const dmgMul = 0.55 + 1.05 * charge;
-    const dmg = Math.max(1, Math.round(base * dmgMul));
-    const spd = 7 + 6 * charge;
-    const full = charge >= 0.98;
-    state.hitCd = full ? 0.55 : 0.4;
+    // Tap = normal (1.0x) · full charge ≈ 1.75x
+    const dmg = Math.max(1, Math.round(base * (1 + 0.75 * power)));
+    const spd = 8 + 5 * power;
+    const full = power >= 0.98;
+    state.hitCd = full ? 0.55 : 0.38;
     state.attackAnim = 0.3;
     state.projectiles.push({
       x: state.player.x, y: state.player.y,
       vx: (dx / dist) * spd, vy: (dy / dist) * spd,
-      life: 0.9 + 0.7 * charge,
+      life: 1.0 + 0.6 * power,
       dmg,
       kind: "arrow",
       charged: full,
-      power: charge,
+      power,
     });
     spawnParticles(state.player.x, state.player.y, full ? 10 : 4, "spark");
     if (full) spawnFloatText(state.player.x, state.player.y - 0.55, "POWER", "#ffd060");
-    try { SFX.bow(0.7 + charge * 0.65); } catch (_) {}
+    try { SFX.bow(0.75 + power * 0.55); } catch (_) {}
     return true;
   }
 
@@ -3504,22 +3548,17 @@ const QUESTIONS = {
       return;
     }
 
-    // Bow: hold to charge, release to fire
-    if (wantsBowAttack()) {
-      e.preventDefault();
-      startBowCharge(world.x, world.y);
-      return;
-    }
-
-    // Melee: sword/fists — slash SFX always plays
-    performMeleeSwing();
+    // Start hold — tap release = quick attack; hold longer = charge bar + power
+    e.preventDefault();
+    if (wantsBowAttack()) startAttackCharge("bow", world.x, world.y);
+    else startAttackCharge("melee", world.x, world.y);
   }
 
   function handleCanvasPointerUp(e) {
     if (e.button != null && e.button !== 0) return;
-    if (state.bowCharge) {
+    if (state.attackCharge) {
       e.preventDefault();
-      releaseBowCharge();
+      releaseAttackCharge();
     }
   }
 
@@ -3527,26 +3566,27 @@ const QUESTIONS = {
     if (!state.running) return;
     const world = clientToWorld(e.clientX, e.clientY);
     state.mouseWorld = { x: world.x, y: world.y };
-    if (state.bowCharge) {
-      state.bowCharge.tx = world.x;
-      state.bowCharge.ty = world.y;
-      state.player.facing = Math.atan2(world.y - state.player.y, world.x - state.player.x);
+    if (state.attackCharge) {
+      state.attackCharge.tx = world.x;
+      state.attackCharge.ty = world.y;
+      if (state.attackCharge.kind === "bow" || state.attackCharge.shown) {
+        state.player.facing = Math.atan2(world.y - state.player.y, world.x - state.player.x);
+      }
     }
   }
 
   function attackFacing() {
     if (!state.running || state.paused) return;
-    if (wantsBowAttack()) {
-      // Space tap without hold = medium charge shot in facing direction
-      if (state.bowCharge) {
-        releaseBowCharge();
-        return;
-      }
-      const ang = state.player.facing || 0;
-      shootBow(state.player.x + Math.cos(ang) * 3.5, state.player.y + Math.sin(ang) * 3.5, 0.55);
+    if (state.attackCharge) {
+      releaseAttackCharge();
       return;
     }
-    performMeleeSwing();
+    if (wantsBowAttack()) {
+      const ang = state.player.facing || 0;
+      shootBow(state.player.x + Math.cos(ang) * 3.5, state.player.y + Math.sin(ang) * 3.5, 0);
+      return;
+    }
+    performMeleeSwing(0);
   }
 
   function playerHurt(dmg) {
@@ -3695,12 +3735,12 @@ const QUESTIONS = {
     if (state.keys.ArrowLeft || state.keys.a || state.keys.A) mx -= 1;
     if (state.keys.ArrowRight || state.keys.d || state.keys.D) mx += 1;
     const moving = !!(mx || my);
-    const chargingBow = !!state.bowCharge;
+    const charging = isChargeBarVisible();
     if (moving) {
       const len = Math.hypot(mx, my) || 1;
       mx /= len; my /= len;
-      // Keep aiming at the bow target while charging
-      if (!chargingBow) state.player.facing = Math.atan2(my, mx);
+      // Keep aiming while charge bar is up
+      if (!charging) state.player.facing = Math.atan2(my, mx);
     }
 
     const wasSwimming = state.swimming;
@@ -3720,7 +3760,7 @@ const QUESTIONS = {
     const baseSpeed = state.swimming ? 2.1 : 3.2;
     const drinkSlow = state.drinkAnim > 0 ? 0.35 : 1;
     const blockSlow = isBlocking() ? 0.55 : 1;
-    const chargeSlow = chargingBow ? 0.45 : 1;
+    const chargeSlow = charging ? 0.45 : 1;
     const speed = (baseSpeed + gearStats().pwr * 0.04) * state.settings.speed * drinkSlow * blockSlow * chargeSlow;
     const nx = state.player.x + mx * speed * dt;
     const ny = state.player.y + my * speed * dt;
@@ -3829,7 +3869,7 @@ const QUESTIONS = {
     updateChests(dt);
     updateMining(dt);
     updateProjectiles(dt);
-    updateBowCharge(dt);
+    updateAttackCharge(dt);
     if (state.attackAnim > 0) state.attackAnim = Math.max(0, state.attackAnim - dt);
     if (state.drinkAnim > 0) {
       state.drinkAnim -= dt;
@@ -4524,8 +4564,8 @@ const QUESTIONS = {
 
     // BOW — held & drawn back while charging; otherwise on back / after shot
     if (bow && !swim && !drinking && !(handItem && handItem.slot === "weapon") && !(showingPick && handItem && isMineTool(handItem))) {
-      const charging = !!state.bowCharge;
-      const ratio = bowChargeRatio();
+      const charging = isChargeBarVisible() && state.attackCharge?.kind === "bow";
+      const ratio = charging ? chargeRatio() : 0;
       const drawBack = charging ? ratio : (state.attackAnim > 0 && !weapon ? 1 : 0);
       if (charging || (state.attackAnim > 0 && !weapon)) {
         // Drawn bow facing aim
@@ -4554,15 +4594,24 @@ const QUESTIONS = {
       }
     }
 
-    // SWORD — held at rest or swung in a clear arc
+    // SWORD — held at rest, wind-up while charging, or swung in a clear arc
     const showingSword = weapon && !(handItem && (handItem.slot === "bow" || isMineTool(handItem)));
+    const meleeCharging = isChargeBarVisible() && state.attackCharge?.kind === "melee";
     if (showingSword && !swim && !drinking && !blocking) {
       const swing = swingT;
-      const ang = face + (swing > 0 ? ((1 - swing) * 1.85 - 0.35) * right : 0.35 * right);
-      const reach = s * (0.42 + swing * 0.55);
+      const wind = meleeCharging ? chargeRatio() : 0;
+      const ang = face + (swing > 0
+        ? ((1 - swing) * 1.85 - 0.35) * right
+        : (meleeCharging ? (-0.55 - wind * 0.7) * right : 0.35 * right));
+      const reach = s * (0.42 + swing * 0.55 + wind * 0.15);
       const wx = ppx + Math.cos(ang) * reach;
       const wy = ppy + Math.sin(ang) * reach * 0.55 + bob - sub;
-      drawSwordArt(wx, wy, ang + Math.PI / 2, s * 0.95, weapon);
+      drawSwordArt(wx, wy, ang + Math.PI / 2, s * (0.95 + wind * 0.1), weapon);
+      if (meleeCharging && wind > 0.95) {
+        ctx.globalAlpha = 0.3 + Math.sin(state.animT * 14) * 0.15;
+        pxRect(wx - 6, wy - 6, 12, 12, "#ffe080");
+        ctx.globalAlpha = 1;
+      }
       if (swing > 0.12) {
         for (let i = 0; i < 5; i++) {
           const a2 = ang - right * i * 0.22;
@@ -4775,16 +4824,21 @@ const QUESTIONS = {
     const ps = Math.max(8, tileSize * 0.55);
     drawPlayer(ppx, ppy, ps);
 
-    // Bow charge meter under the player
-    if (state.bowCharge) {
-      const ratio = bowChargeRatio();
+    // Charge meter — only while holding past the tap window (bow or sword)
+    if (isChargeBarVisible()) {
+      const ratio = chargeRatio();
+      const kind = state.attackCharge.kind;
       const bw = Math.floor(ps * 1.6);
       const bh = 5;
       const bx = ppx - Math.floor(bw / 2);
       const by = ppy + Math.floor(ps * 0.7);
       pxRect(bx - 1, by - 1, bw + 2, bh + 2, "#0a0a0a");
       pxRect(bx, by, bw, bh, "#2a2018");
-      const fillCol = ratio >= 1 ? "#ffe060" : ratio > 0.55 ? "#e0a040" : "#c07040";
+      const fillCol = ratio >= 1
+        ? "#ffe060"
+        : kind === "bow"
+          ? (ratio > 0.55 ? "#e0a040" : "#c07040")
+          : (ratio > 0.55 ? "#d0d8e8" : "#90a0b8");
       pxRect(bx, by, Math.max(1, Math.floor(bw * ratio)), bh, fillCol);
       if (ratio >= 1) {
         ctx.globalAlpha = 0.45 + Math.sin(state.animT * 12) * 0.25;
@@ -5309,7 +5363,7 @@ const QUESTIONS = {
     state.lowHpWarned = false;
     state.blocking = false;
     state.blockFlash = 0;
-    state.bowCharge = null;
+    state.attackCharge = null;
     state.mouseWorld = { x: 8.5, y: 8.5 };
     // Spawn with empty inventory / no equipped gear — loot quests, chests, dungeons
     state.inventory = [];
@@ -5535,14 +5589,11 @@ const QUESTIONS = {
       if (e.repeat) return;
       e.preventDefault();
       try { SFX.unlock(); } catch (_) {}
-      if (wantsBowAttack()) {
-        const ang = state.player.facing || 0;
-        const aimX = state.mouseWorld?.x ?? (state.player.x + Math.cos(ang) * 3.5);
-        const aimY = state.mouseWorld?.y ?? (state.player.y + Math.sin(ang) * 3.5);
-        startBowCharge(aimX, aimY);
-      } else {
-        attackFacing();
-      }
+      const ang = state.player.facing || 0;
+      const aimX = state.mouseWorld?.x ?? (state.player.x + Math.cos(ang) * 3.5);
+      const aimY = state.mouseWorld?.y ?? (state.player.y + Math.sin(ang) * 3.5);
+      if (wantsBowAttack()) startAttackCharge("bow", aimX, aimY);
+      else startAttackCharge("melee", aimX, aimY);
       return;
     }
     if (/^[1-9]$/.test(e.key) && state.running && !state.paused) {
@@ -5607,7 +5658,7 @@ const QUESTIONS = {
       setBlocking(false);
     }
     if (e.code === "Space") {
-      if (state.bowCharge) releaseBowCharge();
+      if (state.attackCharge) releaseAttackCharge();
     }
     state.keys[e.key] = false;
   }
@@ -5838,17 +5889,17 @@ const QUESTIONS = {
   canvas.addEventListener("mousedown", (e) => {
     if (e.button === 2 && state.running && !state.paused) {
       e.preventDefault();
-      cancelBowCharge();
+      cancelAttackCharge();
       setBlocking(true);
     }
   });
   window.addEventListener("mouseup", (e) => {
     if (e.button === 2) setBlocking(false);
-    if (e.button === 0 && state.bowCharge) releaseBowCharge();
+    if (e.button === 0 && state.attackCharge) releaseAttackCharge();
   });
   window.addEventListener("blur", () => {
     setBlocking(false);
-    cancelBowCharge();
+    cancelAttackCharge();
   });
   window.addEventListener("resize", () => { applyMobileVisibility(); if (state.running) resizeCanvas(); });
 
