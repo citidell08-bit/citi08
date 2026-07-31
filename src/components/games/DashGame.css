@@ -46,6 +46,15 @@
   text-transform: uppercase;
 }
 
+.coin-grab-badge {
+  background: rgba(251, 191, 36, 0.12);
+  border-color: rgba(251, 191, 36, 0.45);
+}
+
+.coin-grab-badge strong {
+  color: #fbbf24;
+}
+
 .score-pill {
   color: var(--ember) !important;
   border-color: rgba(34, 211, 238, 0.35) !important;

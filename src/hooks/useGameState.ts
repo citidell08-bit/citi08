@@ -404,15 +404,21 @@ export function useGameState() {
             ? Math.max(next.bestDashScore, result.score)
             : next.bestDashScore,
       }
-      if (result.won) {
-        next = awardCoins(next, 5)
+      const pickup = Math.max(0, result.coinsEarned ?? 0)
+      const winBonus = result.won ? 5 : 0
+      const coinGain = pickup + winBonus
+      if (coinGain > 0) {
+        next = awardCoins(next, coinGain)
       }
       next = awardXp(next, result.xp, result.label, { notify: false })
       queueMicrotask(() =>
-        pushToast(result.label, {
-          xp: result.xp,
-          coins: result.won ? 5 : undefined,
-        }),
+        pushToast(
+          pickup > 0 ? `${result.label} · +${pickup} ◉ grabbed` : result.label,
+          {
+            xp: result.xp,
+            coins: coinGain > 0 ? coinGain : undefined,
+          },
+        ),
       )
       next = bumpQuest(next, 'games_played', 1)
       next = checkAchievements(next)

@@ -109,6 +109,8 @@ export interface MiniGameResult {
   score: number
   xp: number
   label: string
+  /** Bonus coins picked up during the run (added on finish). */
+  coinsEarned?: number
 }
 
 export interface LevelUpInfo {

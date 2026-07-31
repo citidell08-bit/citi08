@@ -76,7 +76,7 @@ export function Games({ state, onComplete, onSpend, onNavigate, onActiveChange }
 
   const handleFinish = useCallback(
     (result: MiniGameResult) => {
-      const dedupe = `${result.gameId}:${result.score}:${result.xp}:${result.won}`
+      const dedupe = `${result.gameId}:${result.score}:${result.xp}:${result.won}:${result.coinsEarned ?? 0}`
       if (rewardedRef.current.has(dedupe)) return
       rewardedRef.current.add(dedupe)
       window.setTimeout(() => rewardedRef.current.delete(dedupe), 1500)

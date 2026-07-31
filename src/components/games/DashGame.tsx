@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { isJumpKey } from '../../lib/gameInput'
 import {
   playAccessDeniedSfx,
+  playCoinSfx,
   playJumpSfx,
   playRestartSfx,
   playWinSfx,
@@ -32,6 +33,13 @@ interface Particle {
   life: number
 }
 
+interface CoinPickup {
+  x: number
+  y: number
+  r: number
+  value: number
+}
+
 const W = 900
 const H = 360
 const GROUND = 48
@@ -51,6 +59,7 @@ export function DashGame({ onFinish, onBack }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const boardRef = useRef<HTMLDivElement | null>(null)
   const [score, setScore] = useState(0)
+  const [coinsGrabbed, setCoinsGrabbed] = useState(0)
   const [alive, setAlive] = useState(true)
   const [finalScore, setFinalScore] = useState<number | null>(null)
   const reportedRef = useRef(false)
@@ -69,6 +78,9 @@ export function DashGame({ onFinish, onBack }: Props) {
     speed: 5.8,
     distance: 0,
     obstacles: [] as Obstacle[],
+    coins: [] as CoinPickup[],
+    coinSpawnAt: 520,
+    coinsCollected: 0,
     spawnAt: 280,
     particles: [] as Particle[],
     dead: false,
@@ -100,6 +112,9 @@ export function DashGame({ onFinish, onBack }: Props) {
       st.speed = 5.8
       st.distance = 0
       st.obstacles = []
+      st.coins = []
+      st.coinSpawnAt = 480
+      st.coinsCollected = 0
       st.spawnAt = 220
       st.particles = []
       st.dead = false
@@ -111,6 +126,7 @@ export function DashGame({ onFinish, onBack }: Props) {
       if (!active) return
       setAlive(true)
       setScore(0)
+      setCoinsGrabbed(0)
       setFinalScore(null)
       seedCourse()
     }
@@ -119,9 +135,24 @@ export function DashGame({ onFinish, onBack }: Props) {
       let x = 400
       for (let i = 0; i < 8; i++) {
         st.obstacles.push(makeObstacle(x))
+        if (Math.random() < 0.4) {
+          st.coins.push(makeCoin(x + 70 + Math.random() * 40))
+        }
         x += 175 + Math.random() * 140
       }
       st.spawnAt = x
+      st.coinSpawnAt = x + 80
+    }
+
+    function makeCoin(x: number): CoinPickup {
+      // Hover at jumpable height — sometimes higher for a skill hop
+      const lift = 36 + Math.floor(Math.random() * 50)
+      return {
+        x,
+        y: H - GROUND - lift,
+        r: 11,
+        value: Math.random() < 0.2 ? 3 : 1,
+      }
     }
 
     function makeObstacle(x: number): Obstacle {
@@ -287,8 +318,31 @@ export function DashGame({ onFinish, onBack }: Props) {
           won,
           score: sc,
           xp,
-          label: `Spike Dash · ${sc} pts`,
+          coinsEarned: st.coinsCollected,
+          label:
+            st.coinsCollected > 0
+              ? `Spike Dash · ${sc} pts · ${st.coinsCollected}◉`
+              : `Spike Dash · ${sc} pts`,
         })
+      }
+    }
+
+    function collectCoins() {
+      const px = PLAYER_X + 3
+      const py = st.y + 3
+      const pw = PLAYER_SIZE - 6
+      const ph = PLAYER_SIZE - 6
+      let gained = 0
+      st.coins = st.coins.filter((c) => {
+        const hit = aabb(px, py, pw, ph, c.x - c.r, c.y - c.r, c.r * 2, c.r * 2)
+        if (!hit) return true
+        gained += c.value
+        return false
+      })
+      if (gained > 0) {
+        st.coinsCollected += gained
+        playCoinSfx()
+        if (active) setCoinsGrabbed(st.coinsCollected)
       }
     }
 
@@ -323,6 +377,26 @@ export function DashGame({ onFinish, onBack }: Props) {
       const dashOff = st.distance % 50
       for (let x = -dashOff; x < W; x += 50) {
         ctx.fillRect(x, H - GROUND + 14, 26, 4)
+      }
+
+      // Floating coins
+      for (const c of st.coins) {
+        const bob = Math.sin(st.distance * 0.08 + c.x * 0.05) * 3
+        const cy = c.y + bob
+        ctx.beginPath()
+        ctx.fillStyle = '#fbbf24'
+        ctx.arc(c.x, cy, c.r, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.55)'
+        ctx.lineWidth = 2
+        ctx.stroke()
+        ctx.fillStyle = '#78350f'
+        ctx.font = '700 11px Syne, sans-serif'
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillText(c.value > 1 ? String(c.value) : '◉', c.x, cy + 0.5)
+        ctx.textAlign = 'left'
+        ctx.textBaseline = 'alphabetic'
       }
 
       for (const o of st.obstacles) {
@@ -385,11 +459,14 @@ export function DashGame({ onFinish, onBack }: Props) {
       ctx.globalAlpha = 1
 
       ctx.fillStyle = 'rgba(0,0,0,0.35)'
-      roundRect(ctx, 16, 14, 150, 44, 12)
+      roundRect(ctx, 16, 14, 210, 44, 12)
       ctx.fill()
       ctx.fillStyle = '#e8f2ed'
       ctx.font = '700 20px Syne, sans-serif'
       ctx.fillText(`SCORE ${Math.floor(st.distance / 10)}`, 28, 42)
+      ctx.fillStyle = '#fbbf24'
+      ctx.font = '700 16px Syne, sans-serif'
+      ctx.fillText(`◉ ${st.coinsCollected}`, 150, 42)
 
       ctx.restore()
     }
@@ -427,13 +504,24 @@ export function DashGame({ onFinish, onBack }: Props) {
         st.distance += dx
 
         for (const o of st.obstacles) o.x -= dx
+        for (const c of st.coins) c.x -= dx
         st.obstacles = st.obstacles.filter((o) => o.x + o.w > -40)
+        st.coins = st.coins.filter((c) => c.x + c.r > -20)
         st.spawnAt -= dx
+        st.coinSpawnAt -= dx
         while (st.spawnAt < W + 80) {
-          st.obstacles.push(makeObstacle(st.spawnAt + W * 0.15))
+          const ox = st.spawnAt + W * 0.15
+          st.obstacles.push(makeObstacle(ox))
           st.spawnAt += 170 + Math.random() * (190 - Math.min(60, st.distance / 50))
         }
+        while (st.coinSpawnAt < W + 80) {
+          if (Math.random() < 0.45) {
+            st.coins.push(makeCoin(st.coinSpawnAt + W * 0.2))
+          }
+          st.coinSpawnAt += 140 + Math.random() * 160
+        }
 
+        collectCoins()
         if (resolveHazards(prevY, now)) die()
 
         const nextScore = Math.floor(st.distance / 10)
@@ -485,6 +573,7 @@ export function DashGame({ onFinish, onBack }: Props) {
         </button>
         <div className="mini-stats">
           <span className="score-pill">Score {score}</span>
+          <span className="score-pill">◉ {coinsGrabbed}</span>
           <span>Best run goal {WIN_SCORE}</span>
           <span>{alive ? 'Alive' : 'Crashed'}</span>
         </div>
@@ -494,12 +583,19 @@ export function DashGame({ onFinish, onBack }: Props) {
         <div>
           <h2 className="section-title">Spike Dash</h2>
           <p className="section-sub">
-            Instant hop: click / Space / ↑ / W / Enter. After a crash, click again to restart.
+            Hop spikes and snag golden coins mid-run — they add to your coin count when the run
+            ends.
           </p>
         </div>
-        <div className="dash-score-badge" aria-live="polite">
-          <strong>{score}</strong>
-          <span>Score</span>
+        <div className="hud-row">
+          <div className="dash-score-badge" aria-live="polite">
+            <strong>{score}</strong>
+            <span>Score</span>
+          </div>
+          <div className="dash-score-badge coin-grab-badge" aria-live="polite">
+            <strong>{coinsGrabbed}</strong>
+            <span>Coins</span>
+          </div>
         </div>
       </div>
 
@@ -525,6 +621,12 @@ export function DashGame({ onFinish, onBack }: Props) {
                 ? 'Access granted'
                 : 'Access denied'}{' '}
               — final score <strong>{finalScore}</strong>
+              {coinsGrabbed > 0 ? (
+                <>
+                  {' '}
+                  · grabbed <strong>{coinsGrabbed}◉</strong>
+                </>
+              ) : null}
               {finalScore >= WIN_SCORE ? ' — run cleared!' : '. Click the track to try again.'}
             </p>
             <div className="dash-end-actions">

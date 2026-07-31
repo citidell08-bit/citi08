@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { cellFromKey, isRestartKey } from '../../lib/gameInput'
+import { playCoinSfx } from '../../lib/sfx'
 import type { MiniGameResult } from '../../types'
 import { GameTimer } from './GameTimer'
 
@@ -11,10 +12,14 @@ interface Props {
 const ROUNDS = 12
 const CELLS = 9
 const DURATION = 45
+/** Chance a lit cell carries a collectible coin. */
+const COIN_CHANCE = 0.38
 
 export function GlowGame({ onFinish, onBack }: Props) {
   const [active, setActive] = useState<number | null>(null)
+  const [hasCoin, setHasCoin] = useState(false)
   const [score, setScore] = useState(0)
+  const [coinsGrabbed, setCoinsGrabbed] = useState(0)
   const [round, setRound] = useState(0)
   const [running, setRunning] = useState(true)
   const [finished, setFinished] = useState(false)
@@ -26,11 +31,13 @@ export function GlowGame({ onFinish, onBack }: Props) {
   const tickRef = useRef<number | null>(null)
   const missTimerRef = useRef<number | null>(null)
   const scoreRef = useRef(0)
+  const coinsRef = useRef(0)
   const reportedRef = useRef(false)
   const roundRef = useRef(0)
   const finishedRef = useRef(false)
   const runningRef = useRef(true)
   const activeRef = useRef<number | null>(null)
+  const hasCoinRef = useRef(false)
   const onFinishRef = useRef(onFinish)
   const spawnRef = useRef<(nextRound: number) => void>(() => {})
   const playAgainRef = useRef<() => void>(() => {})
@@ -40,6 +47,7 @@ export function GlowGame({ onFinish, onBack }: Props) {
   finishedRef.current = finished
   runningRef.current = running
   activeRef.current = active
+  hasCoinRef.current = hasCoin
 
   function clearTimer() {
     if (timerRef.current) {
@@ -70,16 +78,24 @@ export function GlowGame({ onFinish, onBack }: Props) {
     setRunning(false)
     setFinished(true)
     setActive(null)
+    setHasCoin(false)
     const final = scoreRef.current
+    const earned = coinsRef.current
     const xp = Math.max(8, final * 5)
     onFinishRef.current({
       gameId: 'glow',
       won: final >= 7,
       score: final,
       xp,
-      label: completedRounds
-        ? `Glow Catch · ${final}/${ROUNDS}`
-        : `Glow Catch · ${final} hits`,
+      coinsEarned: earned,
+      label:
+        earned > 0
+          ? completedRounds
+            ? `Glow Catch · ${final}/${ROUNDS} · ${earned}◉`
+            : `Glow Catch · ${final} hits · ${earned}◉`
+          : completedRounds
+            ? `Glow Catch · ${final}/${ROUNDS}`
+            : `Glow Catch · ${final} hits`,
     })
   }
 
@@ -90,9 +106,12 @@ export function GlowGame({ onFinish, onBack }: Props) {
     }
 
     const cell = Math.floor(Math.random() * CELLS)
+    const coinOnCell = Math.random() < COIN_CHANCE
     const windowMs = Math.max(520, 980 - nextRound * 35)
     roundRef.current = nextRound
+    hasCoinRef.current = coinOnCell
     setActive(cell)
+    setHasCoin(coinOnCell)
     setRound(nextRound)
     setWindowLeft(Math.ceil(windowMs / 1000))
     clearTimer()
@@ -107,6 +126,8 @@ export function GlowGame({ onFinish, onBack }: Props) {
     timerRef.current = window.setTimeout(() => {
       clearTick()
       setActive(null)
+      setHasCoin(false)
+      hasCoinRef.current = false
       setMissFlash(true)
       clearMiss()
       missTimerRef.current = window.setTimeout(() => {
@@ -123,10 +144,14 @@ export function GlowGame({ onFinish, onBack }: Props) {
     clearMiss()
     reportedRef.current = false
     scoreRef.current = 0
+    coinsRef.current = 0
     roundRef.current = 0
+    hasCoinRef.current = false
     setScore(0)
+    setCoinsGrabbed(0)
     setRound(0)
     setActive(null)
+    setHasCoin(false)
     setMissFlash(false)
     setWindowLeft(0)
     setFinished(false)
@@ -146,7 +171,14 @@ export function GlowGame({ onFinish, onBack }: Props) {
       clearTick()
       scoreRef.current += 1
       setScore(scoreRef.current)
+      if (hasCoinRef.current) {
+        coinsRef.current += 1
+        setCoinsGrabbed(coinsRef.current)
+        playCoinSfx()
+      }
       setActive(null)
+      setHasCoin(false)
+      hasCoinRef.current = false
       spawnRef.current(roundRef.current + 1)
     } else {
       setMissFlash(true)
@@ -211,6 +243,7 @@ export function GlowGame({ onFinish, onBack }: Props) {
         </button>
         <div className="mini-stats">
           <span className="score-pill">Score {score}</span>
+          <span className="score-pill">◉ {coinsGrabbed}</span>
           <span>
             Round {Math.min(round, ROUNDS)}/{ROUNDS}
           </span>
@@ -222,13 +255,17 @@ export function GlowGame({ onFinish, onBack }: Props) {
         <div>
           <h2 className="section-title">Glow Catch</h2>
           <p className="section-sub">
-            Click or press 1–9 for the lit cell. When the round ends, click / Space to go again.
+            Tap the lit cell — when a coin glows with it, grab that cell to bank the coin.
           </p>
         </div>
         <div className="hud-row">
           <div className="dash-score-badge" aria-live="polite">
             <strong>{score}</strong>
             <span>Score</span>
+          </div>
+          <div className="dash-score-badge coin-grab-badge" aria-live="polite">
+            <strong>{coinsGrabbed}</strong>
+            <span>Coins</span>
           </div>
           <GameTimer seconds={seconds} total={DURATION} pulsing={running && !finished} />
         </div>
@@ -250,31 +287,45 @@ export function GlowGame({ onFinish, onBack }: Props) {
         aria-label={finished ? 'Round over — tap to play again' : undefined}
       >
         <div className="glow-grid" aria-label="Glow catch board">
-          {Array.from({ length: CELLS }, (_, i) => (
-            <button
-              key={i}
-              type="button"
-              className={`glow-cell ${active === i ? 'lit' : ''} ${finished ? 'restartable' : ''}`}
-              onPointerDown={(e) => {
-                e.preventDefault()
-                e.stopPropagation()
-                tap(i)
-              }}
-              aria-label={
-                finished
-                  ? 'Tap to play again'
-                  : active === i
-                    ? `Glowing target cell ${i + 1} — tap or press ${i + 1}`
-                    : `Cell ${i + 1}`
-              }
-            />
-          ))}
+          {Array.from({ length: CELLS }, (_, i) => {
+            const lit = active === i
+            const coinLit = lit && hasCoin
+            return (
+              <button
+                key={i}
+                type="button"
+                className={`glow-cell ${lit ? 'lit' : ''} ${coinLit ? 'has-coin' : ''} ${finished ? 'restartable' : ''}`}
+                onPointerDown={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  tap(i)
+                }}
+                aria-label={
+                  finished
+                    ? 'Tap to play again'
+                    : coinLit
+                      ? `Glowing coin cell ${i + 1} — tap or press ${i + 1} to collect`
+                      : lit
+                        ? `Glowing target cell ${i + 1} — tap or press ${i + 1}`
+                        : `Cell ${i + 1}`
+                }
+              >
+                {coinLit ? <span className="glow-coin" aria-hidden="true">◉</span> : null}
+              </button>
+            )
+          })}
         </div>
 
         {finished && (
           <div className="mini-end overlay-end">
             <p>
               Caught <strong>{score}</strong> of {ROUNDS}
+              {coinsGrabbed > 0 ? (
+                <>
+                  {' '}
+                  · grabbed <strong>{coinsGrabbed}◉</strong>
+                </>
+              ) : null}
               {score >= 7 ? ' — sharp!' : '.'}
             </p>
             <p className="section-sub memory-again-hint">

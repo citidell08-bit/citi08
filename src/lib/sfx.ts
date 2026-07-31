@@ -165,6 +165,13 @@ export function playRestartSfx(): void {
   tone(420, 0.045, { type: 'square', gain: 0.05, slideTo: 640 })
 }
 
+/** Bright coin pickup chime. */
+export function playCoinSfx(): void {
+  unlockAudio()
+  tone(980, 0.05, { type: 'square', gain: 0.055, attack: 0.002, slideTo: 1400 })
+  tone(1320, 0.08, { type: 'triangle', gain: 0.04, delay: 0.03, slideTo: 1760 })
+}
+
 function isClickable(target: EventTarget | null): Element | null {
   if (!(target instanceof Element)) return null
   if (target.closest('[data-sfx="off"]')) return null
