@@ -161,6 +161,23 @@ export function Quests({ state, onAddCustom, onRemoveCustom, onCompleteManual }:
     }
   }
 
+  function toggleForm() {
+    setShowForm((v) => {
+      const next = !v
+      if (next) {
+        queueMicrotask(() => {
+          document.getElementById('quest-create-form')?.scrollIntoView({
+            behavior: 'smooth',
+            block: 'start',
+          })
+        })
+      }
+      return next
+    })
+  }
+
+  const canAdd = customCount < MAX_CUSTOM_QUESTS
+
   return (
     <div className="quests">
       <header className="quests-header">
@@ -173,16 +190,20 @@ export function Quests({ state, onAddCustom, onRemoveCustom, onCompleteManual }:
         </div>
         <button
           type="button"
-          className="btn btn-primary"
-          onClick={() => setShowForm((v) => !v)}
-          disabled={!showForm && customCount >= MAX_CUSTOM_QUESTS}
+          className="btn btn-ember quest-add-btn"
+          onClick={toggleForm}
+          disabled={!showForm && !canAdd}
         >
-          {showForm ? 'Cancel' : 'Add my quest'}
+          {showForm ? 'Close form' : '+ Add my quest'}
         </button>
       </header>
 
       {showForm && (
-        <form className="panel quest-create" onSubmit={submitCustom}>
+        <form
+          id="quest-create-form"
+          className="panel quest-create"
+          onSubmit={submitCustom}
+        >
           <h3 className="quest-create-title">Create a quest</h3>
           <p className="section-sub">
             {customCount}/{MAX_CUSTOM_QUESTS} custom slots used. Track study/play, or mark it done
@@ -291,6 +312,17 @@ export function Quests({ state, onAddCustom, onRemoveCustom, onCompleteManual }:
         </div>
       </div>
 
+      {!showForm && (
+        <button
+          type="button"
+          className="btn btn-ember quest-add-banner"
+          onClick={toggleForm}
+          disabled={!canAdd}
+        >
+          {canAdd ? '+ Add my own quest' : `Custom limit reached (${MAX_CUSTOM_QUESTS})`}
+        </button>
+      )}
+
       {PERIOD_ORDER.map((p) => {
         const list = byPeriod(p)
         if (list.length === 0) return null
@@ -344,6 +376,17 @@ export function Quests({ state, onAddCustom, onRemoveCustom, onCompleteManual }:
           </ul>
         )}
       </section>
+
+      <div className="quest-add-dock" aria-hidden={showForm}>
+        <button
+          type="button"
+          className="btn btn-ember quest-add-dock-btn"
+          onClick={toggleForm}
+          disabled={!showForm && !canAdd}
+        >
+          {showForm ? 'Close form' : '+ Add quest'}
+        </button>
+      </div>
     </div>
   )
 }
