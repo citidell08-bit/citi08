@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=spellcharge1" />
+  <link rel="stylesheet" href="style.css?v=earthshatter1" />
 </head>
 <body>
   <div id="app">
@@ -187,6 +187,7 @@
           </div>
           <div class="hud-right">
             <button type="button" class="hud-btn hud-btn-block ready-pulse" id="btn-hud-block" title="HOLD to raise your equipped shield (also F / Shift)">🛡 BLOCK</button>
+            <button type="button" class="hud-btn hud-btn-quake hidden" id="btn-hud-quake" title="EARTHSHATTER — hold to charge (V)">⛏ QUAKE</button>
             <button type="button" class="hud-btn hud-btn-map" id="btn-map" title="Full map (M)">MAP</button>
             <button type="button" class="hud-btn" id="btn-inventory" title="Inventory (I)">Bag</button>
             <button type="button" class="hud-btn" id="btn-settings" title="Settings (Esc)">⚙</button>
@@ -254,6 +255,7 @@
           </div>
           <div class="mobile-actions">
             <button type="button" id="btn-block" class="action-btn block-btn" title="Hold to block (F)">🛡</button>
+            <button type="button" id="btn-quake" class="action-btn quake-btn hidden" title="Hold to Earthshatter (V)">⛏</button>
             <button type="button" id="btn-interact" class="action-btn">E</button>
             <button type="button" id="btn-heal" class="action-btn heal-btn" title="Drink potion (H)">H</button>
           </div>
@@ -535,7 +537,7 @@
     </div>
   </div>
 
-  <script src="script.js?v=spellcharge1"></script>
+  <script src="script.js?v=earthshatter1"></script>
   <script>
     // Fallback only — skips if main script already handled the key/button
     (function () {

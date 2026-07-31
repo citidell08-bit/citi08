@@ -333,12 +333,15 @@ const QUESTIONS = {
     lowHpWarned: false,
     blocking: false,
     blockFlash: 0,
-    attackCharge: null, // { kind:'bow'|'melee', t, max, tx, ty, fullPing, shown }
+    attackCharge: null, // { kind:'bow'|'melee'|'pick', t, max, tx, ty, fullPing, shown }
     spellCharge: null,  // { element, t, max, fullPing, shown }
     mouseWorld: { x: 0, y: 0 },
     spellCd: 0,
     spellAnim: 0,
     spellFlash: null, // { element, t }
+    quakeCd: 0,
+    quakeShake: 0,
+    quakeRing: null, // { t, max, r }
     projectiles: [],
     nextId: 1,
   };
@@ -347,6 +350,7 @@ const QUESTIONS = {
   const BOW_CHARGE_MAX = 0.85;   // hold time for full bow power
   const MELEE_CHARGE_MAX = 0.7;  // hold time for full sword power
   const SPELL_CHARGE_MAX = 0.8;  // hold time for full spell power
+  const QUAKE_CHARGE_MAX = 0.9;  // hold time for full Earthshatter
 
 
   const $ = (id) => document.getElementById(id);
@@ -916,6 +920,19 @@ const QUESTIONS = {
       tone(140, 0.05, "square", 0.08, 0, 60);
     }
 
+    function quake(power = 0.5) {
+      const p = Math.max(0, Math.min(1, power));
+      noiseBurst(0.22 + p * 0.18, 0.55 + p * 0.35, 420);
+      noiseBurst(0.16 + p * 0.12, 0.4, 180, 0.02);
+      tone(70, 0.22 + p * 0.12, "sawtooth", 0.45, 0, 35);
+      tone(110, 0.18, "square", 0.28, 0.04, 50);
+      tone(160 + p * 40, 0.14, "triangle", 0.22, 0.08, 70);
+      if (p > 0.7) {
+        noiseBurst(0.2, 0.5, 900, 0.12);
+        tone(90, 0.28, "sawtooth", 0.35, 0.1, 40);
+      }
+    }
+
     function ui() {
       tone(700, 0.04, "square", 0.05);
     }
@@ -1018,7 +1035,7 @@ const QUESTIONS = {
     return {
       unlock, setVolume, setEnabled, setMusicEnabled, syncAmbience, stopAmbience,
       swordSlash, swordHit, fist, bow, bowPull, bowFull,
-      footstep, drinkGulp, healChime, healBurst, potionPop, hurt, mine, ui,
+      footstep, drinkGulp, healChime, healBurst, potionPop, hurt, mine, quake, ui,
       chestOpen, chestLoot, block, shieldRaise, bowDry, questOk, questFail,
       portalEnter, portalExit, levelUp, equip, monsterDie, stairs, spellCast,
     };
@@ -1882,11 +1899,11 @@ const QUESTIONS = {
       const gr = state.dungeon.gateRank || "E";
       $("hud-floor").textContent = `${state.dungeon.floor}/10`;
       $("hud-biome").textContent = `${gr}-Rank · ${state.dungeon.name} · ${FLOOR_THEMES[state.dungeon.floor - 1].name}`;
-      $("combat-hint").textContent = `${gr}-Rank · Fl.${state.dungeon.floor}/10 · Tap/HOLD attack · Z/X/C spells · F/🛡 block · E`;
+      $("combat-hint").textContent = `${gr}-Rank · Fl.${state.dungeon.floor}/10 · Pick=V Earthshatter · Z/X/C · F/🛡 · E`;
     } else {
       $("hud-biome").textContent = BIOME_NAMES[biomeAt(Math.floor(state.player.x), Math.floor(state.player.y))] || "Grassland Ruins";
       if ($("combat-hint")) {
-        $("combat-hint").textContent = "Tap/HOLD attack · HOLD Z/X/C to charge spells · F/🛡 BLOCK · E";
+        $("combat-hint").textContent = "Pickaxe: HOLD attack/V = EARTHSHATTER · Z/X/C spells · F/🛡 BLOCK · E";
       }
     }
     updateBlockUI();
@@ -2131,6 +2148,7 @@ const QUESTIONS = {
     }
     updateHeldCursor();
     updateSpellUI();
+    updateQuakeUI();
   }
 
   function updateHeldCursor() {
@@ -2444,6 +2462,7 @@ const QUESTIONS = {
     if (item.pwr) stats.push(`PWR ${item.pwr}`);
     if (item.shield || (item.slot === "armor" && item.def)) stats.push("HOLD F / top-right 🛡 BLOCK");
     if (item.slot === "book") stats.push("spells Z/X/C · Fire/Water/Air");
+    if (isMineTool(item)) stats.push("EARTHSHATTER · hold attack / V");
     if (item.know) stats.push(`KNOW ${item.know}`);
     showToast(`Equipped ${item.name}${stats.length ? ` · ${stats.join(" · ")}` : ""}`);
     updateBlockUI();
@@ -3293,6 +3312,33 @@ const QUESTIONS = {
     return !!(getCombatBow() && !getCombatWeapon());
   }
 
+  /** Pickaxe in hand (or tool slot with no weapon/bow held) → Earthshatter attacks */
+  function wantsPickAttack() {
+    if (wantsBowAttack()) return false;
+    const hand = getHandItem();
+    if (hand && isMineTool(hand)) return true;
+    if (hand && (hand.slot === "weapon" || hand.slot === "bow" || hand.slot === "book")) return false;
+    return !!getCombatPick() && !getCombatWeapon();
+  }
+
+  function updateQuakeUI() {
+    const btn = $("btn-hud-quake");
+    const mob = $("btn-quake");
+    const pick = getCombatPick();
+    const ready = !!(state.running && pick && state.quakeCd <= 0 && !state.paused && !isBlocking() && state.drinkAnim <= 0);
+    for (const el of [btn, mob]) {
+      if (!el) continue;
+      el.classList.toggle("hidden", !state.running || !pick);
+      el.classList.toggle("on-cd", !!(pick && state.quakeCd > 0));
+      el.classList.toggle("ready-pulse", ready);
+      el.disabled = !ready && !!pick;
+      if (pick) {
+        const cd = state.quakeCd > 0 ? ` · ${state.quakeCd.toFixed(1)}s` : "";
+        el.title = `EARTHSHATTER (V) — hold attack/V to charge · ${pick.name}${cd}`;
+      }
+    }
+  }
+
   function clientToWorld(clientX, clientY) {
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
@@ -3344,18 +3390,26 @@ const QUESTIONS = {
       if (!getCombatBow()) return false;
       if (state.swimming) { showToast("Can't draw a bow in water!", true); return false; }
     }
+    if (kind === "pick") {
+      if (!getCombatPick()) return false;
+      if (state.quakeCd > 0) {
+        showToast(`Earthshatter cooling… ${state.quakeCd.toFixed(1)}s`);
+        return false;
+      }
+      state.mineTarget = null;
+    }
     const aimX = tx ?? (state.player.x + Math.cos(state.player.facing || 0) * 3.5);
     const aimY = ty ?? (state.player.y + Math.sin(state.player.facing || 0) * 3.5);
     state.attackCharge = {
       kind,
       t: 0,
-      max: kind === "bow" ? BOW_CHARGE_MAX : MELEE_CHARGE_MAX,
+      max: kind === "bow" ? BOW_CHARGE_MAX : kind === "pick" ? QUAKE_CHARGE_MAX : MELEE_CHARGE_MAX,
       tx: aimX,
       ty: aimY,
       fullPing: false,
       shown: false, // bar only after holding past tap window
     };
-    if (kind === "bow") {
+    if (kind === "bow" || kind === "pick") {
       state.player.facing = Math.atan2(aimY - state.player.y, aimX - state.player.x);
     }
     return true;
@@ -3403,14 +3457,18 @@ const QUESTIONS = {
       cancelAttackCharge();
       return;
     }
-    if (c.kind === "melee" && wantsBowAttack()) {
+    if (c.kind === "pick" && !wantsPickAttack()) {
+      cancelAttackCharge();
+      return;
+    }
+    if (c.kind === "melee" && (wantsBowAttack() || wantsPickAttack())) {
       cancelAttackCharge();
       return;
     }
     if (state.mouseWorld) {
       c.tx = state.mouseWorld.x;
       c.ty = state.mouseWorld.y;
-      if (c.kind === "bow" || c.shown) {
+      if (c.kind === "bow" || c.kind === "pick" || c.shown) {
         state.player.facing = Math.atan2(c.ty - state.player.y, c.tx - state.player.x);
       }
     }
@@ -3420,14 +3478,22 @@ const QUESTIONS = {
       c.shown = true;
       if (c.kind === "bow") {
         try { SFX.bowPull(); } catch (_) {}
+      } else if (c.kind === "pick") {
+        try { SFX.mine(); } catch (_) {}
+        spawnParticles(state.player.x, state.player.y, 8, "dust");
+        state.mineAnim = 0.3;
       }
       // melee: silent wind-up — slash SFX plays on release
+    }
+    if (c.kind === "pick" && c.shown) {
+      state.mineAnim = Math.max(state.mineAnim, 0.2);
+      if (Math.random() < 0.25) spawnParticles(state.player.x, state.player.y, 1, "dust");
     }
     if (!c.fullPing && c.t >= c.max) {
       c.fullPing = true;
       try { SFX.bowFull(); } catch (_) {}
-      spawnFloatText(state.player.x, state.player.y - 0.7, "FULL", "#ffe060");
-      spawnParticles(state.player.x, state.player.y, 6, "spark");
+      spawnFloatText(state.player.x, state.player.y - 0.7, c.kind === "pick" ? "QUAKE" : "FULL", c.kind === "pick" ? "#e8a040" : "#ffe060");
+      spawnParticles(state.player.x, state.player.y, c.kind === "pick" ? 12 : 6, c.kind === "pick" ? "dust" : "spark");
     }
   }
 
@@ -3492,16 +3558,19 @@ const QUESTIONS = {
     const tx = c.tx;
     const ty = c.ty;
     const wasShown = c.shown;
+    const max = c.max;
     cancelAttackCharge();
 
     // Quick tap — normal attack, no charge bonus, bar never appeared
     if (!wasShown || held < CHARGE_TAP) {
       if (kind === "bow") return shootBow(tx, ty, 0);
+      if (kind === "pick") return performPickQuake(0);
       return performMeleeSwing(0);
     }
 
-    const power = Math.max(0, Math.min(1, (held - CHARGE_TAP) / Math.max(0.01, c.max - CHARGE_TAP)));
+    const power = Math.max(0, Math.min(1, (held - CHARGE_TAP) / Math.max(0.01, max - CHARGE_TAP)));
     if (kind === "bow") return shootBow(tx, ty, power);
+    if (kind === "pick") return performPickQuake(power);
     return performMeleeSwing(power);
   }
 
@@ -3586,6 +3655,121 @@ const QUESTIONS = {
     spawnParticles(state.player.x, state.player.y, full ? 10 : 4, "spark");
     if (full) spawnFloatText(state.player.x, state.player.y - 0.55, "POWER", "#ffd060");
     try { SFX.bow(0.75 + power * 0.55); } catch (_) {}
+    return true;
+  }
+
+  /**
+   * EARTHSHATTER — overpowered pickaxe special.
+   * Tap = strong quake · full charge = absurd AoE damage + mass mining.
+   */
+  function performPickQuake(power01 = 0) {
+    if (state.drinkAnim > 0) { showToast("Drinking…"); return false; }
+    if (isBlocking()) { showToast("Lower shield to Earthshatter (release F / 🛡)"); return false; }
+    if (!state.running || state.paused) return false;
+    const pick = getCombatPick();
+    if (!pick) {
+      showToast("Hold a pickaxe on the hotbar (1–9) or equip Tool!", true);
+      return false;
+    }
+    if (state.quakeCd > 0) {
+      showToast(`Earthshatter cooling… ${state.quakeCd.toFixed(1)}s`);
+      return false;
+    }
+    if (state.hitCd > 0) return false;
+    try { SFX.unlock(); } catch (_) {}
+
+    const power = Math.max(0, Math.min(1, Number(power01) || 0));
+    const full = power >= 0.98;
+    const minePow = pick.mine || 1;
+    const stats = gearStats();
+    // Intentionally busted: huge radius + damage that melts packs
+    const radius = 2.6 + minePow * 0.65 + power * 1.8 + (full ? 0.6 : 0);
+    const base = 28 + minePow * 16 + (pick.pwr || 0) * 5 + Math.floor(stats.pwr * 0.75);
+    const dmg = Math.max(8, Math.round(base * (1 + 1.55 * power)));
+    state.mineTarget = null;
+    state.hitCd = full ? 0.35 : 0.28;
+    state.quakeCd = full ? 1.6 : 1.15; // short CD — still feels overpowered
+    state.attackAnim = full ? 0.55 : 0.42;
+    state.attackArc = radius;
+    state.mineAnim = 0.45;
+    state.quakeShake = full ? 0.55 : 0.32;
+    state.quakeRing = { t: full ? 0.55 : 0.4, max: full ? 0.55 : 0.4, r: radius };
+
+    let mined = 0;
+    const px = Math.floor(state.player.x);
+    const py = Math.floor(state.player.y);
+    const rCeil = Math.ceil(radius);
+    for (let wy = py - rCeil; wy <= py + rCeil; wy++) {
+      for (let wx = px - rCeil; wx <= px + rCeil; wx++) {
+        const dist = Math.hypot(wx + 0.5 - state.player.x, wy + 0.5 - state.player.y);
+        if (dist > radius) continue;
+        const tile = getTile(wx, wy);
+        let next = null;
+        if (tile === TILES.STONE || tile === TILES.COBBLE || tile === TILES.RUIN) {
+          next = TILES.DIRT;
+        } else if (tile === TILES.TREE && minePow >= 2) {
+          next = TILES.DIRT;
+        } else if (tile === TILES.WALL && minePow >= 3 && power >= 0.35) {
+          // Rare+ charged quakes punch dungeon walls — absurd dungeon clear
+          next = state.dungeon?.active ? TILES.FLOOR : TILES.DIRT;
+        }
+        if (next == null) continue;
+        setTile(wx, wy, next);
+        mined++;
+        if (Math.random() < 0.55 + power * 0.35) {
+          spawnParticles(wx + 0.5, wy + 0.5, full ? 6 : 3, "dust");
+        }
+      }
+    }
+
+    let hits = 0;
+    for (const m of iterCombatMobs()) {
+      const dist = Math.hypot(m.x - state.player.x, m.y - state.player.y);
+      if (dist > radius) continue;
+      damageMonster(m, dmg, { silent: true });
+      hits++;
+      const ang = Math.atan2(m.y - state.player.y, m.x - state.player.x);
+      const knock = 1.1 + power * 1.4 + minePow * 0.15;
+      m.x += Math.cos(ang) * knock;
+      m.y += Math.sin(ang) * knock;
+      m.hitCd = Math.max(m.hitCd || 0, 0.55 + power * 0.55);
+      m.slowT = Math.max(m.slowT || 0, 0.8 + power * 0.9);
+      spawnFloatText(m.x, m.y - 0.45, String(dmg), full ? "#ffe060" : "#e8a040");
+      spawnParticles(m.x, m.y, full ? 14 : 8, "dust");
+    }
+
+    const stoneBonus = Math.min(12, Math.floor(mined * (0.35 + power * 0.4)));
+    for (let i = 0; i < stoneBonus; i++) {
+      addItem({ key: "stone_chunk", name: "Stone Chunk", type: "material", rarity: "common", uid: uid(), slot: null });
+    }
+    if (mined > 0 || stoneBonus > 0) {
+      state.kp += Math.min(20, mined + (full ? 4 : 1));
+      updateInventoryUI();
+      updateHotbarUI();
+    }
+
+    spawnParticles(state.player.x, state.player.y, full ? 36 : 22, "dust");
+    spawnParticles(state.player.x, state.player.y, full ? 16 : 8, "spark");
+    spawnFloatText(
+      state.player.x,
+      state.player.y - 0.75,
+      full ? "EARTHSHATTER!!" : (power > 0.2 ? "QUAKE" : "SMASH"),
+      full ? "#ffe060" : "#e8a040"
+    );
+    try { SFX.quake(power); } catch (_) {}
+    try { if (full) SFX.bowFull(); } catch (_) {}
+
+    const bits = [];
+    if (hits) bits.push(`${hits} foe${hits > 1 ? "s" : ""} (${dmg} dmg)`);
+    if (mined) bits.push(`${mined} tiles crushed`);
+    if (stoneBonus) bits.push(`+${stoneBonus} stone`);
+    showToast(
+      full
+        ? `⛏ EARTHSHATTER!! ${bits.join(" · ") || "ground broken"}`
+        : `⛏ Quake · ${bits.join(" · ") || "smash"}`
+    );
+    updateHUD();
+    updateQuakeUI();
     return true;
   }
 
@@ -3827,7 +4011,7 @@ const QUESTIONS = {
     state.player.facing = Math.atan2(world.y - state.player.y, world.x - state.player.x);
     const dist = Math.hypot(world.x - state.player.x, world.y - state.player.y);
 
-    // Mining click on stone (pick in hand or tool slot)
+    // Mining click on stone (pick in hand or tool slot) — still works for precise mining
     const ttile = getTile(Math.floor(world.x), Math.floor(world.y));
     const handPick = getCombatPick();
     if (handPick && [TILES.STONE, TILES.COBBLE, TILES.RUIN].includes(ttile) && dist < 2.4) {
@@ -3838,6 +4022,7 @@ const QUESTIONS = {
     // Start hold — tap release = quick attack; hold longer = charge bar + power
     e.preventDefault();
     if (wantsBowAttack()) startAttackCharge("bow", world.x, world.y);
+    else if (wantsPickAttack()) startAttackCharge("pick", world.x, world.y);
     else startAttackCharge("melee", world.x, world.y);
   }
 
@@ -3871,6 +4056,10 @@ const QUESTIONS = {
     if (wantsBowAttack()) {
       const ang = state.player.facing || 0;
       shootBow(state.player.x + Math.cos(ang) * 3.5, state.player.y + Math.sin(ang) * 3.5, 0);
+      return;
+    }
+    if (wantsPickAttack()) {
+      performPickQuake(0);
       return;
     }
     performMeleeSwing(0);
@@ -4179,6 +4368,15 @@ const QUESTIONS = {
     if (state.hitCd > 0) state.hitCd -= dt;
     if (state.hurtCd > 0) state.hurtCd -= dt;
     if (state.blockFlash > 0) state.blockFlash = Math.max(0, state.blockFlash - dt);
+    if (state.quakeCd > 0) {
+      state.quakeCd = Math.max(0, state.quakeCd - dt);
+      if (state.quakeCd <= 0) updateQuakeUI();
+    }
+    if (state.quakeShake > 0) state.quakeShake = Math.max(0, state.quakeShake - dt);
+    if (state.quakeRing) {
+      state.quakeRing.t -= dt;
+      if (state.quakeRing.t <= 0) state.quakeRing = null;
+    }
     if (state.spellCd > 0) {
       state.spellCd = Math.max(0, state.spellCd - dt);
       if (state.spellCd <= 0) updateSpellUI();
@@ -5152,7 +5350,11 @@ const QUESTIONS = {
 
     const fov = state.settings.fov;
     const tileSize = Math.max(10, Math.floor(Math.min(w, h) / fov));
-    const camX = state.player.x, camY = state.player.y;
+    const shake = state.quakeShake > 0
+      ? (Math.sin(state.animT * 55) * 0.12 + Math.cos(state.animT * 37) * 0.08) * (state.quakeShake / 0.55)
+      : 0;
+    const camX = state.player.x + shake;
+    const camY = state.player.y - shake * 0.7;
     const tilesX = Math.ceil(w / tileSize) + 2;
     const tilesY = Math.ceil(h / tileSize) + 2;
     const startX = Math.floor(camX - w / (2 * tileSize));
@@ -5202,8 +5404,29 @@ const QUESTIONS = {
       pxRect(mpx + 2, mpy - 4, (tileSize - 4) * pct, 3, "#ffe060");
     }
 
+    // Earthshatter shockwave ring
+    if (state.quakeRing) {
+      const qr = state.quakeRing;
+      const life = Math.max(0, qr.t / qr.max);
+      const rad = qr.r * tileSize * (1.05 - life * 0.15);
+      ctx.strokeStyle = `rgba(232,160,64,${0.15 + life * 0.55})`;
+      ctx.lineWidth = 2 + life * 4;
+      ctx.beginPath();
+      ctx.arc(w / 2, h / 2, rad, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.strokeStyle = `rgba(255,230,120,${life * 0.45})`;
+      ctx.lineWidth = 1 + life * 2;
+      ctx.beginPath();
+      ctx.arc(w / 2, h / 2, rad * 0.72, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = `rgba(180,100,40,${life * 0.12})`;
+      ctx.beginPath();
+      ctx.arc(w / 2, h / 2, rad, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
     // Melee attack arc visual (matches short hit cone) — bright “shing” flash
-    if (state.attackAnim > 0 && state.attackArc > 0) {
+    if (state.attackAnim > 0 && state.attackArc > 0 && !state.quakeRing) {
       const rad = state.attackArc * tileSize;
       const half = MELEE_ARC / 2;
       const flash = Math.min(1, state.attackAnim / 0.32);
@@ -5279,12 +5502,13 @@ const QUESTIONS = {
       let fillCol = "#90a0b8";
       if (ratio >= 1) fillCol = "#ffe060";
       else if (kind === "spell") fillCol = SPELLS[spellEl]?.color || "#d080ff";
+      else if (kind === "pick") fillCol = ratio > 0.55 ? "#e8a040" : "#a06830";
       else if (kind === "bow") fillCol = ratio > 0.55 ? "#e0a040" : "#c07040";
       else fillCol = ratio > 0.55 ? "#d0d8e8" : "#90a0b8";
       pxRect(bx, by, Math.max(1, Math.floor(bw * ratio)), bh, fillCol);
       if (ratio >= 1) {
         ctx.globalAlpha = 0.45 + Math.sin(state.animT * 12) * 0.25;
-        pxRect(bx - 2, by - 2, bw + 4, bh + 4, kind === "spell" ? (SPELLS[spellEl]?.glow || "#ffe080") : "#ffe080");
+        pxRect(bx - 2, by - 2, bw + 4, bh + 4, kind === "spell" ? (SPELLS[spellEl]?.glow || "#ffe080") : kind === "pick" ? "#ffc060" : "#ffe080");
         ctx.globalAlpha = 1;
       }
     }
@@ -5811,6 +6035,9 @@ const QUESTIONS = {
     state.spellCd = 0;
     state.spellAnim = 0;
     state.spellFlash = null;
+    state.quakeCd = 0;
+    state.quakeShake = 0;
+    state.quakeRing = null;
     // Spawn with empty inventory / no equipped gear — loot quests, chests, dungeons
     state.inventory = [];
     state.slots = Array(INV_SIZE).fill(null);
@@ -5835,10 +6062,11 @@ const QUESTIONS = {
     requestAnimationFrame(() => {
       resizeCanvas();
       draw();
-      showToast("Empty pack — loot gear. Equip a book: tap Z/X/C or hold to charge spells. HOLD F / 🛡 BLOCK with a shield.");
+      showToast("Empty pack — loot a pickaxe for EARTHSHATTER (V). Books: Z/X/C. HOLD F / 🛡 BLOCK.");
       updateSessionTimerUI();
       updateBlockUI();
       updateSpellUI();
+      updateQuakeUI();
     });
   }
 
@@ -5859,6 +6087,7 @@ const QUESTIONS = {
     $("combat-hint").classList.add("hidden");
     $("hud-floor-wrap").classList.add("hidden");
     updateSpellUI();
+    updateQuakeUI();
   }
 
   function applyMobileVisibility() {
@@ -6056,6 +6285,22 @@ const QUESTIONS = {
       setBlocking(true);
       return;
     }
+    if (e.code === "KeyV" || e.key === "v" || e.key === "V") {
+      if (!state.running || state.paused) return;
+      if (modalIsOpen("quest-modal") || modalIsOpen("boss-modal") || modalIsOpen("result-modal") || modalIsOpen("inventory-modal") || modalIsOpen("settings-modal") || isMapOpen()) return;
+      if (e.repeat) return;
+      e.preventDefault();
+      try { SFX.unlock(); } catch (_) {}
+      if (!getCombatPick()) {
+        showToast("Hold a pickaxe to Earthshatter (hotbar / Tool slot)!", true);
+        return;
+      }
+      const ang = state.player.facing || 0;
+      const aimX = state.mouseWorld?.x ?? (state.player.x + Math.cos(ang) * 3.5);
+      const aimY = state.mouseWorld?.y ?? (state.player.y + Math.sin(ang) * 3.5);
+      startAttackCharge("pick", aimX, aimY);
+      return;
+    }
     if (e.code === "Space") {
       if (!state.running || state.paused) return;
       if (modalIsOpen("quest-modal") || modalIsOpen("boss-modal") || modalIsOpen("result-modal") || modalIsOpen("inventory-modal") || modalIsOpen("settings-modal") || isMapOpen()) return;
@@ -6066,6 +6311,7 @@ const QUESTIONS = {
       const aimX = state.mouseWorld?.x ?? (state.player.x + Math.cos(ang) * 3.5);
       const aimY = state.mouseWorld?.y ?? (state.player.y + Math.sin(ang) * 3.5);
       if (wantsBowAttack()) startAttackCharge("bow", aimX, aimY);
+      else if (wantsPickAttack()) startAttackCharge("pick", aimX, aimY);
       else startAttackCharge("melee", aimX, aimY);
       return;
     }
@@ -6130,7 +6376,7 @@ const QUESTIONS = {
       || e.code === "KeyQ" || e.key === "q" || e.key === "Q") {
       setBlocking(false);
     }
-    if (e.code === "Space") {
+    if (e.code === "Space" || e.code === "KeyV" || e.key === "v" || e.key === "V") {
       if (state.attackCharge) releaseAttackCharge();
     }
     if (e.code === "KeyZ" || e.key === "z" || e.key === "Z"
@@ -6374,6 +6620,31 @@ const QUESTIONS = {
   }
   bindBlockButton($("btn-block"));
   bindBlockButton($("btn-hud-block"));
+  function bindQuakeButton(el) {
+    if (!el) return;
+    el.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      try { el.setPointerCapture(e.pointerId); } catch (_) {}
+      if (!getCombatPick()) {
+        showToast("Hold a pickaxe to Earthshatter!", true);
+        return;
+      }
+      const ang = state.player.facing || 0;
+      startAttackCharge(
+        "pick",
+        state.mouseWorld?.x ?? (state.player.x + Math.cos(ang) * 3.5),
+        state.mouseWorld?.y ?? (state.player.y + Math.sin(ang) * 3.5)
+      );
+    });
+    const release = (e) => {
+      e.preventDefault();
+      if (state.attackCharge?.kind === "pick") releaseAttackCharge();
+    };
+    el.addEventListener("pointerup", release);
+    el.addEventListener("pointercancel", release);
+  }
+  bindQuakeButton($("btn-hud-quake"));
+  bindQuakeButton($("btn-quake"));
   // Hold LMB to charge bow / tap for melee; release LMB to fire charged shot
   canvas.addEventListener("pointerdown", handleCanvasPointerDown);
   window.addEventListener("pointerup", handleCanvasPointerUp);
