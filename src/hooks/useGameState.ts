@@ -431,15 +431,18 @@ export function useGameState() {
       let next = { ...prev, decks: [deck, ...prev.decks] }
       next = unlock(next, 'deck_maker')
       next = awardXp(next, 15, 'New deck forged')
-      return next
+      next = checkAchievements(next)
+      return persist(next)
     })
   }
 
   function renameCompanion(name: string) {
-    setState((prev) => ({
-      ...prev,
-      companionName: name.trim() || prev.companionName,
-    }))
+    setState((prev) =>
+      persist({
+        ...prev,
+        companionName: name.trim() || prev.companionName,
+      }),
+    )
   }
 
   function dismissLevelUp() {

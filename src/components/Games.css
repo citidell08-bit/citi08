@@ -249,8 +249,9 @@
   font-size: clamp(1.85rem, 6.5vw, 2.75rem);
   touch-action: manipulation;
   user-select: none;
+  -webkit-tap-highlight-color: transparent;
   transition:
-    transform 90ms ease,
+    transform 70ms ease,
     background 160ms ease,
     border-color 160ms ease,
     box-shadow 160ms ease;
@@ -266,6 +267,10 @@
   transform: translateY(-2px) scale(1.02);
   border-color: rgba(56, 189, 248, 0.55);
   box-shadow: 0 0 18px rgba(14, 165, 233, 0.2);
+}
+
+.memory-tile:active:not(:disabled) {
+  transform: scale(0.96);
 }
 
 .memory-tile.open {
@@ -350,7 +355,15 @@
   background: rgba(0, 0, 0, 0.28);
   touch-action: manipulation;
   user-select: none;
-  transition: background 40ms ease, box-shadow 40ms ease, transform 40ms ease;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background 40ms ease,
+    box-shadow 40ms ease,
+    transform 40ms ease;
+}
+
+.glow-cell:active {
+  transform: scale(0.95);
 }
 
 .glow-cell.lit {

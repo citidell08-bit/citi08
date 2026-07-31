@@ -125,7 +125,14 @@ function App() {
               <strong className="coin-inline">+{levelUp.coins} coins</strong>
               {levelUp.coins > COINS_PER_LEVEL ? ' across those levels' : ''}.
             </p>
-            <button type="button" className="btn btn-primary" onClick={dismissLevelUp}>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => {
+                unlockAudio()
+                dismissLevelUp()
+              }}
+            >
               Collect coins
             </button>
           </div>
