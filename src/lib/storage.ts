@@ -1,10 +1,16 @@
 import { DEFAULT_ACHIEVEMENTS } from '../data/achievements'
-import { generateDailyQuests } from '../data/quests'
+import {
+  generateAllQuests,
+  generateDailyQuests,
+  generateMonthlyQuests,
+  generateWeeklyQuests,
+} from '../data/quests'
 import { SAMPLE_DECK } from '../data/sampleDecks'
-import type { GameState, MiniGameId, Quest } from '../types'
-import { todayKey, uid } from './dates'
+import type { GameState, MiniGameId, Quest, QuestPeriod } from '../types'
+import { monthKey, todayKey, weekKey } from './dates'
 
 const VALID_GAMES: MiniGameId[] = ['memory', 'math', 'glow', 'dash']
+const VALID_PERIODS: QuestPeriod[] = ['daily', 'weekly', 'monthly']
 
 const STORAGE_KEY = 'kith.game.v1'
 const STARTER_COINS = 100
@@ -29,8 +35,10 @@ export function createInitialState(): GameState {
     longestStreak: 0,
     lastActiveDate: null,
     decks: [SAMPLE_DECK],
-    quests: generateDailyQuests(),
+    quests: generateAllQuests(),
     questDate: todayKey(),
+    questWeek: weekKey(),
+    questMonth: monthKey(),
     achievements: DEFAULT_ACHIEVEMENTS.map((a) => ({ ...a })),
     companionName: 'Ember',
     xpHistory: [],
@@ -42,7 +50,7 @@ export function loadState(): GameState {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return createInitialState()
     const parsed = JSON.parse(raw) as Partial<GameState>
-    const base = {
+    const base: GameState = {
       ...createInitialState(),
       ...parsed,
       coins: typeof parsed.coins === 'number' ? Math.max(0, parsed.coins) : STARTER_COINS,
@@ -54,13 +62,15 @@ export function loadState(): GameState {
       ownedGames: normalizeOwnedGames(parsed.ownedGames),
       achievements: mergeAchievements(parsed.achievements),
       quests: normalizeQuests(parsed.quests),
+      questDate: typeof parsed.questDate === 'string' ? parsed.questDate : null,
+      questWeek: typeof parsed.questWeek === 'string' ? parsed.questWeek : null,
+      questMonth: typeof parsed.questMonth === 'string' ? parsed.questMonth : null,
       decks:
         Array.isArray(parsed.decks) && parsed.decks.length > 0
           ? parsed.decks
           : createInitialState().decks,
     }
 
-    // Existing saves: grant a one-time 100-coin starter pack for testing / first arcade visit
     if (!base.starterGranted) {
       base.coins += STARTER_COINS
       base.totalCoinsEarned += STARTER_COINS
@@ -93,26 +103,22 @@ function mergeAchievements(
 }
 
 function normalizeQuests(quests: Quest[] | undefined): Quest[] {
-  const defaults = generateDailyQuests()
-  const defaultByType = new Map(defaults.map((q) => [q.type, q]))
-  const list = (quests ?? defaults).map((q) => ({
-    ...q,
-    coinReward: q.coinReward ?? defaultByType.get(q.type)?.coinReward ?? 10,
-  }))
-
-  if (!list.some((q) => q.type === 'games_played')) {
-    list.push({
-      id: uid('quest'),
-      title: 'Play Break',
-      description: 'Play 2 mini-games with your coins.',
-      target: 2,
-      progress: 0,
-      xpReward: 25,
-      coinReward: 18,
-      completed: false,
-      type: 'games_played',
-    })
+  if (!Array.isArray(quests) || quests.length === 0) {
+    return generateAllQuests()
   }
 
-  return list
+  const list = quests.map((q) => ({
+    ...q,
+    period: VALID_PERIODS.includes(q.period) ? q.period : ('daily' as QuestPeriod),
+    coinReward: typeof q.coinReward === 'number' ? q.coinReward : 10,
+    completed: Boolean(q.completed),
+    progress: typeof q.progress === 'number' ? q.progress : 0,
+    target: typeof q.target === 'number' ? q.target : 1,
+  }))
+
+  const next = [...list]
+  if (!next.some((q) => q.period === 'daily')) next.push(...generateDailyQuests())
+  if (!next.some((q) => q.period === 'weekly')) next.push(...generateWeeklyQuests())
+  if (!next.some((q) => q.period === 'monthly')) next.push(...generateMonthlyQuests())
+  return next
 }

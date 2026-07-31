@@ -1,7 +1,7 @@
 import { startTransition, useEffect, useState } from 'react'
-import { generateDailyQuests } from '../data/quests'
+import { generateQuestsForPeriod, PERIOD_LABEL } from '../data/quests'
 import { COINS_PER_ACHIEVEMENT, coinsForLevelsGained, GAME_COSTS } from '../lib/coins'
-import { todayKey, uid, yesterdayKey } from '../lib/dates'
+import { monthKey, todayKey, uid, weekKey, yesterdayKey } from '../lib/dates'
 import { levelFromXp } from '../lib/xp'
 import { createInitialState, loadState, saveState } from '../lib/storage'
 import type {
@@ -12,8 +12,11 @@ import type {
   MiniGameId,
   MiniGameResult,
   Quest,
+  QuestPeriod,
   Toast,
 } from '../types'
+
+const PERIODS: QuestPeriod[] = ['daily', 'weekly', 'monthly']
 
 export function useGameState() {
   const [state, setState] = useState<GameState>(() => loadState())
@@ -25,9 +28,21 @@ export function useGameState() {
   }, [state])
 
   useEffect(() => {
-    startTransition(() => {
-      setState((prev) => refreshDaily(prev))
-    })
+    const refresh = () => {
+      startTransition(() => {
+        setState((prev) => refreshQuests(prev))
+      })
+    }
+    refresh()
+    const onVis = () => {
+      if (document.visibilityState === 'visible') refresh()
+    }
+    window.addEventListener('focus', refresh)
+    document.addEventListener('visibilitychange', onVis)
+    return () => {
+      window.removeEventListener('focus', refresh)
+      document.removeEventListener('visibilitychange', onVis)
+    }
   }, [])
 
   function pushToast(message: string, extras?: { xp?: number; coins?: number }) {
@@ -101,7 +116,7 @@ export function useGameState() {
     prev: GameState,
     updater: (quests: Quest[]) => Quest[],
   ): GameState {
-    const quests = updater(prev.quests).map((q) => ({ ...q }))
+    let quests = updater(prev.quests).map((q) => ({ ...q }))
     let next: GameState = { ...prev, quests }
     let bonusXp = 0
     let bonusCoins = 0
@@ -128,8 +143,23 @@ export function useGameState() {
       )
     }
 
-    if (quests.every((q) => q.completed)) {
-      next = unlock(next, 'quest_clear')
+    // When a whole period board is cleared, unlock + roll a fresh set immediately
+    for (const period of PERIODS) {
+      const inPeriod = quests.filter((q) => q.period === period)
+      if (inPeriod.length === 0) continue
+      if (!inPeriod.every((q) => q.completed)) continue
+
+      if (period === 'daily') next = unlock(next, 'quest_clear')
+      if (period === 'weekly') next = unlock(next, 'quest_week')
+      if (period === 'monthly') next = unlock(next, 'quest_month')
+
+      const fresh = generateQuestsForPeriod(period)
+      quests = [...quests.filter((q) => q.period !== period), ...fresh]
+      next = { ...next, quests }
+
+      queueMicrotask(() =>
+        pushToast(`${PERIOD_LABEL[period]} quests cleared — fresh set ready!`),
+      )
     }
 
     return next
@@ -140,7 +170,9 @@ export function useGameState() {
     type: Quest['type'],
     amount: number,
   ): GameState {
-    return withQuests(prev, (quests) =>
+    // Always apply period rollover before progress so midnight/week turns are live
+    const rolled = refreshQuests(prev)
+    return withQuests(rolled, (quests) =>
       quests.map((q) =>
         q.type === type && !q.completed
           ? { ...q, progress: Math.min(q.target, q.progress + amount) }
@@ -316,7 +348,7 @@ export function useGameState() {
   function resetProgress() {
     const name = state.companionName
     const decks = state.decks
-    const initial = refreshDaily({
+    const initial = refreshQuests({
       ...createInitialState(),
       companionName: name,
       decks,
@@ -341,12 +373,44 @@ export function useGameState() {
   }
 }
 
-function refreshDaily(state: GameState): GameState {
+/** Roll daily / weekly / monthly boards when their calendar period changes. */
+export function refreshQuests(state: GameState): GameState {
   const today = todayKey()
-  if (state.questDate === today) return state
-  return {
-    ...state,
-    quests: generateDailyQuests(),
-    questDate: today,
+  const week = weekKey()
+  const month = monthKey()
+  let quests = [...state.quests]
+  let changed = false
+  let questDate = state.questDate
+  let questWeek = state.questWeek
+  let questMonth = state.questMonth
+
+  if (questDate !== today) {
+    quests = [...quests.filter((q) => q.period !== 'daily'), ...generateQuestsForPeriod('daily')]
+    questDate = today
+    changed = true
   }
+  if (questWeek !== week) {
+    quests = [...quests.filter((q) => q.period !== 'weekly'), ...generateQuestsForPeriod('weekly')]
+    questWeek = week
+    changed = true
+  }
+  if (questMonth !== month) {
+    quests = [
+      ...quests.filter((q) => q.period !== 'monthly'),
+      ...generateQuestsForPeriod('monthly'),
+    ]
+    questMonth = month
+    changed = true
+  }
+
+  // Ensure each period has at least one quest board
+  for (const period of PERIODS) {
+    if (!quests.some((q) => q.period === period)) {
+      quests = [...quests, ...generateQuestsForPeriod(period)]
+      changed = true
+    }
+  }
+
+  if (!changed) return state
+  return { ...state, quests, questDate, questWeek, questMonth }
 }

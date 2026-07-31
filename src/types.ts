@@ -15,6 +15,9 @@ export interface Deck {
   createdAt: string
 }
 
+export type QuestPeriod = 'daily' | 'weekly' | 'monthly'
+export type QuestType = 'focus_minutes' | 'cards_reviewed' | 'sessions' | 'games_played'
+
 export interface Quest {
   id: string
   title: string
@@ -24,7 +27,8 @@ export interface Quest {
   xpReward: number
   coinReward: number
   completed: boolean
-  type: 'focus_minutes' | 'cards_reviewed' | 'sessions' | 'games_played'
+  type: QuestType
+  period: QuestPeriod
 }
 
 export interface Achievement {
@@ -64,7 +68,12 @@ export interface GameState {
   lastActiveDate: string | null
   decks: Deck[]
   quests: Quest[]
+  /** Local YYYY-MM-DD when daily quests were issued. */
   questDate: string | null
+  /** Local YYYY-Www when weekly quests were issued. */
+  questWeek: string | null
+  /** Local YYYY-MM when monthly quests were issued. */
+  questMonth: string | null
   achievements: Achievement[]
   companionName: string
   xpHistory: XpEvent[]

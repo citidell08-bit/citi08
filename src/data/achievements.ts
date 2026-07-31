@@ -46,8 +46,22 @@ export const DEFAULT_ACHIEVEMENTS: Achievement[] = [
   {
     id: 'quest_clear',
     title: 'Quest Cleared',
-    description: 'Complete all daily quests in a day.',
+    description: 'Clear a full daily quest board.',
     icon: 'scroll',
+    unlockedAt: null,
+  },
+  {
+    id: 'quest_week',
+    title: 'Week Cleared',
+    description: 'Clear a full weekly quest board.',
+    icon: 'crown',
+    unlockedAt: null,
+  },
+  {
+    id: 'quest_month',
+    title: 'Month Cleared',
+    description: 'Clear a full monthly quest board.',
+    icon: 'star',
     unlockedAt: null,
   },
   {

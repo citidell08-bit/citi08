@@ -3,6 +3,36 @@
   gap: 1rem;
 }
 
+.quest-period {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.quest-period-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.quest-period-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  letter-spacing: -0.03em;
+}
+
+.quest-period-count {
+  flex-shrink: 0;
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  background: var(--ember-soft);
+  color: var(--ember);
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
 .quest-summary {
   padding: 1rem 1.2rem;
   display: flex;

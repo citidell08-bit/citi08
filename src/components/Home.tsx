@@ -21,7 +21,8 @@ export function Home({ state, onNavigate, onRename, onReset }: Props) {
           <p className="eyebrow">Gamified study companion</p>
           <h1 className="brand-mark">Cyber Kith</h1>
           <p className="lede">
-            Clear quests for coins, level up, then spend coins on timed arcade games with{' '}
+            Clear daily, weekly, and monthly quests for coins, level up, then spend coins in the
+            arcade with{' '}
             {state.companionName}.
           </p>
           <div className="hero-actions">

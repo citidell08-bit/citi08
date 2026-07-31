@@ -63,7 +63,8 @@ export function Games({ state, onComplete, onSpend, onNavigate }: Props) {
   const rewardedRef = useRef(new Set<string>())
 
   const questsDone = state.quests.filter((q) => q.completed).length
-  const arcadeUnlocked = questsDone > 0 || state.totalCoinsEarned > 0
+  const arcadeUnlocked =
+    questsDone > 0 || state.totalCoinsEarned > 0 || state.totalSessions > 0 || state.totalGamesPlayed > 0
   const owned = new Set(state.ownedGames)
 
   const handleFinish = useCallback(
