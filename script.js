@@ -286,7 +286,7 @@ const QUESTIONS = {
     overworldReturn: { x: 8.5, y: 8.5 },
     player: { x: 8.5, y: 8.5, facing: 0 },
     keys: Object.create(null),
-    settings: { fov: 11, renderDist: 6, speed: 1, minimap: true, particles: true, sound: true, sfxVolume: 0.75, forceMobile: false },
+    settings: { fov: 11, renderDist: 6, speed: 1, minimap: true, particles: true, sound: true, music: true, sfxVolume: 0.75, forceMobile: false },
     floatTexts: [],
     drinkSfxCd: 0,
     chunks: new Map(),
@@ -328,11 +328,19 @@ const QUESTIONS = {
   miniCtx.imageSmoothingEnabled = false;
   if (fullMapCtx) fullMapCtx.imageSmoothingEnabled = false;
 
-  /** Synthesized SFX via Web Audio (no external asset files). */
+  /** Synthesized SFX + ambient beds via Web Audio (no external asset files). */
   const SFX = (() => {
     let ac = null;
     let master = null;
+    let ambBus = null;
     let pendingVol = 0.75;
+    let ambMode = null; // "dungeon" | "forest" | "none"
+    let ambMoving = false;
+    let ambNodes = [];
+    let ambTimers = [];
+    let ambGains = {};
+    let forestRustleGain = null;
+    let lastSyncKey = "";
 
     function applyMasterGain() {
       if (!master) return;
@@ -350,6 +358,9 @@ const QUESTIONS = {
           master = ac.createGain();
           applyMasterGain();
           master.connect(ac.destination);
+          ambBus = ac.createGain();
+          ambBus.gain.value = 0.9;
+          ambBus.connect(master);
         }
         if (ac.state === "suspended") {
           ac.resume().catch(() => {});
@@ -366,6 +377,10 @@ const QUESTIONS = {
       return !!(state.settings.sound && (state.settings.sfxVolume ?? pendingVol) > 0.01);
     }
 
+    function musicOn() {
+      return enabled() && state.settings.music !== false;
+    }
+
     function level() {
       return Math.max(0, Math.min(1, state.settings.sfxVolume ?? pendingVol));
     }
@@ -379,9 +394,17 @@ const QUESTIONS = {
     function setEnabled(on) {
       state.settings.sound = !!on;
       applyMasterGain();
+      if (!on) stopAmbience(true);
+      else lastSyncKey = "";
     }
 
-    function tone(freq, dur, type, gain, delay = 0, freqEnd = null) {
+    function setMusicEnabled(on) {
+      state.settings.music = !!on;
+      lastSyncKey = "";
+      if (!on) stopAmbience(true);
+    }
+
+    function tone(freq, dur, type, gain, delay = 0, freqEnd = null, dest = null) {
       try {
         const ctx = ensure();
         if (!ctx || !enabled() || !master) return;
@@ -398,13 +421,13 @@ const QUESTIONS = {
         g.gain.exponentialRampToValueAtTime(v, t0 + 0.012);
         g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
         o.connect(g);
-        g.connect(master);
+        g.connect(dest || master);
         o.start(t0);
         o.stop(t0 + dur + 0.03);
       } catch (_) { /* never break gameplay for audio */ }
     }
 
-    function noiseBurst(dur, gain, filterFreq = 1800, delay = 0) {
+    function noiseBurst(dur, gain, filterFreq = 1800, delay = 0, dest = null) {
       try {
         const ctx = ensure();
         if (!ctx || !enabled() || !master) return;
@@ -424,10 +447,202 @@ const QUESTIONS = {
         g.gain.exponentialRampToValueAtTime(0.0001, t0 + Math.max(0.01, dur));
         src.connect(filt);
         filt.connect(g);
-        g.connect(master);
+        g.connect(dest || master);
         src.start(t0);
         src.stop(t0 + Math.max(0.01, dur) + 0.02);
       } catch (_) { /* never break gameplay for audio */ }
+    }
+
+    function makeNoiseBuffer(seconds, color = "white") {
+      const ctx = ensure();
+      if (!ctx) return null;
+      const n = Math.max(1, Math.floor(ctx.sampleRate * seconds));
+      const buf = ctx.createBuffer(1, n, ctx.sampleRate);
+      const data = buf.getChannelData(0);
+      let last = 0;
+      for (let i = 0; i < n; i++) {
+        const white = Math.random() * 2 - 1;
+        if (color === "brown") {
+          last = (last + 0.02 * white) / 1.02;
+          data[i] = last * 3.5;
+        } else if (color === "pink") {
+          last = 0.97 * last + 0.03 * white;
+          data[i] = last * 2.2;
+        } else {
+          data[i] = white;
+        }
+      }
+      return buf;
+    }
+
+    function startLoopNoise({ color, filterType, filterFreq, q, gain, dest }) {
+      const ctx = ensure();
+      if (!ctx || !ambBus) return null;
+      const buf = makeNoiseBuffer(2.5, color);
+      if (!buf) return null;
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      src.loop = true;
+      const filt = ctx.createBiquadFilter();
+      filt.type = filterType || "lowpass";
+      filt.frequency.value = filterFreq || 800;
+      filt.Q.value = q || 0.7;
+      const g = ctx.createGain();
+      g.gain.value = Math.max(0.0001, gain * level());
+      src.connect(filt);
+      filt.connect(g);
+      g.connect(dest || ambBus);
+      src.start();
+      ambNodes.push(src);
+      return { src, filt, g };
+    }
+
+    function startDrone(freq, type, gain) {
+      const ctx = ensure();
+      if (!ctx || !ambBus) return null;
+      const o = ctx.createOscillator();
+      o.type = type || "sine";
+      o.frequency.value = freq;
+      const g = ctx.createGain();
+      g.gain.value = Math.max(0.0001, gain * level());
+      o.connect(g);
+      g.connect(ambBus);
+      o.start();
+      ambNodes.push(o);
+      return { o, g };
+    }
+
+    function clearAmbTimers() {
+      for (const t of ambTimers) clearTimeout(t);
+      ambTimers = [];
+    }
+
+    function stopAmbience(force) {
+      clearAmbTimers();
+      for (const n of ambNodes) {
+        try { if (n.stop) n.stop(); } catch (_) {}
+        try { if (n.disconnect) n.disconnect(); } catch (_) {}
+      }
+      ambNodes = [];
+      ambGains = {};
+      forestRustleGain = null;
+      ambMode = null;
+      lastSyncKey = "";
+    }
+
+    function schedule(fn, ms) {
+      const id = setTimeout(() => {
+        ambTimers = ambTimers.filter((x) => x !== id);
+        try { fn(); } catch (_) {}
+      }, ms);
+      ambTimers.push(id);
+      return id;
+    }
+
+    function startDungeonMusic() {
+      const ctx = ensure();
+      if (!ctx || !musicOn()) return;
+      // Dark drones
+      startDrone(49, "sine", 0.07);
+      startDrone(73.5, "triangle", 0.035);
+      startDrone(98, "sine", 0.02);
+      // Cave air / rumble
+      startLoopNoise({ color: "brown", filterType: "lowpass", filterFreq: 180, gain: 0.045 });
+      // Sparse dripping
+      const drip = () => {
+        if (ambMode !== "dungeon") return;
+        const f = 700 + Math.random() * 900;
+        tone(f, 0.12, "sine", 0.035, 0, f * 0.4, ambBus);
+        schedule(drip, 1400 + Math.random() * 2200);
+      };
+      schedule(drip, 800);
+      // Minor-ish ambient motif (procedural “music”)
+      const motif = [110, 130.81, 146.83, 164.81, 146.83, 123.47, 110, 98];
+      let i = 0;
+      const playMotif = () => {
+        if (ambMode !== "dungeon") return;
+        const f = motif[i % motif.length];
+        i += 1;
+        tone(f, 0.85, "triangle", 0.045, 0, f * 0.92, ambBus);
+        tone(f * 1.5, 0.7, "sine", 0.018, 0.05, f * 1.4, ambBus);
+        schedule(playMotif, 820 + (i % 4 === 0 ? 400 : 0));
+      };
+      schedule(playMotif, 400);
+    }
+
+    function birdChirp() {
+      if (ambMode !== "forest" || !musicOn()) return;
+      const base = 1800 + Math.random() * 1400;
+      tone(base, 0.07, "sine", 0.045, 0, base * 1.25, ambBus);
+      tone(base * 1.15, 0.08, "sine", 0.035, 0.06, base * 0.9, ambBus);
+      if (Math.random() < 0.45) {
+        tone(base * 0.95, 0.06, "triangle", 0.03, 0.14, base * 1.2, ambBus);
+      }
+    }
+
+    function startForestNature() {
+      const ctx = ensure();
+      if (!ctx || !musicOn()) return;
+      // Wind / canopy
+      const wind = startLoopNoise({ color: "pink", filterType: "bandpass", filterFreq: 650, q: 0.6, gain: 0.04 });
+      if (wind) ambGains.wind = wind.g;
+      // Leaf bed
+      const leaves = startLoopNoise({ color: "brown", filterType: "bandpass", filterFreq: 1200, q: 0.9, gain: 0.028 });
+      if (leaves) {
+        ambGains.leaves = leaves.g;
+        forestRustleGain = leaves.g;
+      }
+      // Soft forest pad
+      startDrone(174.61, "sine", 0.012);
+      startDrone(220, "triangle", 0.008);
+      // Birds
+      const birds = () => {
+        if (ambMode !== "forest") return;
+        birdChirp();
+        const wait = ambMoving ? (700 + Math.random() * 1100) : (1600 + Math.random() * 2800);
+        schedule(birds, wait);
+      };
+      schedule(birds, 500 + Math.random() * 800);
+    }
+
+    function setForestMoving(moving) {
+      ambMoving = !!moving;
+      if (ambMode !== "forest" || !forestRustleGain) return;
+      try {
+        const ctx = ensure();
+        if (!ctx) return;
+        const target = (moving ? 0.055 : 0.028) * level();
+        forestRustleGain.gain.cancelScheduledValues(ctx.currentTime);
+        forestRustleGain.gain.linearRampToValueAtTime(Math.max(0.0001, target), ctx.currentTime + 0.12);
+      } catch (_) {}
+    }
+
+    function forestStepRustle() {
+      if (ambMode !== "forest" || !musicOn()) return;
+      noiseBurst(0.09, 0.1, 1400, 0, ambBus);
+      noiseBurst(0.06, 0.06, 2400, 0.02, ambBus);
+      if (Math.random() < 0.22) birdChirp();
+    }
+
+    function syncAmbience({ running, dungeon, biome, moving }) {
+      try {
+        const want = !running || !musicOn()
+          ? "none"
+          : dungeon
+            ? "dungeon"
+            : (biome === "forest" ? "forest" : "none");
+        const key = `${want}|${musicOn() ? 1 : 0}|${enabled() ? 1 : 0}`;
+        if (key !== lastSyncKey) {
+          lastSyncKey = key;
+          if (want !== ambMode) {
+            stopAmbience(false);
+            ambMode = want;
+            if (want === "dungeon") startDungeonMusic();
+            else if (want === "forest") startForestNature();
+          }
+        }
+        if (want === "forest") setForestMoving(moving);
+      } catch (_) {}
     }
 
     function swordSlash() {
@@ -465,6 +680,10 @@ const QUESTIONS = {
         tone(95 * jit, 0.045, "triangle", 0.09, 0, 48);
       } else if (surface === "sand") {
         noiseBurst(0.07 * jit, 0.13, 900);
+      } else if (surface === "forest") {
+        noiseBurst(0.055 * jit, 0.12, 1100);
+        tone(90 * jit, 0.04, "sine", 0.05, 0, 40);
+        forestStepRustle();
       } else {
         noiseBurst(0.04 * jit, 0.11, 750);
         tone(72 * jit, 0.045, "sine", 0.07, 0, 38);
@@ -503,9 +722,29 @@ const QUESTIONS = {
       tone(700, 0.04, "square", 0.05);
     }
 
+    function chestOpen() {
+      // Wooden creak + lid lift
+      noiseBurst(0.18, 0.28, 380);
+      tone(160, 0.16, "sawtooth", 0.09, 0, 70);
+      tone(240, 0.12, "triangle", 0.08, 0.08, 420);
+      noiseBurst(0.1, 0.16, 1600, 0.14);
+      tone(520, 0.08, "sine", 0.07, 0.18, 900);
+    }
+
+    function chestLoot() {
+      // Sparkly loot jingle
+      tone(880, 0.1, "sine", 0.12, 0);
+      tone(1174.7, 0.12, "triangle", 0.1, 0.07);
+      tone(1568, 0.16, "sine", 0.11, 0.14);
+      tone(2093, 0.2, "sine", 0.07, 0.22);
+      noiseBurst(0.12, 0.1, 3200, 0.05);
+    }
+
     return {
-      unlock, setVolume, setEnabled, swordSlash, swordHit, fist, bow,
+      unlock, setVolume, setEnabled, setMusicEnabled, syncAmbience, stopAmbience,
+      swordSlash, swordHit, fist, bow,
       footstep, drinkGulp, healChime, potionPop, hurt, mine, ui,
+      chestOpen, chestLoot,
     };
   })();
 
@@ -1276,6 +1515,8 @@ const QUESTIONS = {
     state.hp = state.maxHp;
     updateDungeonUI();
     showToast(`${gateRank}-Rank Gate entered [${DIFFICULTY[diffKey].label}] · ${gen.theme.name}`);
+    SFX.unlock();
+    SFX.syncAmbience({ running: true, dungeon: true, biome: "dungeon", moving: false });
   }
 
   function leaveDungeon() {
@@ -1287,6 +1528,8 @@ const QUESTIONS = {
     if (!isNight()) state.nightMobs = [];
     updateDungeonUI();
     showToast(isNight() ? "Returned under the night sky…" : "Returned to the overworld.");
+    const biome = biomeAt(Math.floor(state.player.x), Math.floor(state.player.y));
+    SFX.syncAmbience({ running: true, dungeon: false, biome, moving: false });
   }
 
   function nextDungeonFloor() {
@@ -2310,6 +2553,7 @@ const QUESTIONS = {
     updateHUD();
     const names = loot.map((l) => l.name).join(", ");
     showToast(`Opened chest! +${names}`);
+    SFX.chestLoot();
     showResult("Chest Loot!", `You found: ${names}. Press I to Equip gear or Use potions (H = quick heal).`);
   }
 
@@ -2323,6 +2567,8 @@ const QUESTIONS = {
     chest.openT = 0;
     spawnParticles((chest.wx ?? chest.x) + 0.5, (chest.wy ?? chest.y) + 0.35, 6, "spark");
     showToast("Opening chest…");
+    SFX.unlock();
+    SFX.chestOpen();
   }
 
   function updateChests(dt) {
@@ -2942,6 +3188,10 @@ const QUESTIONS = {
     if (state.bubbleCd > 0) state.bubbleCd -= dt;
     if (state.drownCd > 0) state.drownCd -= dt;
 
+    const biome = state.dungeon?.active
+      ? "dungeon"
+      : biomeAt(Math.floor(state.player.x), Math.floor(state.player.y));
+
     if (moving && state.footstepCd <= 0) {
       if (state.swimming) {
         spawnParticles(state.player.x, state.player.y + 0.15, 3, "splash");
@@ -2950,20 +3200,29 @@ const QUESTIONS = {
       } else {
         const ground = getTile(Math.floor(state.player.x), Math.floor(state.player.y));
         let surface = "grass";
-        if (ground === TILES.STONE || ground === TILES.COBBLE || ground === TILES.FLOOR || ground === TILES.WALL || ground === TILES.RUIN) {
+        if (biome === "forest") {
+          surface = "forest";
+        } else if (ground === TILES.STONE || ground === TILES.COBBLE || ground === TILES.FLOOR || ground === TILES.WALL || ground === TILES.RUIN) {
           surface = "stone";
         } else if (ground === TILES.SAND) {
           surface = "sand";
         } else if (ground === TILES.DIRT || ground === TILES.PATH) {
           surface = "dirt";
         }
-        if (ground === TILES.SAND || ground === TILES.DIRT || ground === TILES.PATH || ground === TILES.GRASS) {
+        if (ground === TILES.SAND || ground === TILES.DIRT || ground === TILES.PATH || ground === TILES.GRASS || ground === TILES.TREE) {
           spawnParticles(state.player.x, state.player.y + 0.35, 2, "dust");
         }
         SFX.footstep(surface);
         state.footstepCd = 0.32 / Math.max(0.7, state.settings.speed || 1);
       }
     }
+
+    SFX.syncAmbience({
+      running: state.running,
+      dungeon: !!state.dungeon?.active,
+      biome,
+      moving,
+    });
 
     // Breath + bubbles while swimming
     if (state.swimming) {
@@ -4364,6 +4623,7 @@ const QUESTIONS = {
     state.paused = false;
     state.dungeon = null;
     state.nightMobs = [];
+    SFX.stopAmbience(true);
     ["settings-modal", "inventory-modal", "map-modal", "quest-modal", "boss-modal", "result-modal", "dungeon-modal", "session-modal"].forEach(closeModal);
     $("game-screen").classList.remove("active");
     $("start-screen").classList.add("active");
@@ -4713,6 +4973,24 @@ const QUESTIONS = {
       SFX.unlock();
       SFX.setEnabled(e.target.checked);
       if (e.target.checked) SFX.ui();
+    });
+  }
+  if ($("setting-music")) {
+    $("setting-music").addEventListener("change", (e) => {
+      SFX.unlock();
+      SFX.setMusicEnabled(e.target.checked);
+      if (e.target.checked && state.running) {
+        const biome = state.dungeon?.active
+          ? "dungeon"
+          : biomeAt(Math.floor(state.player.x), Math.floor(state.player.y));
+        SFX.syncAmbience({
+          running: true,
+          dungeon: !!state.dungeon?.active,
+          biome,
+          moving: false,
+        });
+        SFX.ui();
+      }
     });
   }
   if ($("setting-sfx-volume")) {
