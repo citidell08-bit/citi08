@@ -46,17 +46,25 @@ function bus(): GainNode | null {
   return master
 }
 
+/** Shared graph for SFX + BGM (same AudioContext). */
+export function getAudioGraph(): { ac: AudioContext; master: GainNode } | null {
+  const ac = ensureRunning()
+  if (!ac || !master) return null
+  return { ac, master }
+}
+
 /** Unlock / resume audio from any user gesture. Safe to call often. */
 export function unlockAudio(): void {
-  const ac = ensureRunning()
-  if (!ac || !master) return
+  const graph = getAudioGraph()
+  if (!graph) return
+  const { ac, master: out } = graph
   // Warm the graph so the first real SFX isn't dropped on some browsers.
   try {
     const osc = ac.createOscillator()
     const g = ac.createGain()
     g.gain.value = 0.00001
     osc.connect(g)
-    g.connect(master)
+    g.connect(out)
     const t = ac.currentTime
     osc.start(t)
     osc.stop(t + 0.01)

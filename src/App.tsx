@@ -8,9 +8,11 @@ import { Quests } from './components/Quests'
 import { ThemeStore } from './components/ThemeStore'
 import { useFocusSession } from './hooks/useFocusSession'
 import { useGameState } from './hooks/useGameState'
+import { installBgm } from './lib/bgm'
 import { installClickSfx, playAccessGrantedSfx, unlockAudio } from './lib/sfx'
 import type { MiniGameId, Tab } from './types'
 import { Companion } from './components/Companion'
+import { MusicToggle } from './components/MusicToggle'
 import { COINS_PER_LEVEL } from './lib/coins'
 import './App.css'
 
@@ -36,6 +38,7 @@ function App() {
   const lastLevelFanfare = useRef<number | null>(null)
 
   useEffect(() => installClickSfx(), [])
+  useEffect(() => installBgm(), [])
 
   useEffect(() => {
     if (levelUp == null) return
@@ -59,6 +62,7 @@ function App() {
       <div className="coin-chip" aria-label={`${state.coins} coins`}>
         <span aria-hidden="true">◉</span> {state.coins}
       </div>
+      <MusicToggle />
 
       {tab === 'home' && (
         <Home state={state} onNavigate={changeTab} onRename={renameCompanion} />
